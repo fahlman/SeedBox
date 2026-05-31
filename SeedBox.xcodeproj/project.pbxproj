@@ -1,0 +1,212 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B00100000000000000000001 /* SeedBoxApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000001 /* SeedBoxApp.swift */; };
+		B00100000000000000000002 /* LauncherView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000002 /* LauncherView.swift */; };
+		B00100000000000000000003 /* LauncherViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000003 /* LauncherViewModel.swift */; };
+		B00100000000000000000004 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000004 /* SettingsView.swift */; };
+		B00100000000000000000005 /* SecurityScopedFolderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000005 /* SecurityScopedFolderAccess.swift */; };
+		B00100000000000000000006 /* ModLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000006 /* ModLibrary.swift */; };
+		B00100000000000000000007 /* ModFolderSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000007 /* ModFolderSeeder.swift */; };
+		B00100000000000000000008 /* SMAPILauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000008 /* SMAPILauncher.swift */; };
+		B00100000000000000000009 /* StardewInstall.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000009 /* StardewInstall.swift */; };
+		B00100000000000000000010 /* StardewInstallLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000010 /* StardewInstallLocator.swift */; };
+		B00100000000000000000011 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000011 /* AppIcon.icns */; };
+		B00200000000000000000001 /* StardewInstallTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00200000000000000000001 /* StardewInstallTests.swift */; };
+		B00200000000000000000006 /* ModLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000006 /* ModLibrary.swift */; };
+		B00200000000000000000007 /* ModFolderSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000007 /* ModFolderSeeder.swift */; };
+		B00200000000000000000008 /* SMAPILauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000008 /* SMAPILauncher.swift */; };
+		B00200000000000000000009 /* StardewInstall.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000009 /* StardewInstall.swift */; };
+		B00200000000000000000010 /* StardewInstallLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000010 /* StardewInstallLocator.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		F00100000000000000000001 /* SeedBoxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedBoxApp.swift; sourceTree = "<group>"; };
+		F00100000000000000000002 /* LauncherView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherView.swift; sourceTree = "<group>"; };
+		F00100000000000000000003 /* LauncherViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherViewModel.swift; sourceTree = "<group>"; };
+		F00100000000000000000004 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		F00100000000000000000005 /* SecurityScopedFolderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityScopedFolderAccess.swift; sourceTree = "<group>"; };
+		F00100000000000000000006 /* ModLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModLibrary.swift; sourceTree = "<group>"; };
+		F00100000000000000000007 /* ModFolderSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModFolderSeeder.swift; sourceTree = "<group>"; };
+		F00100000000000000000008 /* SMAPILauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SMAPILauncher.swift; sourceTree = "<group>"; };
+		F00100000000000000000009 /* StardewInstall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StardewInstall.swift; sourceTree = "<group>"; };
+		F00100000000000000000010 /* StardewInstallLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StardewInstallLocator.swift; sourceTree = "<group>"; };
+		F00100000000000000000011 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
+		F00100000000000000000012 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		F00100000000000000000013 /* Sandbox.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Sandbox.entitlements; sourceTree = "<group>"; };
+		F00200000000000000000001 /* StardewInstallTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StardewInstallTests.swift; sourceTree = "<group>"; };
+		F00300000000000000000001 /* Seed Box.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Seed Box.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F00300000000000000000002 /* SeedBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SeedBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		P00100000000000000000003 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = ( ); runOnlyForDeploymentPostprocessing = 0; };
+		P00200000000000000000003 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = ( ); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		G00000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				G00100000000000000000001 /* SeedBox */,
+				G00200000000000000000001 /* SeedBoxTests */,
+				G00300000000000000000001 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		G00100000000000000000001 /* SeedBox */ = {
+			isa = PBXGroup;
+			children = (
+				F00100000000000000000001 /* SeedBoxApp.swift */,
+				F00100000000000000000002 /* LauncherView.swift */,
+				F00100000000000000000003 /* LauncherViewModel.swift */,
+				F00100000000000000000004 /* SettingsView.swift */,
+				F00100000000000000000005 /* SecurityScopedFolderAccess.swift */,
+				G00100000000000000000002 /* Core */,
+				G00100000000000000000003 /* Resources */,
+				F00100000000000000000012 /* Info.plist */,
+				F00100000000000000000013 /* Sandbox.entitlements */,
+			);
+			path = SeedBox;
+			sourceTree = "<group>";
+		};
+		G00100000000000000000002 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				F00100000000000000000006 /* ModLibrary.swift */,
+				F00100000000000000000007 /* ModFolderSeeder.swift */,
+				F00100000000000000000008 /* SMAPILauncher.swift */,
+				F00100000000000000000009 /* StardewInstall.swift */,
+				F00100000000000000000010 /* StardewInstallLocator.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		G00100000000000000000003 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				F00100000000000000000011 /* AppIcon.icns */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		G00200000000000000000001 /* SeedBoxTests */ = {
+			isa = PBXGroup;
+			children = (
+				F00200000000000000000001 /* StardewInstallTests.swift */,
+			);
+			path = SeedBoxTests;
+			sourceTree = "<group>";
+		};
+		G00300000000000000000001 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F00300000000000000000001 /* Seed Box.app */,
+				F00300000000000000000002 /* SeedBoxTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		T00100000000000000000001 /* Seed Box */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C00100000000000000000003 /* Build configuration list for PBXNativeTarget "Seed Box" */;
+			buildPhases = (
+				P00100000000000000000001 /* Sources */,
+				P00100000000000000000002 /* Resources */,
+				P00100000000000000000003 /* Frameworks */,
+			);
+			buildRules = ( );
+			dependencies = ( );
+			name = "Seed Box";
+			productName = "Seed Box";
+			productReference = F00300000000000000000001 /* Seed Box.app */;
+			productType = "com.apple.product-type.application";
+		};
+		T00200000000000000000001 /* SeedBoxTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C00200000000000000000003 /* Build configuration list for PBXNativeTarget "SeedBoxTests" */;
+			buildPhases = (
+				P00200000000000000000001 /* Sources */,
+				P00200000000000000000002 /* Resources */,
+				P00200000000000000000003 /* Frameworks */,
+			);
+			buildRules = ( );
+			dependencies = ( );
+			name = SeedBoxTests;
+			productName = SeedBoxTests;
+			productReference = F00300000000000000000002 /* SeedBoxTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		PRJ000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					T00100000000000000000001 = {
+						CreatedOnToolsVersion = 26.5;
+					};
+					T00200000000000000000001 = {
+						CreatedOnToolsVersion = 26.5;
+					};
+				};
+			};
+			buildConfigurationList = C00000000000000000000003 /* Build configuration list for PBXProject "SeedBox" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = G00000000000000000000001;
+			productRefGroup = G00300000000000000000001 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				T00100000000000000000001 /* Seed Box */,
+				T00200000000000000000001 /* SeedBoxTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		P00100000000000000000002 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = ( B00100000000000000000011 /* AppIcon.icns in Resources */, ); runOnlyForDeploymentPostprocessing = 0; };
+		P00200000000000000000002 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = ( ); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		P00100000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = ( B00100000000000000000001, B00100000000000000000002, B00100000000000000000003, B00100000000000000000004, B00100000000000000000005, B00100000000000000000006, B00100000000000000000007, B00100000000000000000008, B00100000000000000000009, B00100000000000000000010, ); runOnlyForDeploymentPostprocessing = 0; };
+		P00200000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = ( B00200000000000000000001, B00200000000000000000006, B00200000000000000000007, B00200000000000000000008, B00200000000000000000009, B00200000000000000000010, ); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		C00000000000000000000001 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; CLANG_WARN_BOOL_CONVERSION = YES; CLANG_WARN_CONSTANT_CONVERSION = YES; CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES; CLANG_WARN_EMPTY_BODY = YES; CLANG_WARN_ENUM_CONVERSION = YES; CLANG_WARN_INT_CONVERSION = YES; CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES; CLANG_WARN_UNREACHABLE_CODE = YES; COPY_PHASE_STRIP = NO; DEBUG_INFORMATION_FORMAT = dwarf; ENABLE_STRICT_OBJC_MSGSEND = YES; ENABLE_TESTABILITY = YES; GCC_C_LANGUAGE_STANDARD = gnu17; GCC_DYNAMIC_NO_PIC = NO; GCC_NO_COMMON_BLOCKS = YES; GCC_OPTIMIZATION_LEVEL = 0; GCC_PREPROCESSOR_DEFINITIONS = ("DEBUG=1", "$(inherited)"); MACOSX_DEPLOYMENT_TARGET = 13.0; MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE; SDKROOT = macosx; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_VERSION = 5.0; }; name = Debug; };
+		C00000000000000000000002 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; CLANG_WARN_BOOL_CONVERSION = YES; CLANG_WARN_CONSTANT_CONVERSION = YES; CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES; CLANG_WARN_EMPTY_BODY = YES; CLANG_WARN_ENUM_CONVERSION = YES; CLANG_WARN_INT_CONVERSION = YES; CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES; CLANG_WARN_UNREACHABLE_CODE = YES; COPY_PHASE_STRIP = NO; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; ENABLE_NS_ASSERTIONS = NO; ENABLE_STRICT_OBJC_MSGSEND = YES; GCC_C_LANGUAGE_STANDARD = gnu17; GCC_NO_COMMON_BLOCKS = YES; MACOSX_DEPLOYMENT_TARGET = 13.0; MTL_ENABLE_DEBUG_INFO = NO; SDKROOT = macosx; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_OPTIMIZATION_LEVEL = "-O"; SWIFT_VERSION = 5.0; VALIDATE_PRODUCT = YES; }; name = Release; };
+		C00100000000000000000001 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_IDENTITY = "-"; CODE_SIGN_STYLE = Manual; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; ENABLE_HARDENED_RUNTIME = YES; EXECUTABLE_NAME = SeedBox; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = SeedBox/Info.plist; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks"); MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.fahlsing.SeedBox; PRODUCT_NAME = "Seed Box"; SWIFT_MODULE_NAME = SeedBox; SWIFT_VERSION = 5.0; }; name = Debug; };
+		C00100000000000000000002 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_IDENTITY = "-"; CODE_SIGN_STYLE = Manual; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; ENABLE_HARDENED_RUNTIME = YES; EXECUTABLE_NAME = SeedBox; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = SeedBox/Info.plist; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks"); MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.fahlsing.SeedBox; PRODUCT_NAME = "Seed Box"; SWIFT_MODULE_NAME = SeedBox; SWIFT_VERSION = 5.0; }; name = Release; };
+		C00200000000000000000001 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = YES; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.fahlsing.SeedBoxTests; PRODUCT_NAME = SeedBoxTests; SWIFT_VERSION = 5.0; TEST_HOST = ""; }; name = Debug; };
+		C00200000000000000000002 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = YES; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.fahlsing.SeedBoxTests; PRODUCT_NAME = SeedBoxTests; SWIFT_VERSION = 5.0; TEST_HOST = ""; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		C00000000000000000000003 /* Build configuration list for PBXProject "SeedBox" */ = {isa = XCConfigurationList; buildConfigurations = (C00000000000000000000001 /* Debug */, C00000000000000000000002 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		C00100000000000000000003 /* Build configuration list for PBXNativeTarget "Seed Box" */ = {isa = XCConfigurationList; buildConfigurations = (C00100000000000000000001 /* Debug */, C00100000000000000000002 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		C00200000000000000000003 /* Build configuration list for PBXNativeTarget "SeedBoxTests" */ = {isa = XCConfigurationList; buildConfigurations = (C00200000000000000000001 /* Debug */, C00200000000000000000002 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = PRJ000000000000000000001 /* Project object */;
+}

@@ -1,5 +1,4 @@
 import XCTest
-@testable import SeedBoxCore
 
 final class StardewInstallTests: XCTestCase {
     private var temporaryDirectory: URL!

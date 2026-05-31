@@ -31,51 +31,38 @@ Seed Box is becoming a SMAPI mod-set manager:
 ## Requirements
 
 - macOS 13 or newer
-- Xcode command line tools for building from source
+- Xcode 15 or newer
 - Stardew Valley installed on macOS
 - [SMAPI](https://smapi.io/) installed into Stardew Valley
 
 ## Build
 
+Open `SeedBox.xcodeproj` in Xcode and run the **Seed Box** scheme.
+
+Command line verification:
+
 ```sh
-swift test
-scripts/build-app.sh
+xcodebuild -project SeedBox.xcodeproj -scheme "Seed Box" -destination "platform=macOS" test
 ```
 
-The app bundle is written to:
+The project uses ad-hoc signing for local Debug/Release builds. Release
+distribution should use a Developer ID certificate and notarization.
 
-```text
-dist/Seed Box.app
-```
+## Sandbox Notes
 
-The build script ad-hoc signs the app for local use. Release distribution should
-use a Developer ID certificate and notarization.
-
-### Optional Sandbox Build
-
-The default build is intentionally not sandboxed, because SMAPI and Stardew mods
-expect normal access to the game folder and child processes may inherit sandbox
-limits.
+The default app target is intentionally not sandboxed, because SMAPI and Stardew
+mods expect normal access to the game folder and child processes may inherit
+sandbox limits.
 
 The app is sandbox-aware, though:
 
 - choosing the Stardew folder stores a security-scoped bookmark
 - file validation, mod-folder creation, symlink setup, and launch all use that
   saved folder access when available
-- an experimental sandbox entitlement file is included at
-  `Packaging/Sandbox.entitlements`
-
-To produce a sandbox-signed test build:
-
-```sh
-SANDBOX=1 scripts/build-app.sh
-```
-
-For general releases, use the default build with Developer ID signing and
-notarization.
+- `SeedBox/Sandbox.entitlements` is included as a starting point for a future
+  sandbox experiment
 
 ## Legacy App
 
 Seed Box was split out of the old Platypus-based SVE launcher. The old generated
-bundle has been removed; maintained source lives under `Sources/`, and generated
-app bundles come from `scripts/build-app.sh`.
+bundle has been removed; maintained source now lives in this Xcode project.

@@ -1,5 +1,4 @@
 import SwiftUI
-import SeedBoxCore
 
 struct LauncherView: View {
     @ObservedObject var viewModel: LauncherViewModel

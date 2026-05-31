@@ -1,6 +1,5 @@
 import AppKit
 import Foundation
-import SeedBoxCore
 
 @MainActor
 final class LauncherViewModel: ObservableObject {
