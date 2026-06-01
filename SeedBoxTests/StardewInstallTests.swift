@@ -56,6 +56,67 @@ final class StardewInstallTests: XCTestCase {
         )
     }
 
+    func testKnownDefaultModsDirectoryDetectionIsFalseWhenNeitherExists() {
+        let home = temporaryDirectory.appendingPathComponent("Home", isDirectory: true)
+        let applicationsDirectory = temporaryDirectory.appendingPathComponent("Applications", isDirectory: true)
+
+        XCTAssertFalse(
+            StardewInstall.hasAnyKnownDefaultModsDirectory(
+                homeDirectory: home,
+                applicationsDirectory: applicationsDirectory
+            )
+        )
+    }
+
+    func testKnownDefaultModsDirectoryDetectionFindsSteamMods() throws {
+        let home = temporaryDirectory.appendingPathComponent("Home", isDirectory: true)
+        let applicationsDirectory = temporaryDirectory.appendingPathComponent("Applications", isDirectory: true)
+        let steamModsDirectory = home
+            .appendingPathComponent("Library")
+            .appendingPathComponent("Application Support")
+            .appendingPathComponent("Steam")
+            .appendingPathComponent("steamapps")
+            .appendingPathComponent("common")
+            .appendingPathComponent("Stardew Valley")
+            .appendingPathComponent("Contents")
+            .appendingPathComponent("MacOS")
+            .appendingPathComponent("Mods")
+
+        try FileManager.default.createDirectory(
+            at: steamModsDirectory,
+            withIntermediateDirectories: true
+        )
+
+        XCTAssertTrue(
+            StardewInstall.hasAnyKnownDefaultModsDirectory(
+                homeDirectory: home,
+                applicationsDirectory: applicationsDirectory
+            )
+        )
+    }
+
+    func testKnownDefaultModsDirectoryDetectionFindsGOGMods() throws {
+        let home = temporaryDirectory.appendingPathComponent("Home", isDirectory: true)
+        let applicationsDirectory = temporaryDirectory.appendingPathComponent("Applications", isDirectory: true)
+        let gogModsDirectory = applicationsDirectory
+            .appendingPathComponent("Stardew Valley.app")
+            .appendingPathComponent("Contents")
+            .appendingPathComponent("MacOS")
+            .appendingPathComponent("Mods")
+
+        try FileManager.default.createDirectory(
+            at: gogModsDirectory,
+            withIntermediateDirectories: true
+        )
+
+        XCTAssertTrue(
+            StardewInstall.hasAnyKnownDefaultModsDirectory(
+                homeDirectory: home,
+                applicationsDirectory: applicationsDirectory
+            )
+        )
+    }
+
     func testDefaultPathPrefersSteamWhenBothSteamAndGOGExist() throws {
         let home = temporaryDirectory.appendingPathComponent("Home", isDirectory: true)
         let applicationsDirectory = temporaryDirectory.appendingPathComponent("Applications", isDirectory: true)

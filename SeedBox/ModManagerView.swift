@@ -79,6 +79,9 @@ private struct HeaderBar: View {
             let disabledCount = viewModel.mods.count - enabledCount
             return "\(enabledCount) enabled, \(disabledCount) disabled in \(viewModel.modFolderName)."
         }
+        if viewModel.isSMAPILikelyMissing {
+            return "SMAPI not detected in Steam or GOG."
+        }
         if !viewModel.hasSavedFolderAccess {
             return "Choose your Mods folder."
         }
@@ -286,6 +289,9 @@ private struct SetupEmptyState: View {
     }
 
     private var setupTitle: String {
+        if viewModel.isSMAPILikelyMissing {
+            return "SMAPI Not Installed"
+        }
         if !viewModel.hasSavedFolderAccess {
             return "Choose Mods Folder"
         }
@@ -293,6 +299,9 @@ private struct SetupEmptyState: View {
     }
 
     private var setupDetail: String {
+        if viewModel.isSMAPILikelyMissing {
+            return "No default Mods folder was found in Steam or GOG locations."
+        }
         if !viewModel.hasSavedFolderAccess {
             return "Select the Mods folder Seed Box should manage."
         }

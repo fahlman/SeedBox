@@ -13,6 +13,7 @@ final class ModManagerViewModel: ObservableObject {
     @Published private(set) var mods: [ModInfo]
     @Published private(set) var activityMessage: String
     @Published private(set) var hasSavedFolderAccess: Bool
+    @Published private(set) var isSMAPILikelyMissing: Bool
 
     private let defaults: UserDefaults
     private let folderAccess: SecurityScopedFolderAccess
@@ -34,6 +35,7 @@ final class ModManagerViewModel: ObservableObject {
         mods = []
         activityMessage = ""
         hasSavedFolderAccess = folderAccess.hasBookmark
+        isSMAPILikelyMissing = false
 
         status = StardewInstall(
             modsDirectory: URL(fileURLWithPath: initialDirectoryPath, isDirectory: true)
@@ -57,6 +59,7 @@ final class ModManagerViewModel: ObservableObject {
         status = withFolderAccess {
             install.status()
         } ?? install.status()
+        refreshSMAPIHint()
         reloadMods()
     }
 
@@ -177,6 +180,16 @@ final class ModManagerViewModel: ObservableObject {
     private func persistAndRefresh() {
         defaults.set(modsDirectoryPath, forKey: Keys.modsDirectoryPath)
         refresh()
+    }
+
+    private func refreshSMAPIHint() {
+        // Only infer missing SMAPI when the user has not picked a custom folder yet.
+        if hasSavedFolderAccess {
+            isSMAPILikelyMissing = false
+            return
+        }
+
+        isSMAPILikelyMissing = !StardewInstall.hasAnyKnownDefaultModsDirectory()
     }
 
     private func reloadMods() {

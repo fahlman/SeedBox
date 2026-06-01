@@ -9,11 +9,10 @@ public struct StardewInstall: Equatable {
         self.modsDirectory = modsDirectory.standardizedFileURL
     }
 
-    public static func defaultModsDirectory(
+    public static func knownDefaultModsDirectories(
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
-        applicationsDirectory: URL = URL(fileURLWithPath: "/Applications", isDirectory: true),
-        fileManager: FileManager = .default
-    ) -> URL {
+        applicationsDirectory: URL = URL(fileURLWithPath: "/Applications", isDirectory: true)
+    ) -> [URL] {
         let steamModsDirectory = homeDirectory
             .appendingPathComponent("Library")
             .appendingPathComponent("Application Support")
@@ -31,11 +30,41 @@ public struct StardewInstall: Equatable {
             .appendingPathComponent("MacOS")
             .appendingPathComponent(modFolderName)
 
-        let candidates = [steamModsDirectory, gogModsDirectory]
+        return [steamModsDirectory, gogModsDirectory]
+    }
+
+    public static func hasAnyKnownDefaultModsDirectory(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+        applicationsDirectory: URL = URL(fileURLWithPath: "/Applications", isDirectory: true),
+        fileManager: FileManager = .default
+    ) -> Bool {
+        knownDefaultModsDirectories(
+            homeDirectory: homeDirectory,
+            applicationsDirectory: applicationsDirectory
+        ).contains { candidate in
+            fileManager.directoryExists(at: candidate)
+        }
+    }
+
+    public static func defaultModsDirectory(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+        applicationsDirectory: URL = URL(fileURLWithPath: "/Applications", isDirectory: true),
+        fileManager: FileManager = .default
+    ) -> URL {
+        let candidates = knownDefaultModsDirectories(
+            homeDirectory: homeDirectory,
+            applicationsDirectory: applicationsDirectory
+        )
+
+        if let existingModsDirectory = candidates.first(where: { candidate in
+            fileManager.directoryExists(at: candidate)
+        }) {
+            return existingModsDirectory
+        }
 
         return candidates.first { candidate in
             fileManager.directoryExists(at: candidate.deletingLastPathComponent())
-        } ?? steamModsDirectory
+        } ?? candidates[0]
     }
 
     public var modDirectoryURL: URL {
