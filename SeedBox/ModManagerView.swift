@@ -1,9 +1,8 @@
 import SwiftUI
 
-struct LauncherView: View {
-    @ObservedObject var viewModel: LauncherViewModel
+struct ModManagerView: View {
+    @ObservedObject var viewModel: ModManagerViewModel
     @State private var searchText = ""
-    @State private var showOutput = false
 
     private var filteredMods: [ModInfo] {
         guard !searchText.isEmpty else {
@@ -23,35 +22,25 @@ struct LauncherView: View {
 
             Divider()
 
-            VStack(spacing: 0) {
-                ToolbarBar(
-                    viewModel: viewModel,
-                    searchText: $searchText
+            ToolbarBar(
+                viewModel: viewModel,
+                searchText: $searchText
+            )
+
+            Divider()
+
+            if viewModel.status.modDirectoryExists {
+                ModList(
+                    mods: filteredMods,
+                    viewModel: viewModel
                 )
+            } else {
+                SetupEmptyState(viewModel: viewModel)
+            }
 
+            if !viewModel.activityMessage.isEmpty {
                 Divider()
-
-                if viewModel.status.modDirectoryExists {
-                    ModList(
-                        mods: filteredMods,
-                        viewModel: viewModel
-                    )
-                } else {
-                    SetupEmptyState(viewModel: viewModel)
-                }
-
-                Divider()
-
-                DisclosureGroup(isExpanded: $showOutput) {
-                    ConsoleView(output: viewModel.output)
-                        .padding(.horizontal, 18)
-                        .padding(.bottom, 18)
-                } label: {
-                    Label("SMAPI Output", systemImage: "text.alignleft")
-                        .font(.headline)
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 12)
-                }
+                ActivityBar(message: viewModel.activityMessage)
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
@@ -59,7 +48,7 @@ struct LauncherView: View {
 }
 
 private struct HeaderBar: View {
-    @ObservedObject var viewModel: LauncherViewModel
+    @ObservedObject var viewModel: ModManagerViewModel
 
     var body: some View {
         HStack(spacing: 14) {
@@ -79,41 +68,26 @@ private struct HeaderBar: View {
             }
 
             Spacer()
-
-            Button {
-                viewModel.stop()
-            } label: {
-                Label("Stop", systemImage: "stop.fill")
-            }
-            .disabled(!viewModel.isRunning)
-
-            Button {
-                viewModel.launch()
-            } label: {
-                Label(viewModel.launchButtonTitle, systemImage: "play.fill")
-                    .frame(minWidth: 108)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .disabled(!viewModel.status.canLaunch || viewModel.isRunning)
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 16)
     }
 
     private var statusText: String {
-        if viewModel.isRunning {
-            return "SMAPI is running."
+        if viewModel.status.canManageMods {
+            let enabledCount = viewModel.mods.filter(\.isEnabled).count
+            let disabledCount = viewModel.mods.count - enabledCount
+            return "\(enabledCount) enabled, \(disabledCount) disabled in \(viewModel.modFolderName)."
         }
-        if viewModel.status.canLaunch {
-            return "\(viewModel.mods.count) mod folder\(viewModel.mods.count == 1 ? "" : "s") in \(viewModel.modFolderName)."
+        if !viewModel.status.installDirectoryExists {
+            return "Choose your Stardew Valley folder."
         }
-        return "Finish setup before launching."
+        return "Create the \(viewModel.modFolderName) folder."
     }
 }
 
 private struct ToolbarBar: View {
-    @ObservedObject var viewModel: LauncherViewModel
+    @ObservedObject var viewModel: ModManagerViewModel
     @Binding var searchText: String
 
     var body: some View {
@@ -147,7 +121,7 @@ private struct ToolbarBar: View {
             } label: {
                 Label("Add Mod", systemImage: "plus")
             }
-            .disabled(!viewModel.status.modDirectoryExists)
+            .disabled(!viewModel.status.canManageMods)
 
             Button {
                 openSettings()
@@ -162,7 +136,7 @@ private struct ToolbarBar: View {
 
 private struct ModList: View {
     var mods: [ModInfo]
-    @ObservedObject var viewModel: LauncherViewModel
+    @ObservedObject var viewModel: ModManagerViewModel
 
     var body: some View {
         if mods.isEmpty {
@@ -182,7 +156,7 @@ private struct ModList: View {
 
 private struct ModRow: View {
     var mod: ModInfo
-    @ObservedObject var viewModel: LauncherViewModel
+    @ObservedObject var viewModel: ModManagerViewModel
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -249,7 +223,7 @@ private struct ModRow: View {
 }
 
 private struct EmptyModList: View {
-    @ObservedObject var viewModel: LauncherViewModel
+    @ObservedObject var viewModel: ModManagerViewModel
 
     var body: some View {
         VStack(spacing: 12) {
@@ -260,24 +234,16 @@ private struct EmptyModList: View {
             Text("No mods in \(viewModel.modFolderName)")
                 .font(.title3.weight(.semibold))
 
-            Text("Add an unzipped mod folder, or link your existing default mods from Settings.")
+            Text("Add an unzipped mod folder to install it.")
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            HStack(spacing: 10) {
-                Button {
-                    viewModel.addMods()
-                } label: {
-                    Label("Add Mod", systemImage: "plus")
-                }
-                .buttonStyle(.borderedProminent)
-
-                Button {
-                    openSettings()
-                } label: {
-                    Label("Settings", systemImage: "gearshape")
-                }
+            Button {
+                viewModel.addMods()
+            } label: {
+                Label("Add Mod", systemImage: "plus")
             }
+            .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(32)
@@ -285,7 +251,7 @@ private struct EmptyModList: View {
 }
 
 private struct SetupEmptyState: View {
-    @ObservedObject var viewModel: LauncherViewModel
+    @ObservedObject var viewModel: ModManagerViewModel
 
     var body: some View {
         VStack(spacing: 12) {
@@ -323,28 +289,19 @@ private struct SetupEmptyState: View {
         if !viewModel.status.installDirectoryExists {
             return "Choose Stardew Valley"
         }
-        if !viewModel.status.smapiExecutableExists {
-            return "Install SMAPI"
-        }
         return "Create \(viewModel.modFolderName)"
     }
 
     private var setupDetail: String {
         if !viewModel.status.installDirectoryExists {
-            return "The launcher needs your Stardew Valley folder before it can manage mods."
+            return "Seed Box needs the Stardew Valley folder before it can find Mods."
         }
-        if !viewModel.status.smapiExecutableExists {
-            return "SMAPI was not found in the selected Stardew Valley folder."
-        }
-        return "Create the managed mod folder before adding seeds to this box."
+        return "Seed Box manages the default SMAPI Mods folder."
     }
 
     private var primaryButtonTitle: String {
         if !viewModel.status.installDirectoryExists {
             return "Choose Folder"
-        }
-        if !viewModel.status.smapiExecutableExists {
-            return "Refresh"
         }
         return "Create Folder"
     }
@@ -353,48 +310,33 @@ private struct SetupEmptyState: View {
         if !viewModel.status.installDirectoryExists {
             return "folder"
         }
-        if !viewModel.status.smapiExecutableExists {
-            return "arrow.clockwise"
-        }
         return "folder.badge.plus"
     }
 
     private func primarySetupAction() {
         if !viewModel.status.installDirectoryExists {
             viewModel.chooseInstallFolder()
-        } else if !viewModel.status.smapiExecutableExists {
-            viewModel.refresh()
         } else {
             viewModel.createModFolder()
         }
     }
 }
 
-private struct ConsoleView: View {
-    var output: String
+private struct ActivityBar: View {
+    var message: String
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                Text(output.isEmpty ? "No launch output yet." : output)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(Color(nsColor: .textColor))
-                    .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
-                    .textSelection(.enabled)
-                    .id("output")
-                    .padding(12)
-            }
-            .frame(minHeight: 150)
-            .background(Color(nsColor: .textBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-            }
-            .onChange(of: output) { _ in
-                proxy.scrollTo("output", anchor: .bottom)
-            }
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark.circle")
+                .foregroundStyle(.secondary)
+            Text(message)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Spacer()
         }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
     }
 }
 

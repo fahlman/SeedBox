@@ -2,9 +2,8 @@
 
 Seed Box is a native macOS app for managing SMAPI mods for Stardew Valley.
 
-The current build manages the `Mods-SVE` folder created for the original launcher
-work, while the app is being split into its own repo and renamed for the broader
-mod-set manager direction.
+The current build manages Stardew Valley's default SMAPI `Mods` folder. It does
+not launch the game.
 
 ## Direction
 
@@ -20,12 +19,10 @@ Seed Box is becoming a SMAPI mod-set manager:
 
 - Detects the common Steam install path:
   `~/Library/Application Support/Steam/steamapps/common/Stardew Valley/Contents/MacOS`
-- Launches `StardewModdingAPI --mods-path Mods-SVE`
-- Manages mods in the fixed `Mods-SVE` folder
+- Manages mods in the default SMAPI `Mods` folder
 - Adds unzipped mod folders
 - Enables/disables mods by adding or removing a leading period
 - Moves deleted mods to the Trash
-- Captures SMAPI output in the app window
 - Keeps install paths and setup actions in Settings
 
 ## Requirements
@@ -50,15 +47,14 @@ distribution should use a Developer ID certificate and notarization.
 
 ## Sandbox Notes
 
-The default app target is intentionally not sandboxed, because SMAPI and Stardew
-mods expect normal access to the game folder and child processes may inherit
-sandbox limits.
+The default app target is intentionally not sandboxed while the mod-management
+workflow settles, because Stardew mods live inside the game install folder.
 
 The app is sandbox-aware, though:
 
 - choosing the Stardew folder stores a security-scoped bookmark
-- file validation, mod-folder creation, symlink setup, and launch all use that
-  saved folder access when available
+- file validation, mod-folder creation, and mod operations use that saved folder
+  access when available
 - `SeedBox/Sandbox.entitlements` is included as a starting point for a future
   sandbox experiment
 

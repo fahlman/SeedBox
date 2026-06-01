@@ -4,11 +4,11 @@ import SwiftUI
 @main
 struct SeedBoxApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var viewModel = LauncherViewModel()
+    @StateObject private var viewModel = ModManagerViewModel()
 
     var body: some Scene {
         WindowGroup {
-            LauncherView(viewModel: viewModel)
+            ModManagerView(viewModel: viewModel)
                 .frame(minWidth: 780, minHeight: 560)
         }
         .windowStyle(.titleBar)

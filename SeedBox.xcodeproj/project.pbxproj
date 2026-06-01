@@ -8,33 +8,27 @@
 
 /* Begin PBXBuildFile section */
 		B00100000000000000000001 /* SeedBoxApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000001 /* SeedBoxApp.swift */; };
-		B00100000000000000000002 /* LauncherView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000002 /* LauncherView.swift */; };
-		B00100000000000000000003 /* LauncherViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000003 /* LauncherViewModel.swift */; };
+		B00100000000000000000002 /* ModManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000002 /* ModManagerView.swift */; };
+		B00100000000000000000003 /* ModManagerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000003 /* ModManagerViewModel.swift */; };
 		B00100000000000000000004 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000004 /* SettingsView.swift */; };
 		B00100000000000000000005 /* SecurityScopedFolderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000005 /* SecurityScopedFolderAccess.swift */; };
 		B00100000000000000000006 /* ModLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000006 /* ModLibrary.swift */; };
-		B00100000000000000000007 /* ModFolderSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000007 /* ModFolderSeeder.swift */; };
-		B00100000000000000000008 /* SMAPILauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000008 /* SMAPILauncher.swift */; };
 		B00100000000000000000009 /* StardewInstall.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000009 /* StardewInstall.swift */; };
 		B00100000000000000000010 /* StardewInstallLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000010 /* StardewInstallLocator.swift */; };
 		B00100000000000000000011 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000011 /* AppIcon.icns */; };
 		B00200000000000000000001 /* StardewInstallTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00200000000000000000001 /* StardewInstallTests.swift */; };
 		B00200000000000000000006 /* ModLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000006 /* ModLibrary.swift */; };
-		B00200000000000000000007 /* ModFolderSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000007 /* ModFolderSeeder.swift */; };
-		B00200000000000000000008 /* SMAPILauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000008 /* SMAPILauncher.swift */; };
 		B00200000000000000000009 /* StardewInstall.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000009 /* StardewInstall.swift */; };
 		B00200000000000000000010 /* StardewInstallLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000010 /* StardewInstallLocator.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		F00100000000000000000001 /* SeedBoxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedBoxApp.swift; sourceTree = "<group>"; };
-		F00100000000000000000002 /* LauncherView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherView.swift; sourceTree = "<group>"; };
-		F00100000000000000000003 /* LauncherViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherViewModel.swift; sourceTree = "<group>"; };
+		F00100000000000000000002 /* ModManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModManagerView.swift; sourceTree = "<group>"; };
+		F00100000000000000000003 /* ModManagerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModManagerViewModel.swift; sourceTree = "<group>"; };
 		F00100000000000000000004 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		F00100000000000000000005 /* SecurityScopedFolderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityScopedFolderAccess.swift; sourceTree = "<group>"; };
 		F00100000000000000000006 /* ModLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModLibrary.swift; sourceTree = "<group>"; };
-		F00100000000000000000007 /* ModFolderSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModFolderSeeder.swift; sourceTree = "<group>"; };
-		F00100000000000000000008 /* SMAPILauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SMAPILauncher.swift; sourceTree = "<group>"; };
 		F00100000000000000000009 /* StardewInstall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StardewInstall.swift; sourceTree = "<group>"; };
 		F00100000000000000000010 /* StardewInstallLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StardewInstallLocator.swift; sourceTree = "<group>"; };
 		F00100000000000000000011 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
@@ -64,8 +58,8 @@
 			isa = PBXGroup;
 			children = (
 				F00100000000000000000001 /* SeedBoxApp.swift */,
-				F00100000000000000000002 /* LauncherView.swift */,
-				F00100000000000000000003 /* LauncherViewModel.swift */,
+				F00100000000000000000002 /* ModManagerView.swift */,
+				F00100000000000000000003 /* ModManagerViewModel.swift */,
 				F00100000000000000000004 /* SettingsView.swift */,
 				F00100000000000000000005 /* SecurityScopedFolderAccess.swift */,
 				G00100000000000000000002 /* Core */,
@@ -80,8 +74,6 @@
 			isa = PBXGroup;
 			children = (
 				F00100000000000000000006 /* ModLibrary.swift */,
-				F00100000000000000000007 /* ModFolderSeeder.swift */,
-				F00100000000000000000008 /* SMAPILauncher.swift */,
 				F00100000000000000000009 /* StardewInstall.swift */,
 				F00100000000000000000010 /* StardewInstallLocator.swift */,
 			);
@@ -189,8 +181,8 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		P00100000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = ( B00100000000000000000001, B00100000000000000000002, B00100000000000000000003, B00100000000000000000004, B00100000000000000000005, B00100000000000000000006, B00100000000000000000007, B00100000000000000000008, B00100000000000000000009, B00100000000000000000010, ); runOnlyForDeploymentPostprocessing = 0; };
-		P00200000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = ( B00200000000000000000001, B00200000000000000000006, B00200000000000000000007, B00200000000000000000008, B00200000000000000000009, B00200000000000000000010, ); runOnlyForDeploymentPostprocessing = 0; };
+		P00100000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = ( B00100000000000000000001, B00100000000000000000002, B00100000000000000000003, B00100000000000000000004, B00100000000000000000005, B00100000000000000000006, B00100000000000000000009, B00100000000000000000010, ); runOnlyForDeploymentPostprocessing = 0; };
+		P00200000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = ( B00200000000000000000001, B00200000000000000000006, B00200000000000000000009, B00200000000000000000010, ); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */

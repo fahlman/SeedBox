@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 
 @MainActor
-final class LauncherViewModel: ObservableObject {
+final class ModManagerViewModel: ObservableObject {
     @Published var macOSDirectoryPath: String {
         didSet {
             persistAndRefresh()
@@ -11,15 +11,11 @@ final class LauncherViewModel: ObservableObject {
 
     @Published private(set) var status: InstallationStatus
     @Published private(set) var mods: [ModInfo]
-    @Published private(set) var output: String
-    @Published private(set) var isRunning: Bool
+    @Published private(set) var activityMessage: String
     @Published private(set) var hasSavedFolderAccess: Bool
 
     private let defaults: UserDefaults
     private let folderAccess: SecurityScopedFolderAccess
-    private var process: Process?
-    private var outputPipe: Pipe?
-    private var activeFolderAccess: SecurityScopedAccessToken?
     private var lastFolderAccessError: String?
 
     private enum Keys {
@@ -32,13 +28,11 @@ final class LauncherViewModel: ObservableObject {
 
         let detectedDirectory = StardewInstallLocator.locateInstalledMacOSDirectory()
         let savedDirectoryPath = defaults.string(forKey: Keys.macOSDirectoryPath)
-
         let initialDirectoryPath = savedDirectoryPath ?? detectedDirectory.path
 
         macOSDirectoryPath = initialDirectoryPath
         mods = []
-        output = ""
-        isRunning = false
+        activityMessage = ""
         hasSavedFolderAccess = folderAccess.hasBookmark
 
         status = StardewInstall(
@@ -57,10 +51,6 @@ final class LauncherViewModel: ObservableObject {
 
     var modFolderName: String {
         StardewInstall.modFolderName
-    }
-
-    var launchButtonTitle: String {
-        isRunning ? "Running" : "Launch"
     }
 
     func refresh() {
@@ -90,14 +80,14 @@ final class LauncherViewModel: ObservableObject {
         do {
             try folderAccess.saveBookmark(for: selectedURL)
             hasSavedFolderAccess = folderAccess.hasBookmark
-            appendOutput("Saved folder access for \(selectedURL.path)\n")
+            record("Saved folder access for \(selectedURL.path).")
         } catch {
-            appendOutput("Could not save folder access: \(error.localizedDescription)\n")
+            record("Could not save folder access: \(error.localizedDescription)")
         }
 
         let resolvedURL = StardewInstallLocator.resolveMacOSDirectory(from: selectedURL)
         macOSDirectoryPath = resolvedURL.path
-        appendOutput("Selected \(resolvedURL.path)\n")
+        record("Selected \(resolvedURL.path).")
     }
 
     func revealInstallFolder() {
@@ -113,22 +103,10 @@ final class LauncherViewModel: ObservableObject {
             try folderAccess.withAccess {
                 try install.createModDirectory()
             }
-            appendOutput("Created \(install.modDirectoryURL.path)\n")
+            record("Created \(install.modDirectoryURL.path).")
             refresh()
         } catch {
-            appendOutput("Could not create mod folder: \(error.localizedDescription)\n")
-        }
-    }
-
-    func linkVanillaMods() {
-        do {
-            let result = try folderAccess.withAccess {
-                try ModFolderSeeder.linkVanillaMods(into: install)
-            }
-            appendOutput("Linked vanilla mods: \(result.summary)\n")
-            refresh()
-        } catch {
-            appendOutput("Could not link vanilla mods: \(error.localizedDescription)\n")
+            record("Could not create mod folder: \(error.localizedDescription)")
         }
     }
 
@@ -153,10 +131,10 @@ final class LauncherViewModel: ObservableObject {
                     into: install
                 )
             }
-            appendOutput("Added \(installedURLs.count) mod folder\(installedURLs.count == 1 ? "" : "s").\n")
+            record("Added \(installedURLs.count) mod folder\(installedURLs.count == 1 ? "" : "s").")
             refresh()
         } catch {
-            appendOutput("Could not add mods: \(error.localizedDescription)\n")
+            record("Could not add mods: \(error.localizedDescription)")
         }
     }
 
@@ -165,10 +143,10 @@ final class LauncherViewModel: ObservableObject {
             _ = try folderAccess.withAccess {
                 try ModLibrary.setEnabled(mod, enabled: enabled)
             }
-            appendOutput("\(enabled ? "Enabled" : "Disabled") \(mod.displayName).\n")
+            record("\(enabled ? "Enabled" : "Disabled") \(mod.displayName).")
             refresh()
         } catch {
-            appendOutput("Could not update \(mod.displayName): \(error.localizedDescription)\n")
+            record("Could not update \(mod.displayName): \(error.localizedDescription)")
         }
     }
 
@@ -188,81 +166,11 @@ final class LauncherViewModel: ObservableObject {
             try folderAccess.withAccess {
                 try ModLibrary.trash(mod)
             }
-            appendOutput("Moved \(mod.displayName) to the Trash.\n")
+            record("Moved \(mod.displayName) to the Trash.")
             refresh()
         } catch {
-            appendOutput("Could not delete \(mod.displayName): \(error.localizedDescription)\n")
+            record("Could not delete \(mod.displayName): \(error.localizedDescription)")
         }
-    }
-
-    func launch() {
-        guard !isRunning else {
-            return
-        }
-
-        do {
-            activeFolderAccess = try folderAccess.beginAccess()
-
-            let request = try SMAPILauncher.request(for: install)
-            let launchedProcess = request.makeProcess()
-            let pipe = Pipe()
-
-            launchedProcess.standardOutput = pipe
-            launchedProcess.standardError = pipe
-
-            outputPipe = pipe
-            process = launchedProcess
-            isRunning = true
-
-            appendOutput("$ \(request.commandLinePreview)\n")
-
-            pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
-                let data = handle.availableData
-                guard !data.isEmpty else {
-                    return
-                }
-
-                let text = String(decoding: data, as: UTF8.self)
-                Task { @MainActor [weak self] in
-                    self?.appendOutput(text)
-                }
-            }
-
-            launchedProcess.terminationHandler = { [weak self] process in
-                Task { @MainActor [weak self] in
-                    self?.finishRunning(exitCode: process.terminationStatus)
-                }
-            }
-
-            try launchedProcess.run()
-        } catch {
-            cleanupProcess()
-            appendOutput("Launch failed: \(error.localizedDescription)\n")
-        }
-    }
-
-    func stop() {
-        guard let process, process.isRunning else {
-            return
-        }
-
-        appendOutput("Stopping SMAPI...\n")
-        process.terminate()
-    }
-
-    private func finishRunning(exitCode: Int32) {
-        appendOutput("\nSMAPI exited with code \(exitCode).\n")
-        cleanupProcess()
-    }
-
-    private func cleanupProcess() {
-        outputPipe?.fileHandleForReading.readabilityHandler = nil
-        outputPipe = nil
-        process = nil
-        activeFolderAccess?.stop()
-        activeFolderAccess = nil
-        isRunning = false
-        refresh()
     }
 
     private func persistAndRefresh() {
@@ -282,7 +190,7 @@ final class LauncherViewModel: ObservableObject {
             }
         } catch {
             mods = []
-            appendOutput("Could not read mods: \(error.localizedDescription)\n")
+            record("Could not read mods: \(error.localizedDescription)")
         }
     }
 
@@ -294,19 +202,14 @@ final class LauncherViewModel: ObservableObject {
         } catch {
             let message = error.localizedDescription
             if lastFolderAccessError != message {
-                appendOutput("Could not restore saved folder access: \(message)\n")
+                record("Could not restore saved folder access: \(message)")
                 lastFolderAccessError = message
             }
             return nil
         }
     }
 
-    private func appendOutput(_ text: String) {
-        output += text
-
-        let maximumLength = 80_000
-        if output.count > maximumLength {
-            output.removeFirst(output.count - maximumLength)
-        }
+    private func record(_ message: String) {
+        activityMessage = message
     }
 }

@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 struct SettingsView: View {
-    @ObservedObject var viewModel: LauncherViewModel
+    @ObservedObject var viewModel: ModManagerViewModel
 
     var body: some View {
         Form {
@@ -37,7 +37,7 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Mod Set") {
+            Section("Managed Mods Folder") {
                 HStack {
                     Text("Folder")
                     Spacer()
@@ -53,12 +53,6 @@ struct SettingsView: View {
                 NativePathControl(url: viewModel.install.modDirectoryURL)
                     .frame(height: 28)
                     .help(viewModel.install.modDirectoryURL.path)
-
-                SettingsStatusRow(
-                    title: "SMAPI",
-                    detail: viewModel.status.smapiExecutableExists ? "Installed" : "Missing",
-                    isOK: viewModel.status.smapiExecutableExists
-                )
 
                 SettingsStatusRow(
                     title: viewModel.modFolderName,
@@ -79,13 +73,6 @@ struct SettingsView: View {
                         Label("Create Folder", systemImage: "folder.badge.plus")
                     }
                     .disabled(!viewModel.status.installDirectoryExists || viewModel.status.modDirectoryExists)
-
-                    Button {
-                        viewModel.linkVanillaMods()
-                    } label: {
-                        Label("Link Existing Mods", systemImage: "link")
-                    }
-                    .disabled(!viewModel.status.vanillaModDirectoryExists)
 
                     Spacer()
                 }
