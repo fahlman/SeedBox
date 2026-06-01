@@ -53,7 +53,7 @@ final class StardewInstallTests: XCTestCase {
         XCTAssertTrue(install.status().canManageMods)
     }
 
-    func testInstallUsesDefaultSMAPIModsFolder() throws {
+    func testInstallUsesDefaultModsFolder() throws {
         let macOSDirectory = try makeMacOSDirectory()
         let install = StardewInstall(macOSDirectory: macOSDirectory)
 

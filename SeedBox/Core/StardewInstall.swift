@@ -56,7 +56,7 @@ public struct InstallationStatus: Equatable {
     }
 
     public var detail: String {
-        issues.first?.message ?? "Seed Box manages the default SMAPI Mods folder."
+        issues.first?.message ?? "Seed Box manages the default Mods folder."
     }
 }
 

@@ -296,7 +296,7 @@ private struct SetupEmptyState: View {
         if !viewModel.status.installDirectoryExists {
             return "Seed Box needs the Stardew Valley folder before it can find Mods."
         }
-        return "Seed Box manages the default SMAPI Mods folder."
+        return "Seed Box manages the default Mods folder."
     }
 
     private var primaryButtonTitle: String {

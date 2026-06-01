@@ -85,8 +85,7 @@ public enum StardewInstallLocator {
 
         let knownExecutables = [
             "Stardew Valley",
-            "StardewValley",
-            "StardewModdingAPI"
+            "StardewValley"
         ]
 
         return knownExecutables.contains { name in
