@@ -3,30 +3,40 @@ import Foundation
 public struct StardewInstall: Equatable {
     public static let modFolderName = "Mods"
 
-    public var macOSDirectory: URL
+    public var modsDirectory: URL
 
-    public init(macOSDirectory: URL) {
-        self.macOSDirectory = macOSDirectory.standardizedFileURL
+    public init(modsDirectory: URL) {
+        self.modsDirectory = modsDirectory.standardizedFileURL
+    }
+
+    public static func defaultModsDirectory(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> URL {
+        homeDirectory
+            .appendingPathComponent("Library")
+            .appendingPathComponent("Application Support")
+            .appendingPathComponent("Steam")
+            .appendingPathComponent("steamapps")
+            .appendingPathComponent("common")
+            .appendingPathComponent("Stardew Valley")
+            .appendingPathComponent("Contents")
+            .appendingPathComponent("MacOS")
+            .appendingPathComponent(modFolderName)
     }
 
     public var modDirectoryURL: URL {
-        macOSDirectory.appendingPathComponent(Self.modFolderName)
+        modsDirectory
     }
 
     public func status(fileManager: FileManager = .default) -> InstallationStatus {
-        let installDirectoryExists = fileManager.directoryExists(at: macOSDirectory)
         let modDirectoryExists = fileManager.directoryExists(at: modDirectoryURL)
 
         var issues: [InstallationIssue] = []
-        if !installDirectoryExists {
-            issues.append(.missingInstallDirectory(macOSDirectory))
-        }
         if !modDirectoryExists {
             issues.append(.missingModDirectory(modDirectoryURL))
         }
 
         return InstallationStatus(
-            installDirectoryExists: installDirectoryExists,
             modDirectoryExists: modDirectoryExists,
             issues: issues
         )
@@ -39,11 +49,9 @@ public struct StardewInstall: Equatable {
             attributes: nil
         )
     }
-
 }
 
 public struct InstallationStatus: Equatable {
-    public var installDirectoryExists: Bool
     public var modDirectoryExists: Bool
     public var issues: [InstallationIssue]
 
@@ -61,13 +69,10 @@ public struct InstallationStatus: Equatable {
 }
 
 public enum InstallationIssue: Equatable {
-    case missingInstallDirectory(URL)
     case missingModDirectory(URL)
 
     public var message: String {
         switch self {
-        case .missingInstallDirectory(let url):
-            return "Stardew Valley was not found at \(url.path)."
         case .missingModDirectory(let url):
             return "The mod folder does not exist at \(url.path)."
         }

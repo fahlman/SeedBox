@@ -6,40 +6,9 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Game") {
-                HStack {
-                    Text("Stardew Valley")
-                    Spacer()
-                    Text(viewModel.status.installDirectoryExists ? "Found" : "Missing")
-                        .foregroundStyle(.secondary)
-                    StatusIcon(isOK: viewModel.status.installDirectoryExists)
-                }
-
-                NativePathControl(url: viewModel.install.macOSDirectory)
-                    .frame(height: 28)
-                    .help(viewModel.macOSDirectoryPath)
-
-                HStack {
-                    Button {
-                        viewModel.chooseInstallFolder()
-                    } label: {
-                        Label("Choose", systemImage: "folder")
-                    }
-
-                    Button {
-                        viewModel.revealInstallFolder()
-                    } label: {
-                        Label("Reveal", systemImage: "magnifyingglass")
-                    }
-                    .disabled(!viewModel.status.installDirectoryExists)
-
-                    Spacer()
-                }
-            }
-
             Section("Managed Mods Folder") {
                 HStack {
-                    Text("Folder")
+                    Text("Path")
                     Spacer()
                     Text(viewModel.modFolderName)
                         .font(.body.weight(.medium))
@@ -52,7 +21,7 @@ struct SettingsView: View {
 
                 NativePathControl(url: viewModel.install.modDirectoryURL)
                     .frame(height: 28)
-                    .help(viewModel.install.modDirectoryURL.path)
+                    .help(viewModel.modsDirectoryPath)
 
                 SettingsStatusRow(
                     title: viewModel.modFolderName,
@@ -68,11 +37,23 @@ struct SettingsView: View {
 
                 HStack {
                     Button {
+                        viewModel.chooseModsFolder()
+                    } label: {
+                        Label("Choose Folder", systemImage: "folder")
+                    }
+
+                    Button {
+                        viewModel.revealModsFolder()
+                    } label: {
+                        Label("Reveal", systemImage: "magnifyingglass")
+                    }
+
+                    Button {
                         viewModel.createModFolder()
                     } label: {
                         Label("Create Folder", systemImage: "folder.badge.plus")
                     }
-                    .disabled(!viewModel.status.installDirectoryExists || viewModel.status.modDirectoryExists)
+                    .disabled(viewModel.status.modDirectoryExists)
 
                     Spacer()
                 }

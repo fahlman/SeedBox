@@ -17,13 +17,13 @@ Seed Box is becoming a mod-set manager:
 
 ## Current Build
 
-- Detects the common Steam install path:
-  `~/Library/Application Support/Steam/steamapps/common/Stardew Valley/Contents/MacOS`
+- Defaults to:
+  `~/Library/Application Support/Steam/steamapps/common/Stardew Valley/Contents/MacOS/Mods`
 - Manages mods in the default `Mods` folder
 - Adds unzipped mod folders
 - Enables/disables mods by adding or removing a leading period
 - Moves deleted mods to the Trash
-- Keeps install paths and setup actions in Settings
+- Keeps mods-folder path and setup actions in Settings
 
 ## Requirements
 
@@ -51,7 +51,7 @@ workflow settles, because Stardew mods live inside the game install folder.
 
 The app is sandbox-aware, though:
 
-- choosing the Stardew folder stores a security-scoped bookmark
+- choosing the Mods folder stores a security-scoped bookmark
 - file validation, mod-folder creation, and mod operations use that saved folder
   access when available
 - `SeedBox/Sandbox.entitlements` is included as a starting point for a future

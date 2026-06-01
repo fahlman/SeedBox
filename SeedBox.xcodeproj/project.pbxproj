@@ -14,12 +14,10 @@
 		B00100000000000000000005 /* SecurityScopedFolderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000005 /* SecurityScopedFolderAccess.swift */; };
 		B00100000000000000000006 /* ModLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000006 /* ModLibrary.swift */; };
 		B00100000000000000000009 /* StardewInstall.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000009 /* StardewInstall.swift */; };
-		B00100000000000000000010 /* StardewInstallLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000010 /* StardewInstallLocator.swift */; };
 		B00100000000000000000011 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000011 /* AppIcon.icns */; };
 		B00200000000000000000001 /* StardewInstallTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00200000000000000000001 /* StardewInstallTests.swift */; };
 		B00200000000000000000006 /* ModLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000006 /* ModLibrary.swift */; };
 		B00200000000000000000009 /* StardewInstall.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000009 /* StardewInstall.swift */; };
-		B00200000000000000000010 /* StardewInstallLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000010 /* StardewInstallLocator.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,7 +28,6 @@
 		F00100000000000000000005 /* SecurityScopedFolderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityScopedFolderAccess.swift; sourceTree = "<group>"; };
 		F00100000000000000000006 /* ModLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModLibrary.swift; sourceTree = "<group>"; };
 		F00100000000000000000009 /* StardewInstall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StardewInstall.swift; sourceTree = "<group>"; };
-		F00100000000000000000010 /* StardewInstallLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StardewInstallLocator.swift; sourceTree = "<group>"; };
 		F00100000000000000000011 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		F00100000000000000000012 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		F00100000000000000000013 /* Sandbox.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Sandbox.entitlements; sourceTree = "<group>"; };
@@ -75,7 +72,6 @@
 			children = (
 				F00100000000000000000006 /* ModLibrary.swift */,
 				F00100000000000000000009 /* StardewInstall.swift */,
-				F00100000000000000000010 /* StardewInstallLocator.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -181,8 +177,8 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		P00100000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = ( B00100000000000000000001, B00100000000000000000002, B00100000000000000000003, B00100000000000000000004, B00100000000000000000005, B00100000000000000000006, B00100000000000000000009, B00100000000000000000010, ); runOnlyForDeploymentPostprocessing = 0; };
-		P00200000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = ( B00200000000000000000001, B00200000000000000000006, B00200000000000000000009, B00200000000000000000010, ); runOnlyForDeploymentPostprocessing = 0; };
+		P00100000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = ( B00100000000000000000001, B00100000000000000000002, B00100000000000000000003, B00100000000000000000004, B00100000000000000000005, B00100000000000000000006, B00100000000000000000009, ); runOnlyForDeploymentPostprocessing = 0; };
+		P00200000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = ( B00200000000000000000001, B00200000000000000000006, B00200000000000000000009, ); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */

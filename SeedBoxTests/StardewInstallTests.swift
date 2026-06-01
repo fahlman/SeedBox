@@ -18,52 +18,33 @@ final class StardewInstallTests: XCTestCase {
         }
     }
 
-    func testDefaultSteamPathUsesMacOSDirectoryInsideStardewBundle() {
+    func testDefaultSteamPathUsesModsDirectoryInsideStardewBundle() {
         let home = URL(fileURLWithPath: "/Users/example", isDirectory: true)
 
         XCTAssertEqual(
-            StardewInstallLocator.defaultMacOSDirectory(homeDirectory: home).path,
-            "/Users/example/Library/Application Support/Steam/steamapps/common/Stardew Valley/Contents/MacOS"
+            StardewInstall.defaultModsDirectory(homeDirectory: home).path,
+            "/Users/example/Library/Application Support/Steam/steamapps/common/Stardew Valley/Contents/MacOS/Mods"
         )
-    }
-
-    func testResolveMacOSDirectoryFromGameRoot() throws {
-        let macOSDirectory = temporaryDirectory
-            .appendingPathComponent("Stardew Valley")
-            .appendingPathComponent("Contents")
-            .appendingPathComponent("MacOS")
-        try FileManager.default.createDirectory(
-            at: macOSDirectory,
-            withIntermediateDirectories: true
-        )
-
-        let resolved = StardewInstallLocator.resolveMacOSDirectory(
-            from: temporaryDirectory.appendingPathComponent("Stardew Valley")
-        )
-
-        XCTAssertEqual(resolved.path, macOSDirectory.standardizedFileURL.path)
     }
 
     func testInstallStatusCanManageModsWhenModsFolderExists() throws {
-        let macOSDirectory = try makeMacOSDirectory()
-        let install = StardewInstall(macOSDirectory: macOSDirectory)
-
-        try FileManager.default.createDirectory(at: install.modDirectoryURL, withIntermediateDirectories: true)
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
 
         XCTAssertTrue(install.status().canManageMods)
     }
 
-    func testInstallUsesDefaultModsFolder() throws {
-        let macOSDirectory = try makeMacOSDirectory()
-        let install = StardewInstall(macOSDirectory: macOSDirectory)
+    func testInstallUsesProvidedModsFolder() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
 
         XCTAssertEqual(install.modDirectoryURL.lastPathComponent, "Mods")
-        XCTAssertEqual(install.modDirectoryURL.deletingLastPathComponent(), install.macOSDirectory)
+        XCTAssertEqual(install.modDirectoryURL.standardizedFileURL.path, modsDirectory.standardizedFileURL.path)
     }
 
     func testModLibraryScansEnabledAndDisabledMods() throws {
-        let macOSDirectory = try makeMacOSDirectory()
-        let install = StardewInstall(macOSDirectory: macOSDirectory)
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
         let enabledURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
         let disabledURL = install.modDirectoryURL.appendingPathComponent(".SaveBackup")
 
@@ -79,8 +60,8 @@ final class StardewInstallTests: XCTestCase {
     }
 
     func testModLibraryDisablesAndEnablesWithDotPrefix() throws {
-        let macOSDirectory = try makeMacOSDirectory()
-        let install = StardewInstall(macOSDirectory: macOSDirectory)
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
         let modURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
 
         try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
@@ -97,12 +78,11 @@ final class StardewInstallTests: XCTestCase {
     }
 
     func testModLibraryInstallsSelectedModFolder() throws {
-        let macOSDirectory = try makeMacOSDirectory()
-        let install = StardewInstall(macOSDirectory: macOSDirectory)
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
         let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads")
         let modURL = downloadsURL.appendingPathComponent("ContentPatcher")
 
-        try FileManager.default.createDirectory(at: install.modDirectoryURL, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
         try writeManifest(name: "Content Patcher", to: modURL)
 
@@ -119,16 +99,17 @@ final class StardewInstallTests: XCTestCase {
         )
     }
 
-    private func makeMacOSDirectory() throws -> URL {
-        let macOSDirectory = temporaryDirectory
+    private func makeModsDirectory() throws -> URL {
+        let modsDirectory = temporaryDirectory
             .appendingPathComponent("Stardew Valley")
             .appendingPathComponent("Contents")
             .appendingPathComponent("MacOS")
+            .appendingPathComponent("Mods")
         try FileManager.default.createDirectory(
-            at: macOSDirectory,
+            at: modsDirectory,
             withIntermediateDirectories: true
         )
-        return macOSDirectory
+        return modsDirectory
     }
 
     private func writeManifest(name: String, to directoryURL: URL) throws {

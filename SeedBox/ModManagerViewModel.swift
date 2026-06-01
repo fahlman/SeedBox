@@ -3,7 +3,7 @@ import Foundation
 
 @MainActor
 final class ModManagerViewModel: ObservableObject {
-    @Published var macOSDirectoryPath: String {
+    @Published var modsDirectoryPath: String {
         didSet {
             persistAndRefresh()
         }
@@ -19,24 +19,24 @@ final class ModManagerViewModel: ObservableObject {
     private var lastFolderAccessError: String?
 
     private enum Keys {
-        static let macOSDirectoryPath = "macOSDirectoryPath"
+        static let modsDirectoryPath = "modsDirectoryPath"
     }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         folderAccess = SecurityScopedFolderAccess(defaults: defaults)
 
-        let detectedDirectory = StardewInstallLocator.locateInstalledMacOSDirectory()
-        let savedDirectoryPath = defaults.string(forKey: Keys.macOSDirectoryPath)
-        let initialDirectoryPath = savedDirectoryPath ?? detectedDirectory.path
+        let defaultModsPath = StardewInstall.defaultModsDirectory().path
+        let savedDirectoryPath = defaults.string(forKey: Keys.modsDirectoryPath)
+        let initialDirectoryPath = savedDirectoryPath ?? defaultModsPath
 
-        macOSDirectoryPath = initialDirectoryPath
+        modsDirectoryPath = initialDirectoryPath
         mods = []
         activityMessage = ""
         hasSavedFolderAccess = folderAccess.hasBookmark
 
         status = StardewInstall(
-            macOSDirectory: URL(fileURLWithPath: initialDirectoryPath, isDirectory: true)
+            modsDirectory: URL(fileURLWithPath: initialDirectoryPath, isDirectory: true)
         )
         .status()
 
@@ -45,7 +45,7 @@ final class ModManagerViewModel: ObservableObject {
 
     var install: StardewInstall {
         StardewInstall(
-            macOSDirectory: URL(fileURLWithPath: macOSDirectoryPath, isDirectory: true)
+            modsDirectory: URL(fileURLWithPath: modsDirectoryPath, isDirectory: true)
         )
     }
 
@@ -60,38 +60,39 @@ final class ModManagerViewModel: ObservableObject {
         reloadMods()
     }
 
-    func chooseInstallFolder() {
+    func chooseModsFolder() {
         let panel = NSOpenPanel()
-        panel.title = "Choose Stardew Valley"
-        panel.message = "Select the Stardew Valley folder, app bundle, or Contents/MacOS folder."
+        panel.title = "Choose Mods Folder"
+        panel.message = "Select the Mods folder Seed Box should manage."
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = false
         panel.treatsFilePackagesAsDirectories = true
 
-        let currentURL = URL(fileURLWithPath: macOSDirectoryPath, isDirectory: true)
+        let currentURL = URL(fileURLWithPath: modsDirectoryPath, isDirectory: true)
         panel.directoryURL = currentURL.deletingLastPathComponent()
 
         guard panel.runModal() == .OK, let selectedURL = panel.url else {
             return
         }
 
+        let resolvedURL = selectedURL.standardizedFileURL.resolvingSymlinksInPath()
+
         do {
-            try folderAccess.saveBookmark(for: selectedURL)
+            try folderAccess.saveBookmark(for: resolvedURL)
             hasSavedFolderAccess = folderAccess.hasBookmark
-            record("Saved folder access for \(selectedURL.path).")
+            record("Saved folder access for \(resolvedURL.path).")
         } catch {
             record("Could not save folder access: \(error.localizedDescription)")
         }
 
-        let resolvedURL = StardewInstallLocator.resolveMacOSDirectory(from: selectedURL)
-        macOSDirectoryPath = resolvedURL.path
+        modsDirectoryPath = resolvedURL.path
         record("Selected \(resolvedURL.path).")
     }
 
-    func revealInstallFolder() {
-        NSWorkspace.shared.activateFileViewerSelecting([install.macOSDirectory])
+    func revealModsFolder() {
+        NSWorkspace.shared.activateFileViewerSelecting([install.modDirectoryURL])
     }
 
     func revealMod(_ mod: ModInfo) {
@@ -174,7 +175,7 @@ final class ModManagerViewModel: ObservableObject {
     }
 
     private func persistAndRefresh() {
-        defaults.set(macOSDirectoryPath, forKey: Keys.macOSDirectoryPath)
+        defaults.set(modsDirectoryPath, forKey: Keys.modsDirectoryPath)
         refresh()
     }
 

@@ -79,10 +79,10 @@ private struct HeaderBar: View {
             let disabledCount = viewModel.mods.count - enabledCount
             return "\(enabledCount) enabled, \(disabledCount) disabled in \(viewModel.modFolderName)."
         }
-        if !viewModel.status.installDirectoryExists {
-            return "Choose your Stardew Valley folder."
+        if !viewModel.hasSavedFolderAccess {
+            return "Choose your Mods folder."
         }
-        return "Create the \(viewModel.modFolderName) folder."
+        return "Create or pick the \(viewModel.modFolderName) folder."
     }
 }
 
@@ -286,36 +286,36 @@ private struct SetupEmptyState: View {
     }
 
     private var setupTitle: String {
-        if !viewModel.status.installDirectoryExists {
-            return "Choose Stardew Valley"
+        if !viewModel.hasSavedFolderAccess {
+            return "Choose Mods Folder"
         }
         return "Create \(viewModel.modFolderName)"
     }
 
     private var setupDetail: String {
-        if !viewModel.status.installDirectoryExists {
-            return "Seed Box needs the Stardew Valley folder before it can find Mods."
+        if !viewModel.hasSavedFolderAccess {
+            return "Select the Mods folder Seed Box should manage."
         }
-        return "Seed Box manages the default Mods folder."
+        return "Seed Box manages this Mods folder directly."
     }
 
     private var primaryButtonTitle: String {
-        if !viewModel.status.installDirectoryExists {
+        if !viewModel.hasSavedFolderAccess {
             return "Choose Folder"
         }
         return "Create Folder"
     }
 
     private var primaryButtonIcon: String {
-        if !viewModel.status.installDirectoryExists {
+        if !viewModel.hasSavedFolderAccess {
             return "folder"
         }
         return "folder.badge.plus"
     }
 
     private func primarySetupAction() {
-        if !viewModel.status.installDirectoryExists {
-            viewModel.chooseInstallFolder()
+        if !viewModel.hasSavedFolderAccess {
+            viewModel.chooseModsFolder()
         } else {
             viewModel.createModFolder()
         }
