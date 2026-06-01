@@ -10,9 +10,11 @@ public struct StardewInstall: Equatable {
     }
 
     public static func defaultModsDirectory(
-        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+        applicationsDirectory: URL = URL(fileURLWithPath: "/Applications", isDirectory: true),
+        fileManager: FileManager = .default
     ) -> URL {
-        homeDirectory
+        let steamModsDirectory = homeDirectory
             .appendingPathComponent("Library")
             .appendingPathComponent("Application Support")
             .appendingPathComponent("Steam")
@@ -22,6 +24,18 @@ public struct StardewInstall: Equatable {
             .appendingPathComponent("Contents")
             .appendingPathComponent("MacOS")
             .appendingPathComponent(modFolderName)
+
+        let gogModsDirectory = applicationsDirectory
+            .appendingPathComponent("Stardew Valley.app")
+            .appendingPathComponent("Contents")
+            .appendingPathComponent("MacOS")
+            .appendingPathComponent(modFolderName)
+
+        let candidates = [steamModsDirectory, gogModsDirectory]
+
+        return candidates.first { candidate in
+            fileManager.directoryExists(at: candidate.deletingLastPathComponent())
+        } ?? steamModsDirectory
     }
 
     public var modDirectoryURL: URL {

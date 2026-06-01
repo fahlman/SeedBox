@@ -17,8 +17,10 @@ Seed Box is becoming a mod-set manager:
 
 ## Current Build
 
-- Defaults to:
+- Defaults to Steam when found:
   `~/Library/Application Support/Steam/steamapps/common/Stardew Valley/Contents/MacOS/Mods`
+- Falls back to GOG app location:
+  `/Applications/Stardew Valley.app/Contents/MacOS/Mods`
 - Manages mods in the default `Mods` folder
 - Adds unzipped mod folders
 - Enables/disables mods by adding or removing a leading period
