@@ -26,6 +26,21 @@ final class StardewInstallTests: SeedBoxTestCase {
         )
     }
 
+    func testDefaultAuditLogUsesApplicationSupport() {
+        let applicationSupportDirectory = URL(
+            fileURLWithPath: "/Users/example/Library/Application Support",
+            isDirectory: true
+        )
+
+        XCTAssertEqual(
+            StardewInstall.defaultAuditLogURL(
+                applicationSupportDirectory: applicationSupportDirectory
+            )
+            .path,
+            "/Users/example/Library/Application Support/Seed Box/Audit Log.plist"
+        )
+    }
+
     func testDefaultPathFallsBackToGOGWhenSteamMacOSIsMissing() throws {
         let home = temporaryDirectory.appendingPathComponent("Home", isDirectory: true)
         let applicationsDirectory = temporaryDirectory.appendingPathComponent("Applications", isDirectory: true)

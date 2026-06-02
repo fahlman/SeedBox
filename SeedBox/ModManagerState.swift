@@ -5,10 +5,12 @@ struct ModManagerState: Equatable, Sendable {
     var status: InstallationStatus
     var hasSavedFolderAccess: Bool
     var mods: [ModInfo]
+    var hasLoadedMods: Bool
     var modSets: [ModSet]
     var selectedModSetID: String
     var appliedModSetID: String?
     var activityMessage: String
+    var auditTrail: AuditTrailState
 
     var readiness: ModManagerReadiness {
         if !hasSavedFolderAccess {
@@ -28,6 +30,14 @@ struct ModManagerState: Equatable, Sendable {
             selectedSetID: selectedModSetID,
             appliedSetID: appliedModSetID
         )
+    }
+
+    var statusLineMessage: String {
+        if !activityMessage.isEmpty {
+            return activityMessage
+        }
+
+        return auditTrail.recentEntries.last?.summary ?? ""
     }
 }
 
@@ -117,7 +127,7 @@ struct ModSetSelectionState: Equatable, Sendable {
         guard let selectedSet else {
             return false
         }
-        return !selectedSet.isDefault
+        return selectedSet.isUserEditable
     }
 
     var selectedSetCanBeDeleted: Bool {

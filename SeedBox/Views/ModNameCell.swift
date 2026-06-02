@@ -5,14 +5,16 @@ struct ModNameCell: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(mod.displayName)
-                .font(.headline)
-                .lineLimit(1)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(mod.displayName)
+                    .font(.headline)
+                    .lineLimit(1)
 
-            Text(mod.versionText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+                Text(mod.versionText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
 
             if let missingDependenciesText = mod.missingRequiredDependenciesText {
                 Label(missingDependenciesText, systemImage: "exclamationmark.triangle.fill")

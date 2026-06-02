@@ -26,7 +26,8 @@ struct ModManagerToolbar: ToolbarContent {
                         .tag(set.id)
                 }
             }
-            .frame(width: 220)
+            .pickerStyle(.menu)
+            .help("Mod Set")
             .disabled(selection.sets.isEmpty || !readiness.canManageMods)
 
             Button {
@@ -38,45 +39,35 @@ struct ModManagerToolbar: ToolbarContent {
             .help("New Mod Set")
             .disabled(!readiness.canManageMods)
 
-            Menu {
-                Button {
-                    duplicateSelectedModSet()
-                } label: {
-                    Label("Duplicate Set", systemImage: "doc.on.doc")
-                }
-                .disabled(selection.selectedSet == nil || !readiness.canManageMods)
-
-                Button {
-                    renameSelectedModSet()
-                } label: {
-                    Label("Rename Set", systemImage: "pencil")
-                }
-                .disabled(!selection.selectedSetCanBeRenamed || !readiness.canManageMods)
-
-                Divider()
-
-                Button(role: .destructive) {
-                    deleteSelectedModSet()
-                } label: {
-                    Label("Delete Set", systemImage: "trash")
-                }
-                .disabled(!selection.selectedSetCanBeDeleted || !readiness.canManageMods)
+            Button {
+                duplicateSelectedModSet()
             } label: {
-                Label("Set Actions", systemImage: "ellipsis.circle")
+                Label("Duplicate Set", systemImage: "doc.on.doc")
             }
             .labelStyle(.iconOnly)
-            .disabled(!readiness.canManageMods)
+            .help("Duplicate Set")
+            .disabled(selection.selectedSet == nil || !readiness.canManageMods)
+
+            Button {
+                renameSelectedModSet()
+            } label: {
+                Label("Rename Set", systemImage: "pencil")
+            }
+            .labelStyle(.iconOnly)
+            .help("Rename Set")
+            .disabled(!selection.selectedSetCanBeRenamed || !readiness.canManageMods)
+
+            Button(role: .destructive) {
+                deleteSelectedModSet()
+            } label: {
+                Label("Delete Set", systemImage: "trash")
+            }
+            .labelStyle(.iconOnly)
+            .help("Delete Set")
+            .disabled(!selection.selectedSetCanBeDeleted || !readiness.canManageMods)
         }
 
         ToolbarItemGroup {
-            Button {
-                Task {
-                    await viewModel.refresh()
-                }
-            } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
-            }
-
             Button {
                 addMods()
             } label: {

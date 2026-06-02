@@ -288,6 +288,106 @@ final class ModLibraryTests: SeedBoxTestCase {
         )
     }
 
+    func testInstallsNestedManifestFolderInsteadOfWrapperFolder() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads")
+        let packageURL = downloadsURL.appendingPathComponent("Mod Download")
+        let wrapperURL = packageURL.appendingPathComponent("Wrapper Folder")
+        let modURL = wrapperURL.appendingPathComponent("ActualMod")
+
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Actual Mod", to: modURL)
+        try "Ignore me".write(
+            to: packageURL.appendingPathComponent("README.txt"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let installedURLs = try ModLibrary.installMods(from: [packageURL], into: install)
+
+        XCTAssertEqual(installedURLs.map(\.lastPathComponent), ["ActualMod"])
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent("ActualMod")
+                    .appendingPathComponent("manifest.json")
+                    .path
+            )
+        )
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL.appendingPathComponent("Wrapper Folder").path
+            )
+        )
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL.appendingPathComponent("README.txt").path
+            )
+        )
+    }
+
+    func testInstallsWrappedModFolderFromZipArchive() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads")
+        let packageURL = downloadsURL.appendingPathComponent("Archive Contents")
+        let modURL = packageURL
+            .appendingPathComponent("Outer Wrapper")
+            .appendingPathComponent("ActualMod")
+        let zipURL = downloadsURL.appendingPathComponent("ModDownload.zip")
+
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Actual Mod", to: modURL)
+        try "Ignore me".write(
+            to: packageURL.appendingPathComponent("README.txt"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try makeZip(from: packageURL, to: zipURL)
+
+        let installedURLs = try ModLibrary.installMods(from: [zipURL], into: install)
+
+        XCTAssertEqual(installedURLs.map(\.lastPathComponent), ["ActualMod"])
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent("ActualMod")
+                    .appendingPathComponent("manifest.json")
+                    .path
+            )
+        )
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL.appendingPathComponent("Outer Wrapper").path
+            )
+        )
+    }
+
+    func testInstallsZipWithManifestAtArchiveRootUsingZipFileName() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads")
+        let packageURL = downloadsURL.appendingPathComponent("Archive Contents")
+        let zipURL = downloadsURL.appendingPathComponent("RootPackedMod.zip")
+
+        try FileManager.default.createDirectory(at: packageURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Root Packed Mod", to: packageURL)
+        try makeZip(from: packageURL, to: zipURL)
+
+        let installedURLs = try ModLibrary.installMods(from: [zipURL], into: install)
+
+        XCTAssertEqual(installedURLs.map(\.lastPathComponent), ["RootPackedMod"])
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent("RootPackedMod")
+                    .appendingPathComponent("manifest.json")
+                    .path
+            )
+        )
+    }
+
     func testInstallRejectsExistingDisabledCopy() throws {
         let modsDirectory = try makeModsDirectory()
         let install = StardewInstall(modsDirectory: modsDirectory)
@@ -386,5 +486,29 @@ final class ModLibraryTests: SeedBoxTestCase {
                 atPath: install.modDirectoryURL.appendingPathComponent("NewMod").path
             )
         )
+    }
+
+    private func makeZip(from sourceURL: URL, to zipURL: URL) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        process.arguments = [
+            "-c",
+            "-k",
+            "--sequesterRsrc",
+            sourceURL.path,
+            zipURL.path
+        ]
+        try process.run()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0 else {
+            throw NSError(
+                domain: "SeedBoxTests",
+                code: Int(process.terminationStatus),
+                userInfo: [
+                    NSLocalizedDescriptionKey: "ditto failed to create \(zipURL.path)."
+                ]
+            )
+        }
     }
 }

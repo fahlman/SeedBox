@@ -1,24 +1,38 @@
 import AppKit
 import Foundation
 
+private let modManagerNotificationSenderIDKey = "senderID"
+
 @MainActor
 final class ModManagerViewModel: ObservableObject {
+    static let didChangeSharedStateNotification = Notification.Name("ModManagerViewModelDidChangeSharedState")
+
     @Published private(set) var state: ModManagerState
 
     private let folderAccess: SecurityScopedFolderAccess
+    private let folderChangeNotifier: ModFolderChangeNotifying
+    private let instanceID = UUID()
     private let modSetDirectory: URL
+    private let modsFolderMonitor: ModsFolderMonitoring
     private let preferences: ModManagerPreferences
     private let service: ModManagerService
+    private var ignoredFolderChangeDeadline = Date.distantPast
     private var lastFolderAccessError: String?
+    private var sharedStateObservation: NotificationObservation?
 
     init(
         defaults: UserDefaults = .standard,
-        modSetDirectory: URL = StardewInstall.defaultModSetDirectory()
+        modSetDirectory: URL = StardewInstall.defaultModSetDirectory(),
+        selectedModSetID: String = ModSetStore.defaultSetID,
+        modsFolderMonitor: ModsFolderMonitoring = ModsFolderMonitor(),
+        folderChangeNotifier: ModFolderChangeNotifying = UserNotificationModFolderChangeNotifier.shared
     ) {
         let folderAccess = SecurityScopedFolderAccess(defaults: defaults)
         let preferences = ModManagerPreferences(defaults: defaults)
         self.folderAccess = folderAccess
+        self.folderChangeNotifier = folderChangeNotifier
         self.modSetDirectory = modSetDirectory
+        self.modsFolderMonitor = modsFolderMonitor
         self.preferences = preferences
         service = ModManagerService(
             folderAccess: folderAccess,
@@ -27,8 +41,33 @@ final class ModManagerViewModel: ObservableObject {
         state = Self.initialState(
             preferences: preferences,
             folderAccess: folderAccess,
-            modSetDirectory: modSetDirectory
+            modSetDirectory: modSetDirectory,
+            selectedModSetID: selectedModSetID
         )
+        self.modsFolderMonitor.onChange = { [weak self] in
+            Task {
+                await self?.refreshAfterObservedModsFolderChange()
+            }
+        }
+        sharedStateObservation = NotificationObservation(token: NotificationCenter.default.addObserver(
+            forName: Self.didChangeSharedStateNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let senderID = notification.userInfo?[modManagerNotificationSenderIDKey] as? UUID
+            Task { @MainActor [weak self, senderID] in
+                guard let self else {
+                    return
+                }
+
+                guard senderID != self.instanceID else {
+                    return
+                }
+
+                await self.refreshAfterSharedStateChange()
+            }
+        })
+        updateModsFolderMonitor()
     }
 
     var install: StardewInstall {
@@ -51,13 +90,21 @@ final class ModManagerViewModel: ObservableObject {
     }
 
     func refresh() async {
-        state = await service.refreshedState(from: state)
-        persistPreferences()
+        var nextState = stateByRestoringSavedFolder(from: state)
+        if preferences.hasLastKnownModFolderTokens {
+            nextState = await service.reconcileStartupModsFolderChange(
+                from: nextState,
+                previousModFolderTokens: preferences.lastKnownModFolderTokens,
+                appliedModSetID: preferences.lastAppliedModSetID
+            )
+        } else {
+            nextState = await service.refreshedState(from: nextState)
+        }
+        commitState(nextState, broadcastsChange: false)
     }
 
     func chooseModsFolder(_ selectedURL: URL) async {
-        state = await service.chooseModsFolder(selectedURL, from: state)
-        persistPreferences()
+        commitState(await service.chooseModsFolder(selectedURL, from: state))
     }
 
     func recordModsFolderSelectionError(_ error: Error) {
@@ -95,13 +142,15 @@ final class ModManagerViewModel: ObservableObject {
     }
 
     func createModFolder() async {
-        state = await service.createModFolder(from: state)
-        persistPreferences()
+        ignoreObservedFolderChangesBriefly()
+        commitState(await service.createModFolder(from: state))
+        ignoreObservedFolderChangesBriefly()
     }
 
     func addMods(from selectedURLs: [URL]) async {
-        state = await service.addMods(from: selectedURLs, in: state)
-        persistPreferences()
+        ignoreObservedFolderChangesBriefly()
+        commitState(await service.addMods(from: selectedURLs, in: state))
+        ignoreObservedFolderChangesBriefly()
     }
 
     func recordAddModsSelectionError(_ error: Error) {
@@ -109,38 +158,49 @@ final class ModManagerViewModel: ObservableObject {
     }
 
     func setMod(_ mod: ModInfo, enabled: Bool) async {
-        state = await service.setMod(mod, enabled: enabled, in: state)
-        persistPreferences()
+        ignoreObservedFolderChangesBriefly()
+        commitState(await service.setMod(mod, enabled: enabled, in: state))
+        ignoreObservedFolderChangesBriefly()
     }
 
     func deleteMod(_ mod: ModInfo) async {
-        state = await service.deleteMod(mod, in: state)
-        persistPreferences()
+        ignoreObservedFolderChangesBriefly()
+        commitState(await service.deleteMod(mod, in: state))
+        ignoreObservedFolderChangesBriefly()
     }
 
     func createModSet(named name: String, from sourceSet: ModSet? = nil) async {
-        state = await service.createModSet(named: name, from: sourceSet, in: state)
-        persistPreferences()
+        commitState(await service.createModSet(named: name, from: sourceSet, in: state))
     }
 
     func duplicateSelectedModSet(named name: String) async {
-        state = await service.duplicateSelectedModSet(named: name, in: state)
-        persistPreferences()
+        commitState(await service.duplicateSelectedModSet(named: name, in: state))
     }
 
     func renameSelectedModSet(to requestedName: String) async {
-        state = await service.renameSelectedModSet(to: requestedName, in: state)
-        persistPreferences()
+        commitState(await service.renameSelectedModSet(to: requestedName, in: state))
     }
 
     func selectModSet(id: String) async {
-        state = await service.selectModSet(id: id, in: state)
-        persistPreferences()
+        ignoreObservedFolderChangesBriefly()
+        commitState(await service.selectModSet(id: id, in: state))
+        ignoreObservedFolderChangesBriefly()
+    }
+
+    func restoreWindowSelectedModSet(id: String) {
+        guard state.selectedModSetID != id else {
+            return
+        }
+
+        var nextState = state
+        nextState.selectedModSetID = id
+        commitState(nextState, broadcastsChange: false)
     }
 
     func deleteModSet(_ set: ModSet) async {
-        state = await service.deleteModSet(set, in: state)
-        persistPreferences()
+        ignoreObservedFolderChangesBriefly()
+        commitState(await service.deleteModSet(set, in: state))
+        ignoreObservedFolderChangesBriefly()
     }
 
     private func guardCanRevealMods() -> Bool {
@@ -182,6 +242,68 @@ final class ModManagerViewModel: ObservableObject {
         state.activityMessage = message
     }
 
+    private func commitState(_ nextState: ModManagerState, broadcastsChange: Bool = true) {
+        state = nextState
+        persistPreferences()
+        updateModsFolderMonitor()
+
+        if broadcastsChange {
+            NotificationCenter.default.post(
+                name: Self.didChangeSharedStateNotification,
+                object: nil,
+                userInfo: [modManagerNotificationSenderIDKey: instanceID]
+            )
+        }
+    }
+
+    private func ignoreObservedFolderChangesBriefly() {
+        ignoredFolderChangeDeadline = Date().addingTimeInterval(2)
+    }
+
+    private func refreshAfterObservedModsFolderChange() async {
+        guard state.readiness.canManageMods else {
+            updateModsFolderMonitor()
+            return
+        }
+
+        guard Date() >= ignoredFolderChangeDeadline else {
+            return
+        }
+
+        let reconciledState = await service.reconcileObservedModsFolderChange(from: state)
+        commitState(reconciledState)
+        folderChangeNotifier.notifyModsFolderChanged()
+    }
+
+    private func refreshAfterSharedStateChange() async {
+        var nextState = stateByRestoringSavedFolder(from: state)
+        nextState = await service.refreshedState(from: nextState)
+        commitState(nextState, broadcastsChange: false)
+    }
+
+    private func updateModsFolderMonitor() {
+        guard state.readiness.canManageMods else {
+            modsFolderMonitor.stopWatching()
+            return
+        }
+
+        let modsDirectoryURL = install.modDirectoryURL.standardizedFileURL.resolvingSymlinksInPath()
+        guard modsFolderMonitor.watchedPath != modsDirectoryURL.path else {
+            return
+        }
+
+        do {
+            let accessToken = try folderAccess.beginAccess()
+            try modsFolderMonitor.startWatching(
+                modsDirectoryURL,
+                securityScopedAccess: accessToken
+            )
+        } catch {
+            modsFolderMonitor.stopWatching()
+            record("Could not watch Mods folder: \(error.localizedDescription)")
+        }
+    }
+
     private func persistPreferences() {
         preferences.save(state)
     }
@@ -189,7 +311,8 @@ final class ModManagerViewModel: ObservableObject {
     private static func initialState(
         preferences: ModManagerPreferences,
         folderAccess: SecurityScopedFolderAccess,
-        modSetDirectory: URL
+        modSetDirectory: URL,
+        selectedModSetID: String
     ) -> ModManagerState {
         let defaultModsPath = StardewInstall.defaultModsDirectory().path
         let bookmarkedDirectoryPath = try? folderAccess.resolveBookmarkURL()?.path
@@ -205,10 +328,45 @@ final class ModManagerViewModel: ObservableObject {
             status: install.status(),
             hasSavedFolderAccess: folderAccess.hasBookmark,
             mods: [],
+            hasLoadedMods: false,
             modSets: [],
-            selectedModSetID: preferences.selectedModSetID,
+            selectedModSetID: selectedModSetID,
             appliedModSetID: nil,
-            activityMessage: ""
+            activityMessage: "",
+            auditTrail: AuditTrailState(
+                logPath: StardewInstall.auditLogURL(forModSetDirectory: modSetDirectory).path,
+                recentEntries: [],
+                lastErrorMessage: nil
+            )
         )
+    }
+
+    private func stateByRestoringSavedFolder(from currentState: ModManagerState) -> ModManagerState {
+        let bookmarkedDirectoryPath = try? folderAccess.resolveBookmarkURL()?.path
+        let restoredDirectoryPath = bookmarkedDirectoryPath
+            ?? preferences.modsDirectoryPath
+            ?? currentState.modsDirectoryPath
+        let install = StardewInstall(
+            modsDirectory: URL(fileURLWithPath: restoredDirectoryPath, isDirectory: true),
+            modSetDirectory: modSetDirectory
+        )
+
+        var nextState = currentState
+        nextState.modsDirectoryPath = restoredDirectoryPath
+        nextState.hasSavedFolderAccess = folderAccess.hasBookmark
+        nextState.status = install.status()
+        return nextState
+    }
+}
+
+private final class NotificationObservation: @unchecked Sendable {
+    private let token: any NSObjectProtocol
+
+    init(token: any NSObjectProtocol) {
+        self.token = token
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(token)
     }
 }

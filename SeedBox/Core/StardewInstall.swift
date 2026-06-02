@@ -3,6 +3,7 @@ import Foundation
 struct StardewInstall: Equatable, Sendable {
     static let modFolderName = "Mods"
     static let modSetFolderName = "Mod Sets"
+    static let auditLogFileName = "Audit Log.plist"
     static let applicationSupportFolderName = "Seed Box"
 
     var modsDirectory: URL
@@ -27,6 +28,26 @@ struct StardewInstall: Equatable, Sendable {
         applicationSupportDirectory
             .appendingPathComponent(applicationSupportFolderName, isDirectory: true)
             .appendingPathComponent(modSetFolderName, isDirectory: true)
+    }
+
+    static func defaultAuditLogURL(
+        applicationSupportDirectory: URL = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first ?? FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+    ) -> URL {
+        applicationSupportDirectory
+            .appendingPathComponent(applicationSupportFolderName, isDirectory: true)
+            .appendingPathComponent(auditLogFileName)
+    }
+
+    static func auditLogURL(forModSetDirectory modSetDirectory: URL) -> URL {
+        modSetDirectory
+            .standardizedFileURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(auditLogFileName)
     }
 
     static func knownDefaultModsDirectories(
@@ -93,6 +114,10 @@ struct StardewInstall: Equatable, Sendable {
 
     var modSetDirectoryURL: URL {
         modSetDirectory
+    }
+
+    var auditLogURL: URL {
+        Self.auditLogURL(forModSetDirectory: modSetDirectory)
     }
 
     func status(fileManager: FileManager = .default) -> InstallationStatus {

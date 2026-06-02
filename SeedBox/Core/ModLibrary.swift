@@ -1,4 +1,5 @@
 import Foundation
+import ZIPFoundation
 
 enum ModLibraryError: Error, Equatable, LocalizedError, Sendable {
     case modFolderMissing(URL)
@@ -24,6 +25,8 @@ enum ModLibraryError: Error, Equatable, LocalizedError, Sendable {
 }
 
 enum ModLibrary {
+    private static let maximumInstallSearchDepth = 8
+
     static func scan(
         install: StardewInstall,
         fileManager: FileManager = .default
@@ -95,6 +98,7 @@ enum ModLibrary {
     static func installMods(
         from sourceURLs: [URL],
         into install: StardewInstall,
+        enabled: Bool = true,
         fileManager: FileManager = .default
     ) throws -> [URL] {
         guard fileManager.directoryExists(at: install.modDirectoryURL) else {
@@ -103,25 +107,40 @@ enum ModLibrary {
 
         var pendingInstalls: [(sourceURL: URL, destinationURL: URL)] = []
         var pendingDestinationURLsByToken: [String: URL] = [:]
+        var temporaryExtractionDirectories: [URL] = []
+        defer {
+            for temporaryExtractionDirectory in temporaryExtractionDirectories {
+                try? fileManager.removeItem(at: temporaryExtractionDirectory)
+            }
+        }
+
         let existingModURLsByToken = installedModURLsByToken(
             in: install.modDirectoryURL,
             fileManager: fileManager
         )
 
         for sourceURL in sourceURLs {
-            let candidates = installCandidates(from: sourceURL, fileManager: fileManager)
-            guard !candidates.isEmpty else {
+            let installSource = try resolveInstallSource(from: sourceURL, fileManager: fileManager)
+            if let temporaryExtractionDirectory = installSource.temporaryExtractionDirectory {
+                temporaryExtractionDirectories.append(temporaryExtractionDirectory)
+            }
+
+            guard !installSource.candidates.isEmpty else {
                 throw ModLibraryError.noInstallableMods(sourceURL)
             }
 
-            for candidateURL in candidates {
-                let folderName = candidateURL.lastPathComponent.trimmingPrefix(Character("."))
+            for candidate in installSource.candidates {
+                let destinationFolderName = destinationFolderName(
+                    for: candidate.destinationFolderName,
+                    enabled: enabled
+                )
+                let folderName = destinationFolderName.trimmingPrefix(Character("."))
                 guard !folderName.isEmpty else {
-                    throw ModLibraryError.invalidDisabledName(candidateURL.lastPathComponent)
+                    throw ModLibraryError.invalidDisabledName(candidate.destinationFolderName)
                 }
 
                 let destinationURL = install.modDirectoryURL
-                    .appendingPathComponent(candidateURL.lastPathComponent)
+                    .appendingPathComponent(destinationFolderName)
                 let destinationToken = folderName.normalizedFolderToken
 
                 if fileManager.fileExists(atPath: destinationURL.path) {
@@ -137,7 +156,7 @@ enum ModLibrary {
                 }
 
                 pendingDestinationURLsByToken[destinationToken] = destinationURL
-                pendingInstalls.append((candidateURL, destinationURL))
+                pendingInstalls.append((candidate.sourceURL, destinationURL))
             }
         }
 
@@ -168,34 +187,138 @@ enum ModLibrary {
         )
     }
 
-    static func installCandidates(
+    private struct InstallSource {
+        var candidates: [InstallCandidate]
+        var temporaryExtractionDirectory: URL?
+    }
+
+    private struct InstallCandidate {
+        var sourceURL: URL
+        var destinationFolderName: String
+    }
+
+    private static func resolveInstallSource(
         from sourceURL: URL,
         fileManager: FileManager = .default
-    ) -> [URL] {
-        if fileManager.fileExists(atPath: sourceURL.appendingPathComponent("manifest.json").path) {
-            return [sourceURL]
+    ) throws -> InstallSource {
+        guard sourceURL.pathExtension.lowercased() == "zip" else {
+            return InstallSource(
+                candidates: installCandidates(from: sourceURL, fileManager: fileManager),
+                temporaryExtractionDirectory: nil
+            )
         }
 
+        let extractionDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("SeedBoxZip-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: extractionDirectory, withIntermediateDirectories: true)
+        try fileManager.unzipItem(at: sourceURL, to: extractionDirectory)
+
+        return InstallSource(
+            candidates: installCandidates(
+                from: extractionDirectory,
+                rootDestinationFolderName: sourceURL.deletingPathExtension().lastPathComponent,
+                fileManager: fileManager
+            ),
+            temporaryExtractionDirectory: extractionDirectory
+        )
+    }
+
+    private static func installCandidates(
+        from sourceURL: URL,
+        rootDestinationFolderName: String? = nil,
+        fileManager: FileManager
+    ) -> [InstallCandidate] {
+        guard fileManager.directoryExists(at: sourceURL) else {
+            return []
+        }
+
+        if containsManifest(in: sourceURL, fileManager: fileManager) {
+            return [
+                InstallCandidate(
+                    sourceURL: sourceURL,
+                    destinationFolderName: rootDestinationFolderName ?? sourceURL.lastPathComponent
+                )
+            ]
+        }
+
+        return nestedInstallCandidates(
+            in: sourceURL,
+            remainingDepth: maximumInstallSearchDepth,
+            fileManager: fileManager
+        )
+    }
+
+    private static func nestedInstallCandidates(
+        in directoryURL: URL,
+        remainingDepth: Int,
+        fileManager: FileManager
+    ) -> [InstallCandidate] {
+        guard remainingDepth > 0 else {
+            return []
+        }
+
+        let children = directoryChildren(in: directoryURL, fileManager: fileManager)
+        return children.flatMap { childURL -> [InstallCandidate] in
+            guard fileManager.directoryExists(at: childURL),
+                  !shouldSkipInstallSearchDirectory(childURL)
+            else {
+                return []
+            }
+
+            if containsManifest(in: childURL, fileManager: fileManager) {
+                return [
+                    InstallCandidate(
+                        sourceURL: childURL,
+                        destinationFolderName: childURL.lastPathComponent
+                    )
+                ]
+            }
+
+            return nestedInstallCandidates(
+                in: childURL,
+                remainingDepth: remainingDepth - 1,
+                fileManager: fileManager
+            )
+        }
+    }
+
+    private static func containsManifest(
+        in directoryURL: URL,
+        fileManager: FileManager
+    ) -> Bool {
+        fileManager.fileExists(atPath: directoryURL.appendingPathComponent("manifest.json").path)
+    }
+
+    private static func directoryChildren(
+        in directoryURL: URL,
+        fileManager: FileManager
+    ) -> [URL] {
         let children = (try? fileManager.contentsOfDirectory(
-            at: sourceURL,
+            at: directoryURL,
             includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
+            options: []
         )) ?? []
 
-        let modChildren = children.filter { childURL in
-            fileManager.directoryExists(at: childURL)
-                && findManifest(in: childURL, maximumDepth: 2, fileManager: fileManager) != nil
+        return children.sorted {
+            $0.path.localizedCaseInsensitiveCompare($1.path) == .orderedAscending
         }
+    }
 
-        if !modChildren.isEmpty {
-            return modChildren
+    private static func shouldSkipInstallSearchDirectory(_ directoryURL: URL) -> Bool {
+        switch directoryURL.lastPathComponent {
+        case "__MACOSX", ".git", ".hg", ".svn":
+            return true
+        default:
+            return false
         }
+    }
 
-        if findManifest(in: sourceURL, maximumDepth: 2, fileManager: fileManager) != nil {
-            return [sourceURL]
-        }
-
-        return []
+    private static func destinationFolderName(
+        for sourceFolderName: String,
+        enabled: Bool
+    ) -> String {
+        let enabledFolderName = sourceFolderName.trimmingPrefix(Character("."))
+        return enabled ? enabledFolderName : ".\(enabledFolderName)"
     }
 
     private static func disambiguatedIDs(for mods: [ModInfo]) -> [ModInfo] {

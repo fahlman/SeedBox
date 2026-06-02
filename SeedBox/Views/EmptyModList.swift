@@ -13,7 +13,7 @@ struct EmptyModList: View {
             Text("No mods in \(viewModel.modFolderName)")
                 .font(.title3.weight(.semibold))
 
-            Text("Add an unzipped mod folder to install it.")
+            Text("Add a mod folder or ZIP archive to install it.")
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 

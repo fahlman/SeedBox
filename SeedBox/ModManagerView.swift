@@ -3,13 +3,22 @@ import UniformTypeIdentifiers
 
 struct ModManagerView: View {
     @ObservedObject var viewModel: ModManagerViewModel
-    @SceneStorage("modManager.searchText") private var searchText = ""
-    @SceneStorage("modManager.selectedModIDs") private var selectedModIDsStorage = "[]"
+    @Binding var searchText: String
+    @Binding var selectedModIDs: Set<String>
     @State private var modSetEditorMode: ModSetEditorMode?
     @State private var modPendingDeletion: ModInfo?
     @State private var modSetPendingDeletion: ModSet?
     @State private var isAddingMods = false
     @State private var isChoosingModsFolder = false
+    @State private var modDropIsTargeted = false
+
+    private static var addableModContentTypes: [UTType] {
+        var contentTypes: [UTType] = [.folder]
+        if let zipType = UTType(filenameExtension: "zip") {
+            contentTypes.append(zipType)
+        }
+        return contentTypes
+    }
 
     private var filteredMods: [ModInfo] {
         let query = ModSearchQuery(searchText)
@@ -17,16 +26,11 @@ struct ModManagerView: View {
     }
 
     private var selectedMod: ModInfo? {
-        let selectedModIDs = restoredSelectedModIDs
         guard selectedModIDs.count == 1, let selectedModID = selectedModIDs.first else {
             return nil
         }
 
         return filteredMods.first { $0.id == selectedModID }
-    }
-
-    private var restoredSelectedModIDs: Set<String> {
-        Self.decodeSelectedModIDs(selectedModIDsStorage)
     }
 
     var body: some View {
@@ -35,26 +39,22 @@ struct ModManagerView: View {
                 ModList(
                     mods: filteredMods,
                     viewModel: viewModel,
-                    selectedModIDs: selectedModIDsBinding,
+                    selectedModIDs: $selectedModIDs,
                     selectedMod: selectedMod,
-                    addMods: {
-                        isAddingMods = true
-                    },
+                    addMods: addMods,
                     revealSelectedMod: revealSelectedMod,
                     requestDeleteSelectedMod: requestDeleteSelectedMod
                 )
             } else {
                 SetupEmptyState(
                     viewModel: viewModel,
-                    chooseModsFolder: {
-                        isChoosingModsFolder = true
-                    }
+                    chooseModsFolder: chooseModsFolder
                 )
             }
 
-            if !viewModel.state.activityMessage.isEmpty {
+            if !viewModel.state.statusLineMessage.isEmpty {
                 Divider()
-                Text(viewModel.state.activityMessage)
+                Text(viewModel.state.statusLineMessage)
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -64,32 +64,31 @@ struct ModManagerView: View {
             }
         }
         .background(.background)
-        .task {
-            await viewModel.refresh()
+        .overlay {
+            if modDropIsTargeted && viewModel.state.readiness.canManageMods {
+                Rectangle()
+                    .fill(Color.accentColor.opacity(0.08))
+                    .overlay {
+                        Rectangle()
+                            .strokeBorder(Color.accentColor, lineWidth: 2)
+                    }
+                    .allowsHitTesting(false)
+            }
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            installDroppedMods(from: urls)
+        } isTargeted: { isTargeted in
+            modDropIsTargeted = isTargeted
         }
         .toolbar {
             ModManagerToolbar(
                 viewModel: viewModel,
                 selectedMod: selectedMod,
-                createModSet: {
-                    modSetEditorMode = .create
-                },
-                duplicateSelectedModSet: {
-                    if let selectedSet = viewModel.state.modSetSelection.selectedSet {
-                        modSetEditorMode = .duplicate(selectedSet)
-                    }
-                },
-                renameSelectedModSet: {
-                    if let selectedSet = viewModel.state.modSetSelection.selectedRenamableSet {
-                        modSetEditorMode = .rename(selectedSet)
-                    }
-                },
-                deleteSelectedModSet: {
-                    modSetPendingDeletion = viewModel.state.modSetSelection.selectedDeletableSet
-                },
-                addMods: {
-                    isAddingMods = true
-                },
+                createModSet: createModSet,
+                duplicateSelectedModSet: duplicateSelectedModSet,
+                renameSelectedModSet: renameSelectedModSet,
+                deleteSelectedModSet: requestDeleteSelectedModSet,
+                addMods: addMods,
                 revealSelectedMod: revealSelectedMod,
                 deleteSelectedMod: requestDeleteSelectedMod
             )
@@ -101,14 +100,12 @@ struct ModManagerView: View {
         )
         .fileImporter(
             isPresented: $isAddingMods,
-            allowedContentTypes: [.folder],
+            allowedContentTypes: Self.addableModContentTypes,
             allowsMultipleSelection: true
         ) { result in
             switch result {
             case .success(let urls):
-                Task {
-                    await viewModel.addMods(from: urls)
-                }
+                installMods(from: urls)
             case .failure(let error):
                 viewModel.recordAddModsSelectionError(error)
             }
@@ -176,6 +173,86 @@ struct ModManagerView: View {
         } message: { set in
             Text("Remove the saved mod set \(set.name)?")
         }
+        .focusedValue(\.modManagerCommandContext, commandContext)
+    }
+
+    private var commandContext: ModManagerCommandContext {
+        ModManagerCommandContext(
+            state: viewModel.state,
+            selectedMod: selectedMod,
+            chooseModsFolder: chooseModsFolder,
+            addMods: addMods,
+            refresh: {
+                Task {
+                    await viewModel.refresh()
+                }
+            },
+            createModSet: createModSet,
+            duplicateSelectedModSet: duplicateSelectedModSet,
+            renameSelectedModSet: renameSelectedModSet,
+            deleteSelectedModSet: requestDeleteSelectedModSet,
+            revealModsFolder: viewModel.revealModsFolder,
+            revealSelectedMod: revealSelectedMod,
+            deleteSelectedMod: requestDeleteSelectedMod
+        )
+    }
+
+    private func chooseModsFolder() {
+        isChoosingModsFolder = true
+    }
+
+    private func addMods() {
+        isAddingMods = true
+    }
+
+    private func installMods(from urls: [URL]) {
+        Task {
+            await viewModel.addMods(from: urls)
+        }
+    }
+
+    private func installDroppedMods(from urls: [URL]) -> Bool {
+        guard viewModel.state.readiness.canManageMods else {
+            return false
+        }
+
+        let installableURLs = urls.filter(Self.canDropAsModSource)
+        guard !installableURLs.isEmpty else {
+            return false
+        }
+
+        installMods(from: installableURLs)
+        return true
+    }
+
+    private static func canDropAsModSource(_ url: URL) -> Bool {
+        url.pathExtension.lowercased() == "zip"
+            || url.hasDirectoryPath
+            || FileManager.default.directoryExists(at: url)
+    }
+
+    private func createModSet() {
+        modSetEditorMode = .create
+    }
+
+    private func duplicateSelectedModSet() {
+        guard let selectedSet = viewModel.state.modSetSelection.selectedSet else {
+            return
+        }
+
+        modSetEditorMode = .duplicate(selectedSet)
+    }
+
+    private func renameSelectedModSet() {
+        guard let selectedSet = viewModel.state.modSetSelection.selectedRenamableSet else {
+            return
+        }
+
+        modSetEditorMode = .rename(selectedSet)
+    }
+
+    private func requestDeleteSelectedModSet() {
+        modSetPendingDeletion = viewModel.state.modSetSelection.selectedDeletableSet
     }
 
     private func revealSelectedMod() {
@@ -202,37 +279,8 @@ struct ModManagerView: View {
         modSetEditorMode = nil
     }
 
-    private var selectedModIDsBinding: Binding<Set<String>> {
-        Binding(
-            get: { restoredSelectedModIDs },
-            set: { selectedModIDsStorage = Self.encodeSelectedModIDs($0) }
-        )
-    }
-
     private func removeSelectedModID(_ id: String) {
-        var selectedIDs = restoredSelectedModIDs
-        selectedIDs.remove(id)
-        selectedModIDsStorage = Self.encodeSelectedModIDs(selectedIDs)
-    }
-
-    private static func decodeSelectedModIDs(_ storedValue: String) -> Set<String> {
-        guard let data = storedValue.data(using: .utf8),
-              let ids = try? JSONDecoder().decode([String].self, from: data)
-        else {
-            return []
-        }
-
-        return Set(ids)
-    }
-
-    private static func encodeSelectedModIDs(_ ids: Set<String>) -> String {
-        guard let data = try? JSONEncoder().encode(ids.sorted()),
-              let storedValue = String(data: data, encoding: .utf8)
-        else {
-            return "[]"
-        }
-
-        return storedValue
+        selectedModIDs.remove(id)
     }
 
     private var modDeletionAlertIsPresented: Binding<Bool> {

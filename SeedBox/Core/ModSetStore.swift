@@ -1,14 +1,17 @@
 import Foundation
 
 enum ModSetStoreError: Error, Equatable, LocalizedError, Sendable {
-    case cannotDeleteDefaultSet
+    case cannotEditIncludedSet
+    case cannotDeleteIncludedSet
     case duplicateSetName(String)
     case missingSet(String)
 
     var errorDescription: String? {
         switch self {
-        case .cannotDeleteDefaultSet:
-            return "The default mod set cannot be deleted."
+        case .cannotEditIncludedSet:
+            return "Included mod sets cannot be edited."
+        case .cannotDeleteIncludedSet:
+            return "Included mod sets cannot be deleted."
         case .duplicateSetName(let name):
             return "A mod set named \(name) already exists."
         case .missingSet(let id):
@@ -18,8 +21,17 @@ enum ModSetStoreError: Error, Equatable, LocalizedError, Sendable {
 }
 
 enum ModSetStore {
+    static let allSetID = "all"
+    static let allSetName = "All"
+    static let noneSetID = "none"
+    static let noneSetName = "None"
     static let defaultSetID = "default"
     static let defaultSetName = "Default"
+    static let includedSetIDs: Set<String> = [
+        allSetID,
+        noneSetID,
+        defaultSetID
+    ]
 
     static func loadSets(
         install: StardewInstall,
@@ -33,6 +45,10 @@ enum ModSetStore {
             currentMods: currentMods,
             fileManager: fileManager
         )
+        let allSet = allIncludedSet()
+        let noneSet = noneIncludedSet(from: currentMods)
+        try saveIncludedSet(allSet, install: install, fileManager: fileManager)
+        try saveIncludedSet(noneSet, install: install, fileManager: fileManager)
 
         let userSetURLs = try fileManager.contentsOfDirectory(
             at: install.modSetDirectoryURL,
@@ -40,7 +56,7 @@ enum ModSetStore {
             options: [.skipsHiddenFiles]
         )
         .filter { $0.pathExtension.lowercased() == "plist" }
-        .filter { $0.deletingPathExtension().lastPathComponent != defaultSetID }
+        .filter { !includedSetIDs.contains($0.deletingPathExtension().lastPathComponent) }
 
         let userSets: [ModSet] = userSetURLs.compactMap { url in
             guard let stored = loadStoredSet(at: url) else {
@@ -51,14 +67,15 @@ enum ModSetStore {
                 id: stored.id,
                 name: stored.name,
                 disabledFolderNames: normalizeFolderNames(stored.disabledFolderNames),
-                isDefault: false
+                isDefault: false,
+                isIncluded: false
             )
         }
         .sorted {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
 
-        return [defaultSet] + userSets
+        return [allSet, noneSet, defaultSet] + userSets
     }
 
     static func createSet(
@@ -72,7 +89,8 @@ enum ModSetStore {
                 id: UUID().uuidString,
                 name: "Untitled Set",
                 disabledFolderNames: normalizeFolderNames(sourceSet.disabledFolderNames),
-                isDefault: false
+                isDefault: false,
+                isIncluded: false
             )
         }
 
@@ -88,7 +106,8 @@ enum ModSetStore {
             id: UUID().uuidString,
             name: trimmedName,
             disabledFolderNames: normalizeFolderNames(sourceSet.disabledFolderNames),
-            isDefault: false
+            isDefault: false,
+            isIncluded: false
         )
     }
 
@@ -97,16 +116,19 @@ enum ModSetStore {
         install: StardewInstall,
         fileManager: FileManager = .default
     ) throws {
+        guard set.isUserEditable else {
+            throw ModSetStoreError.cannotEditIncludedSet
+        }
+
         try createStoreDirectoryIfNeeded(install: install, fileManager: fileManager)
-        let storedID = set.isDefault ? defaultSetID : set.id
         let storedSet = StoredModSet(
-            id: storedID,
-            name: set.isDefault ? defaultSetName : set.name,
+            id: set.id,
+            name: set.name,
             disabledFolderNames: normalizeFolderNames(set.disabledFolderNames)
         )
         try saveStoredSet(
             storedSet,
-            to: urlForSetID(storedID, install: install),
+            to: urlForSetID(set.id, install: install),
             fileManager: fileManager
         )
     }
@@ -116,8 +138,8 @@ enum ModSetStore {
         install: StardewInstall,
         fileManager: FileManager = .default
     ) throws {
-        guard !set.isDefault else {
-            throw ModSetStoreError.cannotDeleteDefaultSet
+        guard set.isUserEditable else {
+            throw ModSetStoreError.cannotDeleteIncludedSet
         }
 
         let url = urlForSetID(set.id, install: install)
@@ -157,7 +179,8 @@ enum ModSetStore {
         id: String,
         name: String,
         from mods: [ModInfo],
-        isDefault: Bool = false
+        isDefault: Bool = false,
+        isIncluded: Bool = false
     ) -> ModSet {
         ModSet(
             id: id,
@@ -165,7 +188,8 @@ enum ModSetStore {
             disabledFolderNames: normalizeFolderNames(
                 mods.filter { !$0.isEnabled }.map(\.enabledFolderName)
             ),
-            isDefault: isDefault
+            isDefault: isDefault,
+            isIncluded: isIncluded
         )
     }
 
@@ -186,7 +210,8 @@ enum ModSetStore {
                 id: defaultSetID,
                 name: defaultSetName,
                 disabledFolderNames: normalizeFolderNames(stored.disabledFolderNames),
-                isDefault: true
+                isDefault: true,
+                isIncluded: true
             )
         }
 
@@ -194,16 +219,49 @@ enum ModSetStore {
             id: defaultSetID,
             name: defaultSetName,
             from: currentMods,
-            isDefault: true
+            isDefault: true,
+            isIncluded: true
         )
 
-        let storedSet = StoredModSet(
-            id: baselineSet.id,
-            name: baselineSet.name,
-            disabledFolderNames: baselineSet.disabledFolderNames
-        )
-        try saveStoredSet(storedSet, to: defaultURL, fileManager: fileManager)
+        try saveIncludedSet(baselineSet, install: install, fileManager: fileManager)
         return baselineSet
+    }
+
+    private static func allIncludedSet() -> ModSet {
+        ModSet(
+            id: allSetID,
+            name: allSetName,
+            disabledFolderNames: [],
+            isDefault: false,
+            isIncluded: true
+        )
+    }
+
+    private static func noneIncludedSet(from mods: [ModInfo]) -> ModSet {
+        ModSet(
+            id: noneSetID,
+            name: noneSetName,
+            disabledFolderNames: normalizeFolderNames(mods.map(\.enabledFolderName)),
+            isDefault: false,
+            isIncluded: true
+        )
+    }
+
+    private static func saveIncludedSet(
+        _ set: ModSet,
+        install: StardewInstall,
+        fileManager: FileManager
+    ) throws {
+        let storedSet = StoredModSet(
+            id: set.id,
+            name: set.name,
+            disabledFolderNames: normalizeFolderNames(set.disabledFolderNames)
+        )
+        try saveStoredSet(
+            storedSet,
+            to: urlForSetID(set.id, install: install),
+            fileManager: fileManager
+        )
     }
 
     private static func createStoreDirectoryIfNeeded(
