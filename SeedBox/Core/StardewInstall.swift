@@ -1,14 +1,14 @@
 import Foundation
 
-public struct StardewInstall: Equatable {
-    public static let modFolderName = "Mods"
-    public static let modSetFolderName = "Mod Sets"
-    public static let applicationSupportFolderName = "Seed Box"
+struct StardewInstall: Equatable, Sendable {
+    static let modFolderName = "Mods"
+    static let modSetFolderName = "Mod Sets"
+    static let applicationSupportFolderName = "Seed Box"
 
-    public var modsDirectory: URL
-    public var modSetDirectory: URL
+    var modsDirectory: URL
+    var modSetDirectory: URL
 
-    public init(
+    init(
         modsDirectory: URL,
         modSetDirectory: URL = Self.defaultModSetDirectory()
     ) {
@@ -16,7 +16,7 @@ public struct StardewInstall: Equatable {
         self.modSetDirectory = modSetDirectory.standardizedFileURL
     }
 
-    public static func defaultModSetDirectory(
+    static func defaultModSetDirectory(
         applicationSupportDirectory: URL = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
@@ -29,7 +29,7 @@ public struct StardewInstall: Equatable {
             .appendingPathComponent(modSetFolderName, isDirectory: true)
     }
 
-    public static func knownDefaultModsDirectories(
+    static func knownDefaultModsDirectories(
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
         applicationsDirectory: URL = URL(fileURLWithPath: "/Applications", isDirectory: true)
     ) -> [URL] {
@@ -53,7 +53,7 @@ public struct StardewInstall: Equatable {
         return [steamModsDirectory, gogModsDirectory]
     }
 
-    public static func hasAnyKnownDefaultModsDirectory(
+    static func hasAnyKnownDefaultModsDirectory(
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
         applicationsDirectory: URL = URL(fileURLWithPath: "/Applications", isDirectory: true),
         fileManager: FileManager = .default
@@ -66,7 +66,7 @@ public struct StardewInstall: Equatable {
         }
     }
 
-    public static func defaultModsDirectory(
+    static func defaultModsDirectory(
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
         applicationsDirectory: URL = URL(fileURLWithPath: "/Applications", isDirectory: true),
         fileManager: FileManager = .default
@@ -87,15 +87,15 @@ public struct StardewInstall: Equatable {
         } ?? candidates[0]
     }
 
-    public var modDirectoryURL: URL {
+    var modDirectoryURL: URL {
         modsDirectory
     }
 
-    public var modSetDirectoryURL: URL {
+    var modSetDirectoryURL: URL {
         modSetDirectory
     }
 
-    public func status(fileManager: FileManager = .default) -> InstallationStatus {
+    func status(fileManager: FileManager = .default) -> InstallationStatus {
         let modDirectoryExists = fileManager.directoryExists(at: modDirectoryURL)
 
         var issues: [InstallationIssue] = []
@@ -109,7 +109,7 @@ public struct StardewInstall: Equatable {
         )
     }
 
-    public func createModDirectory(fileManager: FileManager = .default) throws {
+    func createModDirectory(fileManager: FileManager = .default) throws {
         try fileManager.createDirectory(
             at: modDirectoryURL,
             withIntermediateDirectories: true,
@@ -118,38 +118,30 @@ public struct StardewInstall: Equatable {
     }
 }
 
-public struct InstallationStatus: Equatable {
-    public var modDirectoryExists: Bool
-    public var issues: [InstallationIssue]
+struct InstallationStatus: Equatable, Sendable {
+    var modDirectoryExists: Bool
+    var issues: [InstallationIssue]
 
-    public var canManageMods: Bool {
+    var canManageMods: Bool {
         issues.isEmpty
     }
 
-    public var headline: String {
+    var headline: String {
         canManageMods ? "Ready" : "Needs setup"
     }
 
-    public var detail: String {
+    var detail: String {
         issues.first?.message ?? "Seed Box manages the default Mods folder."
     }
 }
 
-public enum InstallationIssue: Equatable {
+enum InstallationIssue: Equatable, Sendable {
     case missingModDirectory(URL)
 
-    public var message: String {
+    var message: String {
         switch self {
         case .missingModDirectory(let url):
             return "The mod folder does not exist at \(url.path)."
         }
-    }
-}
-
-extension FileManager {
-    func directoryExists(at url: URL) -> Bool {
-        var isDirectory: ObjCBool = false
-        let exists = fileExists(atPath: url.path, isDirectory: &isDirectory)
-        return exists && isDirectory.boolValue
     }
 }

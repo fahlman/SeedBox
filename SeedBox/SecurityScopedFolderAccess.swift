@@ -1,6 +1,6 @@
 import Foundation
 
-enum SecurityScopedFolderAccessError: Error, LocalizedError {
+enum SecurityScopedFolderAccessError: Error, LocalizedError, Sendable {
     case missingBookmark
     case unresolvedBookmark(String)
 
@@ -14,7 +14,7 @@ enum SecurityScopedFolderAccessError: Error, LocalizedError {
     }
 }
 
-final class SecurityScopedFolderAccess {
+final class SecurityScopedFolderAccess: @unchecked Sendable {
     private let defaults: UserDefaults
     private let bookmarkKey: String
 

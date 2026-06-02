@@ -20,7 +20,9 @@ struct SeedBoxApp: App {
         .commands {
             CommandGroup(after: .appInfo) {
                 Button("Refresh Status") {
-                    viewModel.refresh()
+                    Task {
+                        await viewModel.refresh()
+                    }
                 }
                 .keyboardShortcut("r", modifiers: [.command])
             }
@@ -29,12 +31,7 @@ struct SeedBoxApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.regular)
-
-        if let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
-           let image = NSImage(contentsOf: iconURL) {
-            NSApp.applicationIconImage = image
-        }
+    func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+        true
     }
 }
