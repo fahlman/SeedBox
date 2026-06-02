@@ -1,43 +1,42 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @ObservedObject var viewModel: ModManagerViewModel
+    @State private var isChoosingModsFolder = false
 
     var body: some View {
         Form {
             Section("Managed Mods Folder") {
-                HStack {
-                    Text("Path")
-                    Spacer()
+                LabeledContent("Folder") {
                     Text(viewModel.modFolderName)
-                        .font(.body.weight(.medium))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color.accentColor.opacity(0.12))
-                        .foregroundStyle(Color.accentColor)
-                        .clipShape(Capsule())
+                        .foregroundStyle(.secondary)
                 }
 
                 NativePathControl(url: viewModel.install.modDirectoryURL)
                     .frame(height: 28)
                     .help(viewModel.modsDirectoryPath)
 
-                SettingsStatusRow(
-                    title: viewModel.modFolderName,
-                    detail: viewModel.status.modDirectoryExists ? "Ready" : "Missing",
-                    isOK: viewModel.status.modDirectoryExists
-                )
+                LabeledContent(viewModel.modFolderName) {
+                    Label(
+                        modsFolderStatusText,
+                        systemImage: viewModel.canManageMods ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                    )
+                    .foregroundStyle(viewModel.canManageMods ? .green : .orange)
+                }
 
-                SettingsStatusRow(
-                    title: "Folder Access",
-                    detail: viewModel.hasSavedFolderAccess ? "Saved" : "Not saved",
-                    isOK: viewModel.hasSavedFolderAccess
-                )
+                LabeledContent("Folder Access") {
+                    Label(
+                        viewModel.hasSavedFolderAccess ? "Saved" : "Not saved",
+                        systemImage: viewModel.hasSavedFolderAccess ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                    )
+                    .foregroundStyle(viewModel.hasSavedFolderAccess ? .green : .orange)
+                }
 
                 HStack {
                     Button {
-                        viewModel.chooseModsFolder()
+                        isChoosingModsFolder = true
                     } label: {
                         Label("Choose Folder", systemImage: "folder")
                     }
@@ -47,13 +46,14 @@ struct SettingsView: View {
                     } label: {
                         Label("Reveal", systemImage: "magnifyingglass")
                     }
+                    .disabled(!viewModel.canManageMods)
 
                     Button {
                         viewModel.createModFolder()
                     } label: {
                         Label("Create Folder", systemImage: "folder.badge.plus")
                     }
-                    .disabled(viewModel.status.modDirectoryExists)
+                    .disabled(viewModel.status.modDirectoryExists || !viewModel.hasSavedFolderAccess)
 
                     Spacer()
                 }
@@ -62,6 +62,27 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .padding(20)
         .frame(width: 560)
+        .fileImporter(
+            isPresented: $isChoosingModsFolder,
+            allowedContentTypes: [.folder]
+        ) { result in
+            switch result {
+            case .success(let url):
+                viewModel.chooseModsFolder(url)
+            case .failure(let error):
+                viewModel.recordModsFolderSelectionError(error)
+            }
+        }
+    }
+
+    private var modsFolderStatusText: String {
+        if viewModel.canManageMods {
+            return "Ready"
+        }
+        if !viewModel.hasSavedFolderAccess {
+            return "Needs access"
+        }
+        return "Missing"
     }
 }
 
@@ -80,30 +101,5 @@ private struct NativePathControl: NSViewRepresentable {
     func updateNSView(_ control: NSPathControl, context: Context) {
         control.url = url
         control.toolTip = url.path
-    }
-}
-
-private struct SettingsStatusRow: View {
-    var title: String
-    var detail: String
-    var isOK: Bool
-
-    var body: some View {
-        HStack {
-            Text(title)
-            Spacer()
-            Text(detail)
-                .foregroundStyle(.secondary)
-            StatusIcon(isOK: isOK)
-        }
-    }
-}
-
-private struct StatusIcon: View {
-    var isOK: Bool
-
-    var body: some View {
-        Image(systemName: isOK ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-            .foregroundStyle(isOK ? .green : .orange)
     }
 }

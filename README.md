@@ -7,24 +7,28 @@ not launch the game.
 
 ## Direction
 
-Seed Box is becoming a mod-set manager:
+Seed Box is becoming a sandboxed mod-set manager:
 
 - the default `Mods` folder is the uneditable base inventory
-- named mod sets are saved as plist profiles
+- named mod sets are saved as plist profiles in Application Support
+- new mod sets start from the current enabled/disabled state
 - applying a set enables or disables mod folders by adding or removing a leading
   period from each folder name
-- "Stardew Valley Expanded" is one possible set, not the app's identity
+- changes to an editable active set save automatically
+- any mod collection can be represented as a set
 
 ## Current Build
 
-- Defaults to Steam when found:
+- Suggests Steam when found:
   `~/Library/Application Support/Steam/steamapps/common/Stardew Valley/Contents/MacOS/Mods`
 - Falls back to GOG app location:
   `/Applications/Stardew Valley.app/Contents/MacOS/Mods`
-- Manages mods in the default `Mods` folder
+- Requires the user to choose the `Mods` folder so macOS grants access
+- Manages mods in the chosen `Mods` folder
 - Adds unzipped mod folders
 - Enables/disables mods by adding or removing a leading period
 - Moves deleted mods to the Trash
+- Stores mod-set plist files in `~/Library/Application Support/Seed Box/Mod Sets`
 - Keeps mods-folder path and setup actions in Settings
 
 ## Requirements
@@ -48,18 +52,16 @@ distribution should use a Developer ID certificate and notarization.
 
 ## Sandbox Notes
 
-The default app target is intentionally not sandboxed while the mod-management
-workflow settles, because Stardew mods live inside the game install folder.
-
-The app is sandbox-aware, though:
+The app target is sandboxed. Seed Box writes its own mod-set data inside the
+app container's Application Support directory and uses user-granted access for
+the Stardew Valley `Mods` folder.
 
 - choosing the Mods folder stores a security-scoped bookmark
-- file validation, mod-folder creation, and mod operations use that saved folder
-  access when available
-- `SeedBox/Sandbox.entitlements` is included as a starting point for a future
-  sandbox experiment
+- mod operations require that saved folder access
+- mod-set plist files resolve to the container's Application Support directory
+  in sandboxed builds
 
-## Legacy App
+## Project History
 
-Seed Box was split out of the old Platypus-based SVE launcher. The old generated
-bundle has been removed; maintained source now lives in this Xcode project.
+Seed Box was split out of an older Platypus-based app wrapper. That generated
+bundle is gone; maintained source now lives in this Xcode project.

@@ -1,118 +1,390 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ModManagerView: View {
     @ObservedObject var viewModel: ModManagerViewModel
     @State private var searchText = ""
+    @State private var modSetEditorMode: ModSetEditorMode?
+    @State private var modPendingDeletion: ModInfo?
+    @State private var modSetPendingDeletion: ModSet?
+    @State private var selectedModIDs: Set<String> = []
+    @State private var isAddingMods = false
+    @State private var isChoosingModsFolder = false
 
     private var filteredMods: [ModInfo] {
-        guard !searchText.isEmpty else {
-            return viewModel.mods
+        let query = ModSearchQuery(searchText)
+        return viewModel.mods.filter { query.matches($0) }
+    }
+
+    private var selectedMod: ModInfo? {
+        guard selectedModIDs.count == 1, let selectedModID = selectedModIDs.first else {
+            return nil
         }
 
-        return viewModel.mods.filter { mod in
-            mod.displayName.localizedCaseInsensitiveContains(searchText)
-                || mod.authorText.localizedCaseInsensitiveContains(searchText)
-                || (mod.manifest?.description?.localizedCaseInsensitiveContains(searchText) ?? false)
-        }
+        return filteredMods.first { $0.id == selectedModID }
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            HeaderBar(viewModel: viewModel)
-
-            Divider()
-
-            ToolbarBar(
-                viewModel: viewModel,
-                searchText: $searchText
-            )
-
-            Divider()
-
-            if viewModel.status.modDirectoryExists {
+            if viewModel.canManageMods {
                 ModList(
                     mods: filteredMods,
-                    viewModel: viewModel
+                    viewModel: viewModel,
+                    selectedModIDs: $selectedModIDs,
+                    selectedMod: selectedMod,
+                    addMods: {
+                        isAddingMods = true
+                    },
+                    revealSelectedMod: revealSelectedMod,
+                    requestDeleteSelectedMod: requestDeleteSelectedMod
                 )
             } else {
-                SetupEmptyState(viewModel: viewModel)
+                SetupEmptyState(
+                    viewModel: viewModel,
+                    chooseModsFolder: {
+                        isChoosingModsFolder = true
+                    }
+                )
             }
 
             if !viewModel.activityMessage.isEmpty {
                 Divider()
-                ActivityBar(message: viewModel.activityMessage)
-            }
-        }
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-}
-
-private struct HeaderBar: View {
-    @ObservedObject var viewModel: ModManagerViewModel
-
-    var body: some View {
-        HStack(spacing: 14) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .frame(width: 46, height: 46)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Seed Box")
-                    .font(.title2.weight(.semibold))
-                    .lineLimit(1)
-
-                Text(statusText)
+                Text(viewModel.activityMessage)
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 10)
+            }
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+        .toolbar {
+            ModManagerToolbar(
+                viewModel: viewModel,
+                selectedMod: selectedMod,
+                createModSet: {
+                    modSetEditorMode = .create
+                },
+                duplicateSelectedModSet: {
+                    if let selectedSet = viewModel.selectedModSetForActions {
+                        modSetEditorMode = .duplicate(selectedSet)
+                    }
+                },
+                renameSelectedModSet: {
+                    if let selectedSet = viewModel.selectedEditableModSet {
+                        modSetEditorMode = .rename(selectedSet)
+                    }
+                },
+                deleteSelectedModSet: {
+                    modSetPendingDeletion = viewModel.selectedDeletableModSet
+                },
+                addMods: {
+                    isAddingMods = true
+                },
+                revealSelectedMod: revealSelectedMod,
+                deleteSelectedMod: requestDeleteSelectedMod
+            )
+        }
+        .searchable(
+            text: $searchText,
+            placement: .toolbar,
+            prompt: "Search Mods"
+        )
+        .fileImporter(
+            isPresented: $isAddingMods,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: true
+        ) { result in
+            switch result {
+            case .success(let urls):
+                viewModel.addMods(from: urls)
+            case .failure(let error):
+                viewModel.recordAddModsSelectionError(error)
+            }
+        }
+        .fileImporter(
+            isPresented: $isChoosingModsFolder,
+            allowedContentTypes: [.folder]
+        ) { result in
+            switch result {
+            case .success(let url):
+                viewModel.chooseModsFolder(url)
+            case .failure(let error):
+                viewModel.recordModsFolderSelectionError(error)
+            }
+        }
+        .sheet(item: $modSetEditorMode) { mode in
+            ModSetNameSheet(
+                mode: mode,
+                onCancel: {
+                    modSetEditorMode = nil
+                },
+                onCommit: { name in
+                    switch mode {
+                    case .create:
+                        viewModel.createModSet(named: name)
+                    case .duplicate:
+                        viewModel.duplicateSelectedModSet(named: name)
+                    case .rename:
+                        viewModel.renameSelectedModSet(to: name)
+                    }
+                    modSetEditorMode = nil
+                }
+            )
+        }
+        .alert(
+            "Delete Mod?",
+            isPresented: modDeletionAlertIsPresented,
+            presenting: modPendingDeletion
+        ) { mod in
+            Button("Delete", role: .destructive) {
+                viewModel.deleteMod(mod)
+                selectedModIDs.remove(mod.id)
+                modPendingDeletion = nil
             }
 
-            Spacer()
+            Button("Cancel", role: .cancel) {
+                modPendingDeletion = nil
+            }
+        } message: { mod in
+            Text("Move \(mod.displayName) to the Trash?")
         }
-        .padding(.horizontal, 22)
-        .padding(.vertical, 16)
+        .alert(
+            "Delete Mod Set?",
+            isPresented: modSetDeletionAlertIsPresented,
+            presenting: modSetPendingDeletion
+        ) { set in
+            Button("Delete", role: .destructive) {
+                viewModel.deleteModSet(set)
+                modSetPendingDeletion = nil
+            }
+
+            Button("Cancel", role: .cancel) {
+                modSetPendingDeletion = nil
+            }
+        } message: { set in
+            Text("Remove the saved mod set \(set.name)?")
+        }
     }
 
-    private var statusText: String {
-        if viewModel.status.canManageMods {
-            let enabledCount = viewModel.mods.filter(\.isEnabled).count
-            let disabledCount = viewModel.mods.count - enabledCount
-            return "\(enabledCount) enabled, \(disabledCount) disabled in \(viewModel.modFolderName)."
+    private func revealSelectedMod() {
+        guard let selectedMod else {
+            return
         }
-        if viewModel.isSMAPILikelyMissing {
-            return "SMAPI not detected in Steam or GOG."
-        }
-        if !viewModel.hasSavedFolderAccess {
-            return "Choose your Mods folder."
-        }
-        return "Create or pick the \(viewModel.modFolderName) folder."
+
+        viewModel.revealMod(selectedMod)
+    }
+
+    private func requestDeleteSelectedMod() {
+        modPendingDeletion = selectedMod
+    }
+
+    private var modDeletionAlertIsPresented: Binding<Bool> {
+        Binding(
+            get: { modPendingDeletion != nil },
+            set: { isPresented in
+                if !isPresented {
+                    modPendingDeletion = nil
+                }
+            }
+        )
+    }
+
+    private var modSetDeletionAlertIsPresented: Binding<Bool> {
+        Binding(
+            get: { modSetPendingDeletion != nil },
+            set: { isPresented in
+                if !isPresented {
+                    modSetPendingDeletion = nil
+                }
+            }
+        )
     }
 }
 
-private struct ToolbarBar: View {
-    @ObservedObject var viewModel: ModManagerViewModel
-    @Binding var searchText: String
+private enum ModSetEditorMode: Identifiable {
+    case create
+    case duplicate(ModSet)
+    case rename(ModSet)
+
+    var id: String {
+        switch self {
+        case .create:
+            return "create"
+        case .duplicate(let set):
+            return "duplicate-\(set.id)"
+        case .rename(let set):
+            return "rename-\(set.id)"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .create:
+            return "New Mod Set"
+        case .duplicate:
+            return "Duplicate Mod Set"
+        case .rename:
+            return "Rename Mod Set"
+        }
+    }
+
+    var actionTitle: String {
+        switch self {
+        case .create:
+            return "Create"
+        case .duplicate:
+            return "Duplicate"
+        case .rename:
+            return "Rename"
+        }
+    }
+
+    var initialName: String {
+        switch self {
+        case .create:
+            return "New Set"
+        case .duplicate(let set):
+            return "\(set.name) Copy"
+        case .rename(let set):
+            return set.name
+        }
+    }
+}
+
+private struct ModSetNameSheet: View {
+    var mode: ModSetEditorMode
+    var onCancel: () -> Void
+    var onCommit: (String) -> Void
+
+    @State private var name: String
+    @FocusState private var isNameFocused: Bool
+
+    init(
+        mode: ModSetEditorMode,
+        onCancel: @escaping () -> Void,
+        onCommit: @escaping (String) -> Void
+    ) {
+        self.mode = mode
+        self.onCancel = onCancel
+        self.onCommit = onCommit
+        _name = State(initialValue: mode.initialName)
+    }
 
     var body: some View {
-        HStack(spacing: 10) {
-            TextField("Search mods", text: $searchText)
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 260)
+        VStack(alignment: .leading, spacing: 16) {
+            Text(mode.title)
+                .font(.headline)
 
-            ReadinessPill(
-                title: "\(viewModel.mods.filter(\.isEnabled).count) enabled",
-                systemImage: "checkmark.circle.fill",
-                color: .green
-            )
+            TextField("Name", text: $name)
+                .focused($isNameFocused)
+                .onSubmit(commit)
 
-            ReadinessPill(
-                title: "\(viewModel.mods.filter { !$0.isEnabled }.count) disabled",
-                systemImage: "pause.circle.fill",
-                color: .orange
-            )
+            HStack {
+                Spacer()
 
-            Spacer()
+                Button("Cancel", role: .cancel) {
+                    onCancel()
+                }
+                .keyboardShortcut(.cancelAction)
 
+                Button(mode.actionTitle) {
+                    commit()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(trimmedName.isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 360)
+        .onAppear {
+            isNameFocused = true
+        }
+    }
+
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func commit() {
+        guard !trimmedName.isEmpty else {
+            return
+        }
+
+        onCommit(trimmedName)
+    }
+}
+
+private struct ModManagerToolbar: ToolbarContent {
+    @ObservedObject var viewModel: ModManagerViewModel
+    var selectedMod: ModInfo?
+    var createModSet: () -> Void
+    var duplicateSelectedModSet: () -> Void
+    var renameSelectedModSet: () -> Void
+    var deleteSelectedModSet: () -> Void
+    var addMods: () -> Void
+    var revealSelectedMod: () -> Void
+    var deleteSelectedMod: () -> Void
+
+    var body: some ToolbarContent {
+        ToolbarItemGroup {
+            Picker("Mod Set", selection: $viewModel.selectedModSetID) {
+                ForEach(viewModel.modSets) { set in
+                    Text(set.name)
+                        .tag(set.id)
+                }
+            }
+            .frame(width: 220)
+            .disabled(viewModel.modSets.isEmpty || !viewModel.canManageMods)
+
+            Button {
+                createModSet()
+            } label: {
+                Label("New Mod Set", systemImage: "plus")
+            }
+            .labelStyle(.iconOnly)
+            .help("New Mod Set")
+            .disabled(!viewModel.canManageMods)
+
+            Button {
+                viewModel.applySelectedModSet()
+            } label: {
+                Label("Apply Set", systemImage: "checkmark.seal")
+            }
+            .disabled(viewModel.modSets.isEmpty || !viewModel.canManageMods)
+
+            Menu {
+                Button {
+                    duplicateSelectedModSet()
+                } label: {
+                    Label("Duplicate Set", systemImage: "doc.on.doc")
+                }
+                .disabled(viewModel.modSets.isEmpty || !viewModel.canManageMods)
+
+                Button {
+                    renameSelectedModSet()
+                } label: {
+                    Label("Rename Set", systemImage: "pencil")
+                }
+                .disabled(!viewModel.canEditSelectedModSet || !viewModel.canManageMods)
+
+                Divider()
+
+                Button(role: .destructive) {
+                    deleteSelectedModSet()
+                } label: {
+                    Label("Delete Set", systemImage: "trash")
+                }
+                .disabled(!viewModel.canDeleteSelectedModSet || !viewModel.canManageMods)
+            } label: {
+                Label("Set Actions", systemImage: "ellipsis.circle")
+            }
+            .labelStyle(.iconOnly)
+            .disabled(!viewModel.canManageMods)
+        }
+
+        ToolbarItemGroup {
             Button {
                 viewModel.refresh()
             } label: {
@@ -120,11 +392,25 @@ private struct ToolbarBar: View {
             }
 
             Button {
-                viewModel.addMods()
+                addMods()
             } label: {
-                Label("Add Mod", systemImage: "plus")
+                Label("Add Mods", systemImage: "plus")
             }
-            .disabled(!viewModel.status.canManageMods)
+            .disabled(!viewModel.canManageMods)
+
+            Button {
+                revealSelectedMod()
+            } label: {
+                Label("Reveal in Finder", systemImage: "magnifyingglass")
+            }
+            .disabled(selectedMod == nil || !viewModel.canManageMods)
+
+            Button(role: .destructive) {
+                deleteSelectedMod()
+            } label: {
+                Label("Move to Trash", systemImage: "trash")
+            }
+            .disabled(selectedMod == nil || !viewModel.canManageMods)
 
             Button {
                 openSettings()
@@ -132,101 +418,129 @@ private struct ToolbarBar: View {
                 Label("Settings", systemImage: "gearshape")
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
     }
 }
 
 private struct ModList: View {
     var mods: [ModInfo]
     @ObservedObject var viewModel: ModManagerViewModel
+    @Binding var selectedModIDs: Set<String>
+    var selectedMod: ModInfo?
+    var addMods: () -> Void
+    var revealSelectedMod: () -> Void
+    var requestDeleteSelectedMod: () -> Void
+    @State private var sortOrder = [KeyPathComparator(\ModTableRow.nameSortText)]
+
+    private var rows: [ModTableRow] {
+        mods.map(ModTableRow.init).sorted(using: sortOrder)
+    }
 
     var body: some View {
         if mods.isEmpty {
-            EmptyModList(viewModel: viewModel)
+            EmptyModList(viewModel: viewModel, addMods: addMods)
         } else {
-            List(mods) { mod in
-                ModRow(
-                    mod: mod,
-                    viewModel: viewModel
-                )
-                .listRowSeparator(.visible)
+            Table(rows, selection: $selectedModIDs, sortOrder: $sortOrder) {
+                TableColumn("State", value: \.enabledSortText) { row in
+                    Toggle(row.enabledText, isOn: Binding(
+                        get: { row.mod.isEnabled },
+                        set: { viewModel.setMod(row.mod, enabled: $0) }
+                    ))
+                    .labelsHidden()
+                    .disabled(!viewModel.canManageMods)
+                }
+                .width(min: 76, ideal: 92, max: 110)
+
+                TableColumn("Mod", value: \.nameSortText) { row in
+                    ModNameCell(mod: row.mod)
+                }
+
+                TableColumn("Author", value: \.authorText) { row in
+                    Text(row.authorText)
+                        .lineLimit(1)
+                }
+                .width(min: 130, ideal: 170, max: 240)
+
+                TableColumn("Type", value: \.typeText) { row in
+                    Text(row.typeText)
+                        .lineLimit(1)
+                }
+                .width(min: 120, ideal: 150, max: 180)
             }
-            .listStyle(.plain)
+            .contextMenu {
+                Button {
+                    revealSelectedMod()
+                } label: {
+                    Label("Reveal in Finder", systemImage: "magnifyingglass")
+                }
+                .disabled(selectedMod == nil || !viewModel.canManageMods)
+
+                Button(role: .destructive) {
+                    requestDeleteSelectedMod()
+                } label: {
+                    Label("Move to Trash", systemImage: "trash")
+                }
+                .disabled(selectedMod == nil || !viewModel.canManageMods)
+            }
         }
     }
 }
 
-private struct ModRow: View {
+private struct ModTableRow: Identifiable {
     var mod: ModInfo
-    @ObservedObject var viewModel: ModManagerViewModel
+
+    var id: String {
+        mod.id
+    }
+
+    var enabledText: String {
+        mod.stateText
+    }
+
+    var enabledSortText: String {
+        mod.isEnabled ? "0 Enabled" : "1 Disabled"
+    }
+
+    var nameSortText: String {
+        "\(mod.displayName) \(mod.versionText)"
+    }
+
+    var authorText: String {
+        mod.authorText
+    }
+
+    var typeText: String {
+        mod.typeText
+    }
+}
+
+private struct ModNameCell: View {
+    var mod: ModInfo
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Toggle("", isOn: Binding(
-                get: { mod.isEnabled },
-                set: { viewModel.setMod(mod, enabled: $0) }
-            ))
-            .toggleStyle(.switch)
-            .labelsHidden()
-            .padding(.top, 4)
+        VStack(alignment: .leading, spacing: 3) {
+            Text(mod.displayName)
+                .font(.headline)
+                .lineLimit(1)
 
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 8) {
-                    Text(mod.displayName)
-                        .font(.headline)
-                        .lineLimit(1)
+            Text(mod.versionText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
 
-                    if !mod.isEnabled {
-                        Text("Disabled")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.orange)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(.orange.opacity(0.12))
-                            .clipShape(Capsule())
-                    }
-                }
-
-                Text("\(mod.versionText) by \(mod.authorText)")
+            if let missingDependenciesText = mod.missingRequiredDependenciesText {
+                Label(missingDependenciesText, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.red)
                     .lineLimit(1)
-
-                if let description = mod.manifest?.description, !description.isEmpty {
-                    Text(description)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
             }
-
-            Spacer(minLength: 12)
-
-            HStack(spacing: 6) {
-                Button {
-                    viewModel.revealMod(mod)
-                } label: {
-                    Image(systemName: "magnifyingglass")
-                }
-                .help("Reveal in Finder")
-
-                Button(role: .destructive) {
-                    viewModel.deleteMod(mod)
-                } label: {
-                    Image(systemName: "trash")
-                }
-                .help("Move to Trash")
-            }
-            .buttonStyle(.borderless)
-            .font(.system(size: 15))
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 5)
     }
 }
 
 private struct EmptyModList: View {
     @ObservedObject var viewModel: ModManagerViewModel
+    var addMods: () -> Void
 
     var body: some View {
         VStack(spacing: 12) {
@@ -242,11 +556,12 @@ private struct EmptyModList: View {
                 .multilineTextAlignment(.center)
 
             Button {
-                viewModel.addMods()
+                addMods()
             } label: {
-                Label("Add Mod", systemImage: "plus")
+                Label("Add Mods", systemImage: "plus")
             }
             .buttonStyle(.borderedProminent)
+            .disabled(!viewModel.canManageMods)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(32)
@@ -255,6 +570,7 @@ private struct EmptyModList: View {
 
 private struct SetupEmptyState: View {
     @ObservedObject var viewModel: ModManagerViewModel
+    var chooseModsFolder: () -> Void
 
     var body: some View {
         VStack(spacing: 12) {
@@ -289,21 +605,21 @@ private struct SetupEmptyState: View {
     }
 
     private var setupTitle: String {
-        if viewModel.isSMAPILikelyMissing {
-            return "SMAPI Not Installed"
-        }
         if !viewModel.hasSavedFolderAccess {
             return "Choose Mods Folder"
+        }
+        if viewModel.isSMAPILikelyMissing {
+            return "SMAPI Not Installed"
         }
         return "Create \(viewModel.modFolderName)"
     }
 
     private var setupDetail: String {
-        if viewModel.isSMAPILikelyMissing {
-            return "No default Mods folder was found in Steam or GOG locations."
-        }
         if !viewModel.hasSavedFolderAccess {
             return "Select the Mods folder Seed Box should manage."
+        }
+        if viewModel.isSMAPILikelyMissing {
+            return "No default Mods folder was found in Steam or GOG locations."
         }
         return "Seed Box manages this Mods folder directly."
     }
@@ -324,48 +640,10 @@ private struct SetupEmptyState: View {
 
     private func primarySetupAction() {
         if !viewModel.hasSavedFolderAccess {
-            viewModel.chooseModsFolder()
+            chooseModsFolder()
         } else {
             viewModel.createModFolder()
         }
-    }
-}
-
-private struct ActivityBar: View {
-    var message: String
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "checkmark.circle")
-                .foregroundStyle(.secondary)
-            Text(message)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            Spacer()
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 10)
-    }
-}
-
-private struct ReadinessPill: View {
-    var title: String
-    var systemImage: String
-    var color: Color
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: systemImage)
-            Text(title)
-                .lineLimit(1)
-        }
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(color)
-        .padding(.horizontal, 9)
-        .padding(.vertical, 5)
-        .background(color.opacity(0.12))
-        .clipShape(Capsule())
     }
 }
 

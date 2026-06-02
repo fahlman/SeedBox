@@ -2,11 +2,31 @@ import Foundation
 
 public struct StardewInstall: Equatable {
     public static let modFolderName = "Mods"
+    public static let modSetFolderName = "Mod Sets"
+    public static let applicationSupportFolderName = "Seed Box"
 
     public var modsDirectory: URL
+    public var modSetDirectory: URL
 
-    public init(modsDirectory: URL) {
+    public init(
+        modsDirectory: URL,
+        modSetDirectory: URL = Self.defaultModSetDirectory()
+    ) {
         self.modsDirectory = modsDirectory.standardizedFileURL
+        self.modSetDirectory = modSetDirectory.standardizedFileURL
+    }
+
+    public static func defaultModSetDirectory(
+        applicationSupportDirectory: URL = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first ?? FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+    ) -> URL {
+        applicationSupportDirectory
+            .appendingPathComponent(applicationSupportFolderName, isDirectory: true)
+            .appendingPathComponent(modSetFolderName, isDirectory: true)
     }
 
     public static func knownDefaultModsDirectories(
@@ -69,6 +89,10 @@ public struct StardewInstall: Equatable {
 
     public var modDirectoryURL: URL {
         modsDirectory
+    }
+
+    public var modSetDirectoryURL: URL {
+        modSetDirectory
     }
 
     public func status(fileManager: FileManager = .default) -> InstallationStatus {

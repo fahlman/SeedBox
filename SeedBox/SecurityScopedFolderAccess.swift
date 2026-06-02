@@ -1,5 +1,19 @@
 import Foundation
 
+enum SecurityScopedFolderAccessError: Error, LocalizedError {
+    case missingBookmark
+    case unresolvedBookmark(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .missingBookmark:
+            return "No saved folder access was found."
+        case .unresolvedBookmark(let reason):
+            return "Saved folder access could not be restored: \(reason)"
+        }
+    }
+}
+
 final class SecurityScopedFolderAccess {
     private let defaults: UserDefaults
     private let bookmarkKey: String
@@ -29,30 +43,48 @@ final class SecurityScopedFolderAccess {
     func withAccess<T>(_ operation: () throws -> T) throws -> T {
         let token = try beginAccess()
         defer {
-            token?.stop()
+            token.stop()
         }
 
         return try operation()
     }
 
-    func beginAccess() throws -> SecurityScopedAccessToken? {
+    func resolveBookmarkURL() throws -> URL? {
         guard let bookmarkData = defaults.data(forKey: bookmarkKey) else {
             return nil
         }
 
+        return try resolveBookmarkURL(from: bookmarkData)
+    }
+
+    func beginAccess() throws -> SecurityScopedAccessToken {
+        guard let bookmarkData = defaults.data(forKey: bookmarkKey) else {
+            throw SecurityScopedFolderAccessError.missingBookmark
+        }
+
+        return try SecurityScopedAccessToken(url: resolveBookmarkURL(from: bookmarkData))
+    }
+
+    private func resolveBookmarkURL(from bookmarkData: Data) throws -> URL {
         var isStale = false
-        let url = try URL(
-            resolvingBookmarkData: bookmarkData,
-            options: [.withSecurityScope],
-            relativeTo: nil,
-            bookmarkDataIsStale: &isStale
-        )
+
+        let url: URL
+        do {
+            url = try URL(
+                resolvingBookmarkData: bookmarkData,
+                options: [.withSecurityScope],
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            )
+        } catch {
+            throw SecurityScopedFolderAccessError.unresolvedBookmark(error.localizedDescription)
+        }
 
         if isStale {
             try saveBookmark(for: url)
         }
 
-        return SecurityScopedAccessToken(url: url)
+        return url.standardizedFileURL.resolvingSymlinksInPath()
     }
 }
 
