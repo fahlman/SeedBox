@@ -7,37 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		B00100000000000000000001 /* SeedBoxApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000001 /* SeedBoxApp.swift */; };
-		B00100000000000000000002 /* ModManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000002 /* ModManagerView.swift */; };
-		B00100000000000000000003 /* ModManagerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000003 /* ModManagerViewModel.swift */; };
-		B00100000000000000000004 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000004 /* SettingsView.swift */; };
-		B00100000000000000000005 /* SecurityScopedFolderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000005 /* SecurityScopedFolderAccess.swift */; };
-		B00100000000000000000006 /* ModLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000006 /* ModLibrary.swift */; };
-		B00100000000000000000007 /* FileManager+Directories.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000007 /* FileManager+Directories.swift */; };
-		B00100000000000000000008 /* String+SeedBox.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000008 /* String+SeedBox.swift */; };
-		B00100000000000000000009 /* StardewInstall.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000009 /* StardewInstall.swift */; };
-		B0010000000000000000000A /* ModManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0010000000000000000000A /* ModManifest.swift */; };
-		B0010000000000000000000B /* ModInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0010000000000000000000B /* ModInfo.swift */; };
-		B0010000000000000000000C /* ModSearchQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0010000000000000000000C /* ModSearchQuery.swift */; };
-		B0010000000000000000000D /* ModSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0010000000000000000000D /* ModSet.swift */; };
-		B0010000000000000000000E /* ModSetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0010000000000000000000E /* ModSetStore.swift */; };
-		B0010000000000000000000F /* ModManagerState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0010000000000000000000F /* ModManagerState.swift */; };
-		B00100000000000000000010 /* ModManagerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000010 /* ModManagerService.swift */; };
-		B00100000000000000000011 /* ModManagerPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000011 /* ModManagerPreferences.swift */; };
-		B00100000000000000000014 /* ModSetNameSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000014 /* ModSetNameSheet.swift */; };
-		B00100000000000000000015 /* ModManagerToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000015 /* ModManagerToolbar.swift */; };
-		B00100000000000000000016 /* ModList.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000016 /* ModList.swift */; };
-		B00100000000000000000017 /* ModTableRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000017 /* ModTableRow.swift */; };
-		B00100000000000000000018 /* ModNameCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000018 /* ModNameCell.swift */; };
-		B00100000000000000000019 /* EmptyModList.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000019 /* EmptyModList.swift */; };
-		B0010000000000000000001A /* SetupEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0010000000000000000001A /* SetupEmptyState.swift */; };
-		B0010000000000000000001B /* NativePathControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0010000000000000000001B /* NativePathControl.swift */; };
-		B00200000000000000000001 /* StardewInstallTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00200000000000000000001 /* StardewInstallTests.swift */; };
-		B00200000000000000000002 /* SeedBoxTestCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00200000000000000000002 /* SeedBoxTestCase.swift */; };
-		B00200000000000000000004 /* ModLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00200000000000000000003 /* ModLibraryTests.swift */; };
-		B00200000000000000000011 /* ModSetStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00200000000000000000004 /* ModSetStoreTests.swift */; };
-		B00200000000000000000012 /* ModManagerViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00200000000000000000005 /* ModManagerViewModelTests.swift */; };
-		B00200000000000000000013 /* ModSearchQueryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00200000000000000000006 /* ModSearchQueryTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -51,42 +20,36 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		F00100000000000000000001 /* SeedBoxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedBoxApp.swift; sourceTree = "<group>"; };
-		F00100000000000000000002 /* ModManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModManagerView.swift; sourceTree = "<group>"; };
-		F00100000000000000000003 /* ModManagerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModManagerViewModel.swift; sourceTree = "<group>"; };
-		F00100000000000000000004 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		F00100000000000000000005 /* SecurityScopedFolderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityScopedFolderAccess.swift; sourceTree = "<group>"; };
-		F00100000000000000000006 /* ModLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModLibrary.swift; sourceTree = "<group>"; };
-		F00100000000000000000007 /* FileManager+Directories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FileManager+Directories.swift"; sourceTree = "<group>"; };
-		F00100000000000000000008 /* String+SeedBox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+SeedBox.swift"; sourceTree = "<group>"; };
-		F00100000000000000000009 /* StardewInstall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StardewInstall.swift; sourceTree = "<group>"; };
-		F0010000000000000000000A /* ModManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModManifest.swift; sourceTree = "<group>"; };
-		F0010000000000000000000B /* ModInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModInfo.swift; sourceTree = "<group>"; };
-		F0010000000000000000000C /* ModSearchQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModSearchQuery.swift; sourceTree = "<group>"; };
-		F0010000000000000000000D /* ModSet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModSet.swift; sourceTree = "<group>"; };
-		F0010000000000000000000E /* ModSetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModSetStore.swift; sourceTree = "<group>"; };
-		F0010000000000000000000F /* ModManagerState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModManagerState.swift; sourceTree = "<group>"; };
-		F00100000000000000000010 /* ModManagerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModManagerService.swift; sourceTree = "<group>"; };
-		F00100000000000000000011 /* ModManagerPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModManagerPreferences.swift; sourceTree = "<group>"; };
-		F00100000000000000000012 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		F00100000000000000000013 /* Sandbox.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Sandbox.entitlements; sourceTree = "<group>"; };
-		F00100000000000000000014 /* ModSetNameSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModSetNameSheet.swift; sourceTree = "<group>"; };
-		F00100000000000000000015 /* ModManagerToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModManagerToolbar.swift; sourceTree = "<group>"; };
-		F00100000000000000000016 /* ModList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModList.swift; sourceTree = "<group>"; };
-		F00100000000000000000017 /* ModTableRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModTableRow.swift; sourceTree = "<group>"; };
-		F00100000000000000000018 /* ModNameCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModNameCell.swift; sourceTree = "<group>"; };
-		F00100000000000000000019 /* EmptyModList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyModList.swift; sourceTree = "<group>"; };
-		F0010000000000000000001A /* SetupEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupEmptyState.swift; sourceTree = "<group>"; };
-		F0010000000000000000001B /* NativePathControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativePathControl.swift; sourceTree = "<group>"; };
-		F00200000000000000000001 /* StardewInstallTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StardewInstallTests.swift; sourceTree = "<group>"; };
-		F00200000000000000000002 /* SeedBoxTestCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedBoxTestCase.swift; sourceTree = "<group>"; };
-		F00200000000000000000003 /* ModLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModLibraryTests.swift; sourceTree = "<group>"; };
-		F00200000000000000000004 /* ModSetStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModSetStoreTests.swift; sourceTree = "<group>"; };
-		F00200000000000000000005 /* ModManagerViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModManagerViewModelTests.swift; sourceTree = "<group>"; };
-		F00200000000000000000006 /* ModSearchQueryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModSearchQueryTests.swift; sourceTree = "<group>"; };
 		F00300000000000000000001 /* Seed Box.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Seed Box.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F00300000000000000000002 /* SeedBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SeedBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		E00100000000000000000001 /* Exceptions for "SeedBox" folder in "Seed Box" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+				Sandbox.entitlements,
+			);
+			target = T00100000000000000000001 /* Seed Box */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		G00100000000000000000001 /* SeedBox */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E00100000000000000000001 /* Exceptions for "SeedBox" folder in "Seed Box" target */,
+			);
+			path = SeedBox;
+			sourceTree = "<group>";
+		};
+		G00200000000000000000001 /* SeedBoxTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SeedBoxTests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		P00100000000000000000003 /* Frameworks */ = {
@@ -111,77 +74,6 @@
 			);
 			sourceTree = "<group>";
 		};
-		G00100000000000000000001 /* SeedBox */ = {
-			isa = PBXGroup;
-			children = (
-				F00100000000000000000001 /* SeedBoxApp.swift */,
-				F00100000000000000000002 /* ModManagerView.swift */,
-				F00100000000000000000003 /* ModManagerViewModel.swift */,
-				F00100000000000000000011 /* ModManagerPreferences.swift */,
-				F0010000000000000000000F /* ModManagerState.swift */,
-				F00100000000000000000010 /* ModManagerService.swift */,
-				F00100000000000000000004 /* SettingsView.swift */,
-				F00100000000000000000005 /* SecurityScopedFolderAccess.swift */,
-				G00100000000000000000002 /* Core */,
-				G00100000000000000000004 /* Views */,
-				G00100000000000000000003 /* Resources */,
-				F00100000000000000000012 /* Info.plist */,
-				F00100000000000000000013 /* Sandbox.entitlements */,
-			);
-			path = SeedBox;
-			sourceTree = "<group>";
-		};
-		G00100000000000000000002 /* Core */ = {
-			isa = PBXGroup;
-			children = (
-				F00100000000000000000007 /* FileManager+Directories.swift */,
-				F00100000000000000000006 /* ModLibrary.swift */,
-				F0010000000000000000000B /* ModInfo.swift */,
-				F0010000000000000000000A /* ModManifest.swift */,
-				F0010000000000000000000C /* ModSearchQuery.swift */,
-				F0010000000000000000000D /* ModSet.swift */,
-				F0010000000000000000000E /* ModSetStore.swift */,
-				F00100000000000000000009 /* StardewInstall.swift */,
-				F00100000000000000000008 /* String+SeedBox.swift */,
-			);
-			path = Core;
-			sourceTree = "<group>";
-		};
-		G00100000000000000000003 /* Resources */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Resources;
-			sourceTree = "<group>";
-		};
-		G00100000000000000000004 /* Views */ = {
-			isa = PBXGroup;
-			children = (
-				F00100000000000000000019 /* EmptyModList.swift */,
-				F00100000000000000000016 /* ModList.swift */,
-				F00100000000000000000015 /* ModManagerToolbar.swift */,
-				F00100000000000000000018 /* ModNameCell.swift */,
-				F00100000000000000000014 /* ModSetNameSheet.swift */,
-				F00100000000000000000017 /* ModTableRow.swift */,
-				F0010000000000000000001B /* NativePathControl.swift */,
-				F0010000000000000000001A /* SetupEmptyState.swift */,
-			);
-			path = Views;
-			sourceTree = "<group>";
-		};
-		G00200000000000000000001 /* SeedBoxTests */ = {
-			isa = PBXGroup;
-			children = (
-				F00200000000000000000003 /* ModLibraryTests.swift */,
-				F00200000000000000000005 /* ModManagerViewModelTests.swift */,
-				F00200000000000000000006 /* ModSearchQueryTests.swift */,
-				F00200000000000000000004 /* ModSetStoreTests.swift */,
-				F00200000000000000000002 /* SeedBoxTestCase.swift */,
-				F00200000000000000000001 /* StardewInstallTests.swift */,
-			);
-			path = SeedBoxTests;
-			sourceTree = "<group>";
-		};
 		G00300000000000000000001 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -204,6 +96,9 @@
 			);
 			buildRules = (
 			);
+			fileSystemSynchronizedGroups = (
+				G00100000000000000000001 /* SeedBox */,
+			);
 			name = "Seed Box";
 			productReference = F00300000000000000000001 /* Seed Box.app */;
 			productName = "Seed Box";
@@ -221,6 +116,9 @@
 			);
 			dependencies = (
 				D00200000000000000000002 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				G00200000000000000000001 /* SeedBoxTests */,
 			);
 			name = SeedBoxTests;
 			productName = SeedBoxTests;
@@ -283,42 +181,11 @@
 		P00100000000000000000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
-				B00100000000000000000001 /* SeedBoxApp.swift in Sources */,
-				B00100000000000000000002 /* ModManagerView.swift in Sources */,
-				B00100000000000000000003 /* ModManagerViewModel.swift in Sources */,
-				B00100000000000000000011 /* ModManagerPreferences.swift in Sources */,
-				B0010000000000000000000F /* ModManagerState.swift in Sources */,
-				B00100000000000000000010 /* ModManagerService.swift in Sources */,
-				B00100000000000000000004 /* SettingsView.swift in Sources */,
-				B00100000000000000000005 /* SecurityScopedFolderAccess.swift in Sources */,
-				B00100000000000000000007 /* FileManager+Directories.swift in Sources */,
-				B00100000000000000000006 /* ModLibrary.swift in Sources */,
-				B0010000000000000000000B /* ModInfo.swift in Sources */,
-				B0010000000000000000000A /* ModManifest.swift in Sources */,
-				B0010000000000000000000C /* ModSearchQuery.swift in Sources */,
-				B0010000000000000000000D /* ModSet.swift in Sources */,
-				B0010000000000000000000E /* ModSetStore.swift in Sources */,
-				B00100000000000000000009 /* StardewInstall.swift in Sources */,
-				B00100000000000000000008 /* String+SeedBox.swift in Sources */,
-				B00100000000000000000019 /* EmptyModList.swift in Sources */,
-				B00100000000000000000016 /* ModList.swift in Sources */,
-				B00100000000000000000015 /* ModManagerToolbar.swift in Sources */,
-				B00100000000000000000018 /* ModNameCell.swift in Sources */,
-				B00100000000000000000014 /* ModSetNameSheet.swift in Sources */,
-				B00100000000000000000017 /* ModTableRow.swift in Sources */,
-				B0010000000000000000001B /* NativePathControl.swift in Sources */,
-				B0010000000000000000001A /* SetupEmptyState.swift in Sources */,
 			);
 		};
 		P00200000000000000000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
-				B00200000000000000000004 /* ModLibraryTests.swift in Sources */,
-				B00200000000000000000012 /* ModManagerViewModelTests.swift in Sources */,
-				B00200000000000000000013 /* ModSearchQueryTests.swift in Sources */,
-				B00200000000000000000011 /* ModSetStoreTests.swift in Sources */,
-				B00200000000000000000002 /* SeedBoxTestCase.swift in Sources */,
-				B00200000000000000000001 /* StardewInstallTests.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */
