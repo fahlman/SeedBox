@@ -15,7 +15,7 @@ enum ModsFolderMonitorError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .couldNotOpen(let url, let reason):
-            return "Could not watch \(url.path): \(reason)"
+            return AppStrings.Errors.couldNotWatch(url.path, reason: reason)
         }
     }
 }

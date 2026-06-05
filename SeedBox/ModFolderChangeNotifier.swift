@@ -39,8 +39,8 @@ final class UserNotificationModFolderChangeNotifier: NSObject, @unchecked Sendab
 
     private static func postModsFolderChangedNotification() {
         let content = UNMutableNotificationContent()
-        content.title = "Mods Folder Changed"
-        content.body = "Seed Box refreshed the mod list."
+        content.title = AppStrings.Notifications.modsFolderChangedTitle
+        content.body = AppStrings.Notifications.modsFolderChangedBody
         content.sound = .default
 
         let request = UNNotificationRequest(

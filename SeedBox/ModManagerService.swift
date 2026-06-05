@@ -32,6 +32,7 @@ actor ModManagerService {
         reloadMods(in: &nextState)
         reloadModSets(in: &nextState)
         reloadAuditTrail(in: &nextState)
+        pruneExpiredArchivedMods(in: &nextState)
         return nextState
     }
 
@@ -40,7 +41,7 @@ actor ModManagerService {
         let addedMods = addedMods(in: refreshedState, comparedTo: state)
 
         guard !addedMods.isEmpty else {
-            record("Mods folder changed. Refreshed mod list.", in: &refreshedState)
+            record(AppStrings.Status.modsFolderChangedRefreshed, in: &refreshedState)
             return refreshedState
         }
 
@@ -102,7 +103,7 @@ actor ModManagerService {
 
         let resolvedURL = selectedURL.standardizedFileURL.resolvingSymlinksInPath()
         guard resolvedURL.lastPathComponent == StardewInstall.modFolderName else {
-            record("Choose the folder named \(StardewInstall.modFolderName).", in: &nextState)
+            record(AppStrings.Status.chooseFolderNamed(StardewInstall.modFolderName), in: &nextState)
             return nextState
         }
 
@@ -113,7 +114,7 @@ actor ModManagerService {
             nextState.modsDirectoryPath = resolvedURL.path
 
             nextState = refreshedState(from: nextState)
-            record("Selected \(resolvedURL.path).", in: &nextState)
+            record(AppStrings.Status.selectedFolder(resolvedURL.path), in: &nextState)
             audit(
                 .modsFolderSelected,
                 summary: nextState.activityMessage,
@@ -122,7 +123,7 @@ actor ModManagerService {
             )
             return nextState
         } catch {
-            record("Could not save folder access: \(error.localizedDescription)", in: &nextState)
+            record(AppStrings.Status.couldNotSaveFolderAccess(error.localizedDescription), in: &nextState)
             return nextState
         }
     }
@@ -130,7 +131,7 @@ actor ModManagerService {
     func createModFolder(from state: ModManagerState) -> ModManagerState {
         var nextState = state
         guard nextState.hasSavedFolderAccess else {
-            record("Choose the Mods folder before creating it.", in: &nextState)
+            record(AppStrings.Status.chooseModsFolderBeforeCreating, in: &nextState)
             return nextState
         }
 
@@ -139,7 +140,7 @@ actor ModManagerService {
             try performWithFolderAccess(state: &nextState) {
                 try currentInstall.createModDirectory()
             }
-            record("Created \(currentInstall.modDirectoryURL.path).", in: &nextState)
+            record(AppStrings.Status.createdModFolder(currentInstall.modDirectoryURL.path), in: &nextState)
             var refreshedState = refreshedState(from: nextState)
             audit(
                 .modsFolderCreated,
@@ -151,19 +152,24 @@ actor ModManagerService {
         } catch is SecurityScopedFolderAccessError {
             return nextState
         } catch {
-            record("Could not create mod folder: \(error.localizedDescription)", in: &nextState)
+            record(AppStrings.Status.couldNotCreateModFolder(error.localizedDescription), in: &nextState)
             return nextState
         }
     }
 
-    func addMods(from selectedURLs: [URL], in state: ModManagerState) -> ModManagerState {
+    func addMods(
+        from selectedURLs: [URL],
+        sourceCleanupSettings: SourceCleanupSettings,
+        in state: ModManagerState
+    ) -> ModManagerState {
         var nextState = state
+        nextState.pendingSourceCleanupOffer = nil
         guard guardCanManageMods(in: &nextState) else {
             return nextState
         }
 
         guard !selectedURLs.isEmpty else {
-            record("Choose one or more mod folders or ZIP archives.", in: &nextState)
+            record(AppStrings.Status.chooseModFoldersOrZipArchives, in: &nextState)
             return nextState
         }
 
@@ -175,25 +181,45 @@ actor ModManagerService {
         do {
             let currentInstall = install(for: nextState)
             let addedModsShouldBeEnabled = nextState.appliedModSetID != ModSetStore.noneSetID
-            let installedURLs = try performWithFolderAccess(state: &nextState) {
+            let installResult = try performWithFolderAccess(state: &nextState) {
                 try ModLibrary.installMods(
                     from: selectedURLs,
                     into: currentInstall,
-                    enabled: addedModsShouldBeEnabled
+                    enabled: addedModsShouldBeEnabled,
+                    archiveDirectory: currentInstall.archivedModsDirectoryURL
                 )
             }
-            return reconcileAddedMods(
-                installedURLs: installedURLs,
+            return reconcileInstallResult(
+                installResult,
                 source: .selectedSources(selectedURLs),
                 shouldEnable: addedModsShouldBeEnabled,
+                sourceCleanupSettings: sourceCleanupSettings,
                 in: nextState
             )
         } catch is SecurityScopedFolderAccessError {
             return nextState
         } catch {
-            record("Could not add mods: \(error.localizedDescription)", in: &nextState)
+            record(AppStrings.Status.couldNotAddMods(error.localizedDescription), in: &nextState)
             return nextState
         }
+    }
+
+    func moveSourceFilesToTrash(
+        for offer: SourceCleanupOffer,
+        in state: ModManagerState
+    ) -> ModManagerState {
+        var nextState = state
+        nextState.pendingSourceCleanupOffer = nil
+
+        let cleanupResult = trashSourceFiles(offer.sourceURLs)
+        let summary = sourceTrashSummary(for: cleanupResult)
+        auditSourceTrashResult(
+            cleanupResult,
+            sourceURLs: offer.sourceURLs,
+            summary: summary,
+            in: &nextState
+        )
+        return nextState
     }
 
     func setMod(_ mod: ModInfo, enabled: Bool, in state: ModManagerState) -> ModManagerState {
@@ -206,12 +232,17 @@ actor ModManagerService {
             let destinationURL = try performWithFolderAccess(state: &nextState) {
                 try ModLibrary.setEnabled(mod, enabled: enabled)
             }
-            let changeMessage = "\(enabled ? "Enabled" : "Disabled") \(mod.displayName)."
+            let changeMessage = enabled
+                ? AppStrings.Status.enabledMod(mod.displayName)
+                : AppStrings.Status.disabledMod(mod.displayName)
             record(changeMessage, in: &nextState)
             nextState = refreshedState(from: nextState)
             var savedState = saveCurrentStateToSelectedModSet(
                 in: nextState,
-                recordingSuccess: "\(changeMessage) Updated \(nextState.modSetSelection.selectedSetName)."
+                recordingSuccess: AppStrings.Status.updatedModSet(
+                    after: changeMessage,
+                    setName: nextState.modSetSelection.selectedSetName
+                )
             )
             audit(
                 enabled ? .modEnabled : .modDisabled,
@@ -223,7 +254,7 @@ actor ModManagerService {
         } catch is SecurityScopedFolderAccessError {
             return nextState
         } catch {
-            record("Could not update \(mod.displayName): \(error.localizedDescription)", in: &nextState)
+            record(AppStrings.Status.couldNotUpdateMod(mod.displayName, errorDescription: error.localizedDescription), in: &nextState)
             return nextState
         }
     }
@@ -235,27 +266,38 @@ actor ModManagerService {
         }
 
         do {
-            try performWithFolderAccess(state: &nextState) {
-                try ModLibrary.trash(mod)
+            let currentInstall = install(for: nextState)
+            let archivedURL = try performWithFolderAccess(state: &nextState) {
+                try ModLibrary.archive(
+                    mod,
+                    in: currentInstall.archivedModsDirectoryURL
+                )
             }
-            let changeMessage = "Moved \(mod.displayName) to the Trash."
+            let changeMessage = AppStrings.Status.deletedModArchived(mod.displayName)
             record(changeMessage, in: &nextState)
             nextState = refreshedState(from: nextState)
             var savedState = saveCurrentStateToSelectedModSet(
                 in: nextState,
-                recordingSuccess: "\(changeMessage) Updated \(nextState.modSetSelection.selectedSetName)."
+                recordingSuccess: AppStrings.Status.updatedModSet(
+                    after: changeMessage,
+                    setName: nextState.modSetSelection.selectedSetName
+                )
             )
             audit(
-                .modMovedToTrash,
+                .modDeleted,
                 summary: savedState.activityMessage.isEmpty ? changeMessage : savedState.activityMessage,
                 subjects: [auditSubjectForMod(mod)],
+                details: [
+                    "archive_path": archivedURL.path,
+                    "version": mod.manifest?.version?.trimmedNonEmpty ?? ""
+                ],
                 in: &savedState
             )
             return savedState
         } catch is SecurityScopedFolderAccessError {
             return nextState
         } catch {
-            record("Could not delete \(mod.displayName): \(error.localizedDescription)", in: &nextState)
+            record(AppStrings.Status.couldNotDeleteMod(mod.displayName, errorDescription: error.localizedDescription), in: &nextState)
             return nextState
         }
     }
@@ -272,7 +314,7 @@ actor ModManagerService {
 
         let source = sourceSet ?? ModSetStore.snapshotSet(
             id: "current",
-            name: "Current",
+            name: AppStrings.ModSetNames.current,
             from: nextState.mods
         )
 
@@ -292,7 +334,7 @@ actor ModManagerService {
                 || nextState.appliedModSetID == sourceSet?.id
             setSelectedModSetID(newSet.id, in: &nextState)
             nextState.appliedModSetID = createdSetMatchesCurrentMods ? newSet.id : nil
-            record("Created mod set \(newSet.name).", in: &nextState)
+            record(AppStrings.Status.createdModSet(newSet.name), in: &nextState)
             var refreshedState = refreshedState(from: nextState)
             audit(
                 .modSetCreated,
@@ -300,13 +342,13 @@ actor ModManagerService {
                 subjects: [auditSubjectForModSet(newSet)],
                 details: [
                     "source_mod_set_id": sourceSet?.id ?? "current",
-                    "source_mod_set_name": sourceSet?.name ?? "Current"
+                    "source_mod_set_name": sourceSet?.name ?? AppStrings.ModSetNames.current
                 ],
                 in: &refreshedState
             )
             return refreshedState
         } catch {
-            record("Could not create mod set: \(error.localizedDescription)", in: &nextState)
+            record(AppStrings.Status.couldNotCreateModSet(error.localizedDescription), in: &nextState)
             return nextState
         }
     }
@@ -329,13 +371,13 @@ actor ModManagerService {
             return nextState
         }
         guard selectedSet.isUserEditable else {
-            record("Included mod set names cannot be changed.", in: &nextState)
+            record(AppStrings.Status.includedModSetNamesCannotBeChanged, in: &nextState)
             return nextState
         }
 
         let trimmedName = requestedName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else {
-            record("Set name cannot be empty.", in: &nextState)
+            record(AppStrings.Status.setNameCannotBeEmpty, in: &nextState)
             return nextState
         }
 
@@ -345,7 +387,7 @@ actor ModManagerService {
                 == trimmedName.lowercased()
         }
         if hasConflict {
-            record("A mod set named \(trimmedName) already exists.", in: &nextState)
+            record(AppStrings.Errors.duplicateModSetName(trimmedName), in: &nextState)
             return nextState
         }
 
@@ -357,7 +399,7 @@ actor ModManagerService {
                 selectedSet,
                 install: install(for: nextState)
             )
-            record("Renamed set to \(trimmedName).", in: &nextState)
+            record(AppStrings.Status.renamedSet(to: trimmedName), in: &nextState)
             var refreshedState = refreshedState(from: nextState)
             audit(
                 .modSetRenamed,
@@ -371,7 +413,7 @@ actor ModManagerService {
             )
             return refreshedState
         } catch {
-            record("Could not rename mod set: \(error.localizedDescription)", in: &nextState)
+            record(AppStrings.Status.couldNotRenameModSet(error.localizedDescription), in: &nextState)
             return nextState
         }
     }
@@ -388,7 +430,7 @@ actor ModManagerService {
         }
 
         guard let setToApply = nextState.modSets.first(where: { $0.id == id }) else {
-            record("Could not apply set: selection is missing.", in: &nextState)
+            record(AppStrings.Status.couldNotApplySetSelectionMissing, in: &nextState)
             return nextState
         }
 
@@ -401,7 +443,7 @@ actor ModManagerService {
             let changedCount = try applyModSet(setToApply, in: nextState, state: &nextState)
             setSelectedModSetID(id, in: &nextState)
             nextState.appliedModSetID = id
-            record("Applied \(setToApply.name) (\(changedCount) change\(changedCount == 1 ? "" : "s")).", in: &nextState)
+            record(AppStrings.Status.appliedSet(setToApply.name, changedCount: changedCount), in: &nextState)
             var refreshedState = refreshedState(from: nextState)
             audit(
                 .modSetApplied,
@@ -416,7 +458,7 @@ actor ModManagerService {
         } catch is SecurityScopedFolderAccessError {
             return nextState
         } catch {
-            record("Could not apply set: \(error.localizedDescription)", in: &nextState)
+            record(AppStrings.Status.couldNotApplySet(error.localizedDescription), in: &nextState)
             return nextState
         }
     }
@@ -433,7 +475,7 @@ actor ModManagerService {
                 install: install(for: nextState)
             )
         } catch {
-            record("Could not delete mod set: \(error.localizedDescription)", in: &nextState)
+            record(AppStrings.Status.couldNotDeleteModSet(error.localizedDescription), in: &nextState)
             return nextState
         }
 
@@ -442,7 +484,7 @@ actor ModManagerService {
                 nextState.appliedModSetID = nil
             }
 
-            record("Deleted mod set \(set.name).", in: &nextState)
+            record(AppStrings.Status.deletedModSet(set.name), in: &nextState)
             var refreshedState = refreshedState(from: nextState)
             auditDeletedModSet(set, wasSelected: false, in: &refreshedState)
             return refreshedState
@@ -451,7 +493,7 @@ actor ModManagerService {
         guard let defaultSet = nextState.modSets.first(where: { $0.id == ModSetStore.defaultSetID }) else {
             setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
             nextState.appliedModSetID = nil
-            record("Deleted mod set \(set.name).", in: &nextState)
+            record(AppStrings.Status.deletedModSet(set.name), in: &nextState)
             var refreshedState = refreshedState(from: nextState)
             auditDeletedModSet(set, wasSelected: true, in: &refreshedState)
             return refreshedState
@@ -462,7 +504,7 @@ actor ModManagerService {
             setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
             nextState.appliedModSetID = ModSetStore.defaultSetID
             record(
-                "Deleted mod set \(set.name). Applied Default (\(changedCount) change\(changedCount == 1 ? "" : "s")).",
+                AppStrings.Status.deletedModSetAppliedDefault(set.name, changedCount: changedCount),
                 in: &nextState
             )
             var refreshedState = refreshedState(from: nextState)
@@ -480,12 +522,12 @@ actor ModManagerService {
         } catch is SecurityScopedFolderAccessError {
             setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
             nextState.appliedModSetID = nil
-            record("Deleted mod set \(set.name). Choose the Mods folder again to apply Default.", in: &nextState)
+            record(AppStrings.Status.deletedModSetChooseFolderAgainToApplyDefault(set.name), in: &nextState)
             return refreshedState(from: nextState)
         } catch {
             setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
             nextState.appliedModSetID = nil
-            record("Deleted mod set \(set.name), but could not apply Default: \(error.localizedDescription)", in: &nextState)
+            record(AppStrings.Status.deletedModSetCouldNotApplyDefault(set.name, errorDescription: error.localizedDescription), in: &nextState)
             return refreshedState(from: nextState)
         }
     }
@@ -516,7 +558,7 @@ actor ModManagerService {
         } catch {
             state.mods = []
             state.hasLoadedMods = false
-            record("Could not read mods: \(error.localizedDescription)", in: &state)
+            record(AppStrings.Status.couldNotReadMods(error.localizedDescription), in: &state)
         }
     }
 
@@ -556,7 +598,7 @@ actor ModManagerService {
             state.modSets = []
             setSelectedModSetID(ModSetStore.defaultSetID, in: &state)
             state.appliedModSetID = nil
-            record("Could not read mod sets: \(error.localizedDescription)", in: &state)
+            record(AppStrings.Status.couldNotReadModSets(error.localizedDescription), in: &state)
         }
     }
 
@@ -571,6 +613,16 @@ actor ModManagerService {
             state.auditTrail.lastErrorMessage = nil
         } catch {
             state.auditTrail.lastErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func pruneExpiredArchivedMods(in state: inout ModManagerState) {
+        do {
+            try ModArchive.pruneExpiredArchives(
+                in: install(for: state).archivedModsDirectoryURL
+            )
+        } catch {
+            record(AppStrings.Status.couldNotPruneArchivedMods(error.localizedDescription), in: &state)
         }
     }
 
@@ -619,6 +671,78 @@ actor ModManagerService {
         )
     }
 
+    private func reconcileInstallResult(
+        _ installResult: ModInstallResult,
+        source: AddedModSource,
+        shouldEnable: Bool,
+        sourceCleanupSettings: SourceCleanupSettings,
+        in state: ModManagerState
+    ) -> ModManagerState {
+        var nextState = state
+        let installedTokens = Set(
+            installResult.installed
+                .map(\.destinationURL.lastPathComponent)
+                .map(\.normalizedFolderToken)
+        )
+        let changeMessage = installSummary(for: installResult)
+
+        do {
+            if !installResult.installed.isEmpty {
+                let currentInstall = install(for: nextState)
+                try performWithFolderAccess(state: &nextState) {
+                    let currentMods = try ModLibrary.scan(install: currentInstall)
+                    for mod in currentMods where installedTokens.contains(mod.enabledFolderName.normalizedFolderToken) {
+                        _ = try ModLibrary.setEnabled(mod, enabled: shouldEnable)
+                    }
+                }
+            }
+
+            nextState = refreshedState(from: nextState)
+            record(changeMessage, in: &nextState)
+
+            let savedState: ModManagerState
+            if !installResult.installed.isEmpty {
+                savedState = saveCurrentStateToSelectedModSet(
+                    in: nextState,
+                    recordingSuccess: AppStrings.Status.updatedModSet(
+                        after: changeMessage,
+                        setName: nextState.modSetSelection.selectedSetName
+                    )
+                )
+            } else {
+                savedState = nextState
+            }
+
+            var auditedState = savedState
+            var details = installDetails(
+                for: installResult,
+                source: source,
+                shouldEnable: shouldEnable
+            )
+            details["archive_retention_days"] = "\(Int(ModArchive.retentionInterval / 86_400))"
+            audit(
+                auditAction(for: installResult),
+                summary: auditedState.activityMessage.isEmpty ? changeMessage : auditedState.activityMessage,
+                subjects: auditSubjects(for: installResult),
+                details: details,
+                in: &auditedState
+            )
+            prepareSourceCleanupPresentation(
+                for: installResult,
+                source: source,
+                importSummary: changeMessage,
+                settings: sourceCleanupSettings,
+                in: &auditedState
+            )
+            return auditedState
+        } catch is SecurityScopedFolderAccessError {
+            return nextState
+        } catch {
+            record(AppStrings.Status.couldNotReconcileInstalledMods(error.localizedDescription), in: &nextState)
+            return nextState
+        }
+    }
+
     private func reconcileAddedMods(
         _ addedMods: [ModInfo],
         fallbackURLs: [URL],
@@ -632,7 +756,7 @@ actor ModManagerService {
                 .map(\.normalizedFolderToken)
         )
         let addedCount = max(addedMods.count, fallbackURLs.count)
-        let changeMessage = "Added \(addedCount) mod folder\(addedCount == 1 ? "" : "s")."
+        let changeMessage = AppStrings.Status.addedModFolders(count: addedCount)
 
         do {
             try performWithFolderAccess(state: &nextState) {
@@ -651,7 +775,10 @@ actor ModManagerService {
             record(changeMessage, in: &nextState)
             var savedState = saveCurrentStateToSelectedModSet(
                 in: nextState,
-                recordingSuccess: "\(changeMessage) Updated \(nextState.modSetSelection.selectedSetName)."
+                recordingSuccess: AppStrings.Status.updatedModSet(
+                    after: changeMessage,
+                    setName: nextState.modSetSelection.selectedSetName
+                )
             )
             var details = source.details
             details["installed_state"] = shouldEnable ? "enabled" : "disabled"
@@ -667,9 +794,295 @@ actor ModManagerService {
         } catch is SecurityScopedFolderAccessError {
             return nextState
         } catch {
-            record("Could not reconcile added mods: \(error.localizedDescription)", in: &nextState)
+            record(AppStrings.Status.couldNotReconcileAddedMods(error.localizedDescription), in: &nextState)
             return nextState
         }
+    }
+
+    private func installSummary(for installResult: ModInstallResult) -> String {
+        if installResult.installed.isEmpty,
+           installResult.updated.isEmpty,
+           installResult.skipped.count == 1,
+           let skipped = installResult.skipped.first {
+            switch skipped.reason {
+            case .alreadyInstalled:
+                return AppStrings.Status.alreadyInstalledMod(skipped.displayName)
+            case .duplicateInSelection:
+                return AppStrings.Status.duplicatedSelectedMod(skipped.displayName)
+            }
+        }
+
+        if installResult.installed.isEmpty,
+           installResult.updated.count == 1,
+           installResult.skipped.isEmpty,
+           let updated = installResult.updated.first {
+            return AppStrings.Status.updatedMod(
+                updated.displayName,
+                previousVersion: updated.previousVersion,
+                installedVersion: updated.installedVersion
+            )
+        }
+
+        var sentences: [String] = []
+        if !installResult.installed.isEmpty {
+            sentences.append(AppStrings.Status.addedModFoldersSentence(count: installResult.installed.count))
+        }
+        if !installResult.updated.isEmpty {
+            sentences.append(AppStrings.Status.updatedModFolders(count: installResult.updated.count))
+        }
+        if !installResult.skipped.isEmpty {
+            let alreadyInstalledCount = installResult.skipped.filter { $0.reason == .alreadyInstalled }.count
+            let duplicateSelectionCount = installResult.skipped.count - alreadyInstalledCount
+
+            if alreadyInstalledCount > 0 {
+                sentences.append(AppStrings.Status.skippedAlreadyInstalledMods(count: alreadyInstalledCount))
+            }
+            if duplicateSelectionCount > 0 {
+                sentences.append(AppStrings.Status.skippedDuplicatedSelectedMods(count: duplicateSelectionCount))
+            }
+        }
+
+        guard !sentences.isEmpty else {
+            return AppStrings.Status.noModFoldersInstalled
+        }
+
+        return sentences.joined(separator: " ")
+    }
+
+    private func auditAction(for installResult: ModInstallResult) -> AuditLogAction {
+        if !installResult.installed.isEmpty {
+            return .modsAdded
+        }
+
+        if !installResult.updated.isEmpty {
+            return .modsUpdated
+        }
+
+        return .modsInstallSkipped
+    }
+
+    private func auditSubjects(for installResult: ModInstallResult) -> [AuditLogSubject] {
+        let installedSubjects = installResult.installed.map { install in
+            AuditLogSubject(
+                kind: .mod,
+                id: nil,
+                name: install.displayName,
+                path: install.destinationURL.path
+            )
+        }
+        let updatedSubjects = installResult.updated.map { update in
+            AuditLogSubject(
+                kind: .mod,
+                id: nil,
+                name: update.displayName,
+                path: update.destinationURL.path
+            )
+        }
+        let skippedSubjects = installResult.skipped.map { skipped in
+            AuditLogSubject(
+                kind: .mod,
+                id: nil,
+                name: skipped.displayName,
+                path: skipped.existingURL?.path ?? skipped.sourceURL.path
+            )
+        }
+
+        return installedSubjects + updatedSubjects + skippedSubjects
+    }
+
+    private func installDetails(
+        for installResult: ModInstallResult,
+        source: AddedModSource,
+        shouldEnable: Bool
+    ) -> [String: String] {
+        var details = source.details
+        details["installed_state"] = shouldEnable ? "enabled" : "disabled"
+        details["added_count"] = "\(installResult.installed.count)"
+        details["updated_count"] = "\(installResult.updated.count)"
+        details["skipped_count"] = "\(installResult.skipped.count)"
+        details["destination_paths"] = installResult.installedURLs.map(\.path).joined(separator: "\n")
+        details["archive_paths"] = installResult.updated.map(\.archivedURL.path).joined(separator: "\n")
+        details["skipped_mods"] = installResult.skipped.map { skipped in
+            "\(skipped.displayName): \(skipped.reason.auditText)"
+        }
+        .joined(separator: "\n")
+        details["version_changes"] = installResult.updated.map { update in
+            "\(update.displayName): \(update.previousVersion ?? "unknown") -> \(update.installedVersion ?? "unknown")"
+        }
+        .joined(separator: "\n")
+        return details
+    }
+
+    private struct SourceTrashFailure {
+        var url: URL
+        var message: String
+    }
+
+    private struct SourceTrashResult {
+        var movedURLs: [URL] = []
+        var failures: [SourceTrashFailure] = []
+    }
+
+    private func prepareSourceCleanupPresentation(
+        for installResult: ModInstallResult,
+        source: AddedModSource,
+        importSummary: String,
+        settings: SourceCleanupSettings,
+        in state: inout ModManagerState
+    ) {
+        guard installResult.didChangeInstalledMods,
+              case .selectedSources(let selectedURLs) = source
+        else {
+            state.pendingSourceCleanupOffer = nil
+            return
+        }
+
+        let cleanableURLs = cleanableSourceURLs(
+            selectedURLs,
+            excludingDescendantsOf: install(for: state).modDirectoryURL
+        )
+        guard !cleanableURLs.isEmpty else {
+            state.pendingSourceCleanupOffer = nil
+            return
+        }
+
+        if settings.moveModFilesToTrashAfterAddingMods {
+            let cleanupResult = trashSourceFiles(cleanableURLs)
+            let cleanupSummary = sourceTrashSummary(for: cleanupResult)
+            auditSourceTrashResult(
+                cleanupResult,
+                sourceURLs: cleanableURLs,
+                summary: cleanupSummary,
+                in: &state
+            )
+
+            state.pendingSourceCleanupOffer = settings.suppressAddModsSuccessNotification
+                ? nil
+                : SourceCleanupOffer(
+                    sourceURLs: cleanableURLs,
+                    importSummary: importSummary,
+                    cleanupSummary: cleanupSummary,
+                    isNotificationOnly: true
+                )
+            return
+        }
+
+        guard !settings.suppressAddModsSuccessNotification else {
+            state.pendingSourceCleanupOffer = nil
+            return
+        }
+
+        state.pendingSourceCleanupOffer = SourceCleanupOffer(
+            sourceURLs: cleanableURLs,
+            importSummary: importSummary
+        )
+    }
+
+    private func cleanableSourceURLs(
+        _ sourceURLs: [URL],
+        excludingDescendantsOf excludedDirectoryURL: URL
+    ) -> [URL] {
+        let excludedPath = standardizedPath(for: excludedDirectoryURL)
+        var seenPaths: Set<String> = []
+        var cleanableURLs: [URL] = []
+
+        for sourceURL in sourceURLs {
+            let sourcePath = standardizedPath(for: sourceURL)
+            guard !sourcePath.isEmpty,
+                  sourcePath != excludedPath,
+                  !sourcePath.hasPrefix(excludedPath + "/"),
+                  !seenPaths.contains(sourcePath)
+            else {
+                continue
+            }
+
+            seenPaths.insert(sourcePath)
+            cleanableURLs.append(sourceURL)
+        }
+
+        return cleanableURLs
+    }
+
+    private func trashSourceFiles(_ sourceURLs: [URL]) -> SourceTrashResult {
+        var result = SourceTrashResult()
+
+        for sourceURL in sourceURLs {
+            let token = SecurityScopedAccessToken(url: sourceURL)
+            defer {
+                token.stop()
+            }
+
+            do {
+                guard FileManager.default.fileExists(atPath: sourceURL.path) else {
+                    result.failures.append(
+                        SourceTrashFailure(
+                            url: sourceURL,
+                            message: AppStrings.SourceCleanup.fileNoLongerExists
+                        )
+                    )
+                    continue
+                }
+
+                var resultingURL: NSURL?
+                try FileManager.default.trashItem(
+                    at: sourceURL,
+                    resultingItemURL: &resultingURL
+                )
+                result.movedURLs.append((resultingURL as URL?) ?? sourceURL)
+            } catch {
+                result.failures.append(
+                    SourceTrashFailure(
+                        url: sourceURL,
+                        message: error.localizedDescription
+                    )
+                )
+            }
+        }
+
+        return result
+    }
+
+    private func sourceTrashSummary(for result: SourceTrashResult) -> String {
+        let movedCount = result.movedURLs.count
+        let failedCount = result.failures.count
+
+        guard movedCount > 0 else {
+            return AppStrings.SourceCleanup.couldNotMoveOriginalFilesToTrash(count: failedCount)
+        }
+
+        return AppStrings.SourceCleanup.movedOriginalFilesToTrash(
+            movedCount: movedCount,
+            failedCount: failedCount
+        )
+    }
+
+    private func auditSourceTrashResult(
+        _ result: SourceTrashResult,
+        sourceURLs: [URL],
+        summary: String,
+        in state: inout ModManagerState
+    ) {
+        record(summary, in: &state)
+        guard !result.movedURLs.isEmpty else {
+            return
+        }
+
+        audit(
+            .sourceFilesMovedToTrash,
+            summary: summary,
+            subjects: result.movedURLs.map(auditSubjectForSourceFile),
+            details: [
+                "source_paths": sourceURLs.map(\.path).joined(separator: "\n"),
+                "trashed_paths": result.movedURLs.map(\.path).joined(separator: "\n"),
+                "failed_paths": result.failures.map(\.url.path).joined(separator: "\n"),
+                "failure_messages": result.failures.map(\.message).joined(separator: "\n")
+            ],
+            in: &state
+        )
+    }
+
+    private func standardizedPath(for url: URL) -> String {
+        url.standardizedFileURL.resolvingSymlinksInPath().path
     }
 
     private func addedMods(
@@ -722,10 +1135,10 @@ actor ModManagerService {
         do {
             try saveCurrentState(to: selectedSet, in: nextState)
             nextState.appliedModSetID = selectedSet.id
-            record(successMessage ?? "Updated \(selectedSet.name).", in: &nextState)
+            record(successMessage ?? AppStrings.Status.updatedModSet(selectedSet.name), in: &nextState)
             return refreshedState(from: nextState)
         } catch {
-            record("Could not save mod set: \(error.localizedDescription)", in: &nextState)
+            record(AppStrings.Status.couldNotSaveModSet(error.localizedDescription), in: &nextState)
             return nextState
         }
     }
@@ -854,13 +1267,22 @@ actor ModManagerService {
         )
     }
 
+    private func auditSubjectForSourceFile(_ url: URL) -> AuditLogSubject {
+        AuditLogSubject(
+            kind: .sourceFile,
+            id: nil,
+            name: url.lastPathComponent,
+            path: url.path
+        )
+    }
+
     private func guardCanManageMods(in state: inout ModManagerState) -> Bool {
         switch state.readiness {
         case .needsFolderAccess:
-            record("Choose the Mods folder before managing mods.", in: &state)
+            record(AppStrings.Status.chooseModsFolderBeforeManaging, in: &state)
             return false
         case .missingModsFolder:
-            record("The Mods folder is missing. Choose it again from Settings.", in: &state)
+            record(AppStrings.Status.modsFolderMissingChooseAgain, in: &state)
             return false
         case .ready:
             return true
@@ -894,7 +1316,7 @@ actor ModManagerService {
         } catch {
             let message = error.localizedDescription
             if lastFolderAccessError != message {
-                record("Could not restore saved folder access: \(message)", in: &state)
+                record(AppStrings.Status.couldNotRestoreSavedFolderAccess(message), in: &state)
                 lastFolderAccessError = message
             }
             return nil
@@ -908,7 +1330,7 @@ actor ModManagerService {
         folderAccess.clearBookmark()
         state.hasSavedFolderAccess = false
 
-        let message = "Choose the Mods folder again. \(error.localizedDescription)"
+        let message = AppStrings.Status.chooseModsFolderAgain(error.localizedDescription)
         if lastFolderAccessError != message {
             record(message, in: &state)
             lastFolderAccessError = message
@@ -932,5 +1354,16 @@ actor ModManagerService {
             isIncluded: set.isIncluded
         )
         return currentSnapshot.disabledFolderTokens == set.disabledFolderTokens
+    }
+}
+
+private extension SkippedModInstallReason {
+    var auditText: String {
+        switch self {
+        case .alreadyInstalled:
+            return "already_installed"
+        case .duplicateInSelection:
+            return "duplicate_in_selection"
+        }
     }
 }

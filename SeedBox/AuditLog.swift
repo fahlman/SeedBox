@@ -5,9 +5,13 @@ enum AuditLogAction: String, Codable, Equatable, Sendable {
     case modsFolderSelected
     case modsFolderCreated
     case modsAdded
+    case modsInstallSkipped
+    case modsUpdated
     case modEnabled
     case modDisabled
+    case modDeleted
     case modMovedToTrash
+    case sourceFilesMovedToTrash
     case modSetCreated
     case modSetRenamed
     case modSetApplied
@@ -18,6 +22,7 @@ enum AuditLogSubjectKind: String, Codable, Equatable, Sendable {
     case mod
     case modSet
     case modsFolder
+    case sourceFile
 }
 
 struct AuditLogSubject: Codable, Equatable, Sendable {
@@ -135,9 +140,9 @@ enum AuditLogStore {
     private static func consoleSummary(for entry: AuditLogEntry) -> String {
         switch entry.action {
         case .modsFolderSelected:
-            return "Selected Mods folder."
+            return AppStrings.Audit.selectedModsFolder
         case .modsFolderCreated:
-            return "Created Mods folder."
+            return AppStrings.Audit.createdModsFolder
         default:
             return summaryByRedactingPaths(from: entry)
         }

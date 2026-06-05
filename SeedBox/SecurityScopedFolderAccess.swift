@@ -7,9 +7,9 @@ enum SecurityScopedFolderAccessError: Error, LocalizedError, Sendable {
     var errorDescription: String? {
         switch self {
         case .missingBookmark:
-            return "No saved folder access was found."
+            return AppStrings.Errors.noSavedFolderAccess
         case .unresolvedBookmark(let reason):
-            return "Saved folder access could not be restored: \(reason)"
+            return AppStrings.Errors.savedFolderAccessCouldNotBeRestored(reason)
         }
     }
 }

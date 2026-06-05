@@ -3,6 +3,7 @@ import SwiftUI
 struct ModManagerToolbar: ToolbarContent {
     @ObservedObject var viewModel: ModManagerViewModel
     var selectedMod: ModInfo?
+    var selectModSet: (String) -> Void
     var createModSet: () -> Void
     var duplicateSelectedModSet: () -> Void
     var renameSelectedModSet: () -> Void
@@ -16,9 +17,7 @@ struct ModManagerToolbar: ToolbarContent {
             Picker("Mod Set", selection: Binding(
                 get: { selection.selectedSetID },
                 set: { selectedID in
-                    Task {
-                        await viewModel.selectModSet(id: selectedID)
-                    }
+                    selectModSet(selectedID)
                 }
             )) {
                 ForEach(selection.sets) { set in
@@ -33,7 +32,7 @@ struct ModManagerToolbar: ToolbarContent {
             Button {
                 createModSet()
             } label: {
-                Label("New Mod Set", systemImage: "plus")
+                Label("New Mod Set", systemImage: "folder.badge.plus")
             }
             .labelStyle(.iconOnly)
             .help("New Mod Set")
@@ -60,7 +59,7 @@ struct ModManagerToolbar: ToolbarContent {
             Button(role: .destructive) {
                 deleteSelectedModSet()
             } label: {
-                Label("Delete Set", systemImage: "trash")
+                Label("Delete Set", systemImage: "folder.badge.minus")
             }
             .labelStyle(.iconOnly)
             .help("Delete Set")
@@ -71,21 +70,21 @@ struct ModManagerToolbar: ToolbarContent {
             Button {
                 addMods()
             } label: {
-                Label("Add Mods", systemImage: "plus")
+                Label("Add Mods", systemImage: "square.and.arrow.down")
             }
             .disabled(!readiness.canManageMods)
 
             Button {
                 revealSelectedMod()
             } label: {
-                Label("Reveal in Finder", systemImage: "magnifyingglass")
+                Label("Reveal in Finder", systemImage: "eye")
             }
             .disabled(selectedMod == nil || !readiness.canManageMods)
 
             Button(role: .destructive) {
                 deleteSelectedMod()
             } label: {
-                Label("Move to Trash", systemImage: "trash")
+                Label("Delete Mod", systemImage: "trash")
             }
             .disabled(selectedMod == nil || !readiness.canManageMods)
 

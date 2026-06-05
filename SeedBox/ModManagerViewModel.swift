@@ -108,7 +108,7 @@ final class ModManagerViewModel: ObservableObject {
     }
 
     func recordModsFolderSelectionError(_ error: Error) {
-        record("Could not choose Mods folder: \(error.localizedDescription)")
+        record(AppStrings.Status.couldNotChooseModsFolder(error.localizedDescription))
     }
 
     func revealModsFolder() {
@@ -122,7 +122,19 @@ final class ModManagerViewModel: ObservableObject {
             }
         } catch is SecurityScopedFolderAccessError {
         } catch {
-            record("Could not reveal Mods folder: \(error.localizedDescription)")
+            record(AppStrings.Status.couldNotRevealModsFolder(error.localizedDescription))
+        }
+    }
+
+    func revealArchivedModsFolder() {
+        do {
+            try FileManager.default.createDirectory(
+                at: install.archivedModsDirectoryURL,
+                withIntermediateDirectories: true
+            )
+            NSWorkspace.shared.activateFileViewerSelecting([install.archivedModsDirectoryURL])
+        } catch {
+            record(AppStrings.Status.couldNotRevealArchivedMods(error.localizedDescription))
         }
     }
 
@@ -137,7 +149,7 @@ final class ModManagerViewModel: ObservableObject {
             }
         } catch is SecurityScopedFolderAccessError {
         } catch {
-            record("Could not reveal \(mod.displayName): \(error.localizedDescription)")
+            record(AppStrings.Status.couldNotRevealMod(mod.displayName, errorDescription: error.localizedDescription))
         }
     }
 
@@ -149,17 +161,78 @@ final class ModManagerViewModel: ObservableObject {
 
     func addMods(from selectedURLs: [URL]) async {
         ignoreObservedFolderChangesBriefly()
-        commitState(await service.addMods(from: selectedURLs, in: state))
+        commitState(await service.addMods(
+            from: selectedURLs,
+            sourceCleanupSettings: preferences.sourceCleanupSettings,
+            in: state
+        ))
         ignoreObservedFolderChangesBriefly()
     }
 
     func recordAddModsSelectionError(_ error: Error) {
-        record("Could not choose mods: \(error.localizedDescription)")
+        record(AppStrings.Status.couldNotChooseMods(error.localizedDescription))
+    }
+
+    func keepSourceFiles(for offer: SourceCleanupOffer, remembersChoice: Bool) {
+        if remembersChoice {
+            preferences.moveModFilesToTrashAfterAddingMods = false
+            preferences.suppressAddModsSuccessNotification = true
+        }
+        dismissSourceCleanupOffer()
+    }
+
+    func dismissSourceCleanupOffer() {
+        guard state.pendingSourceCleanupOffer != nil else {
+            return
+        }
+
+        var nextState = state
+        nextState.pendingSourceCleanupOffer = nil
+        commitState(nextState, broadcastsChange: false)
+    }
+
+    func moveSourceFilesToTrash(
+        for offer: SourceCleanupOffer,
+        remembersChoice: Bool = false
+    ) async {
+        if remembersChoice {
+            preferences.moveModFilesToTrashAfterAddingMods = true
+            preferences.suppressAddModsSuccessNotification = true
+        }
+        commitState(await service.moveSourceFilesToTrash(for: offer, in: state))
+    }
+
+    var sourceCleanupSettings: SourceCleanupSettings {
+        preferences.sourceCleanupSettings
+    }
+
+    func setMoveModFilesToTrashAfterAddingMods(_ isEnabled: Bool) {
+        preferences.moveModFilesToTrashAfterAddingMods = isEnabled
+        objectWillChange.send()
+    }
+
+    func setSuppressAddModsSuccessNotification(_ isEnabled: Bool) {
+        preferences.suppressAddModsSuccessNotification = isEnabled
+        objectWillChange.send()
     }
 
     func setMod(_ mod: ModInfo, enabled: Bool) async {
         ignoreObservedFolderChangesBriefly()
         commitState(await service.setMod(mod, enabled: enabled, in: state))
+        ignoreObservedFolderChangesBriefly()
+    }
+
+    func setMods(_ mods: [ModInfo], enabled: Bool) async {
+        guard !mods.isEmpty else {
+            return
+        }
+
+        ignoreObservedFolderChangesBriefly()
+        var nextState = state
+        for mod in mods {
+            nextState = await service.setMod(mod, enabled: enabled, in: nextState)
+        }
+        commitState(nextState)
         ignoreObservedFolderChangesBriefly()
     }
 
@@ -187,7 +260,7 @@ final class ModManagerViewModel: ObservableObject {
         ignoreObservedFolderChangesBriefly()
     }
 
-    func restoreWindowSelectedModSet(id: String) {
+    func restoreSelectedModSet(id: String) {
         guard state.selectedModSetID != id else {
             return
         }
@@ -206,10 +279,10 @@ final class ModManagerViewModel: ObservableObject {
     private func guardCanRevealMods() -> Bool {
         switch state.readiness {
         case .needsFolderAccess:
-            record("Choose the Mods folder before managing mods.")
+            record(AppStrings.Status.chooseModsFolderBeforeManaging)
             return false
         case .missingModsFolder:
-            record("The Mods folder is missing. Choose it again from Settings.")
+            record(AppStrings.Status.modsFolderMissingChooseAgain)
             return false
         case .ready:
             return true
@@ -231,7 +304,7 @@ final class ModManagerViewModel: ObservableObject {
         folderAccess.clearBookmark()
         state.hasSavedFolderAccess = false
 
-        let message = "Choose the Mods folder again. \(error.localizedDescription)"
+        let message = AppStrings.Status.chooseModsFolderAgain(error.localizedDescription)
         if lastFolderAccessError != message {
             record(message)
             lastFolderAccessError = message
@@ -300,7 +373,7 @@ final class ModManagerViewModel: ObservableObject {
             )
         } catch {
             modsFolderMonitor.stopWatching()
-            record("Could not watch Mods folder: \(error.localizedDescription)")
+            record(AppStrings.Status.couldNotWatchModsFolder(error.localizedDescription))
         }
     }
 
@@ -337,7 +410,8 @@ final class ModManagerViewModel: ObservableObject {
                 logPath: StardewInstall.auditLogURL(forModSetDirectory: modSetDirectory).path,
                 recentEntries: [],
                 lastErrorMessage: nil
-            )
+            ),
+            pendingSourceCleanupOffer: nil
         )
     }
 

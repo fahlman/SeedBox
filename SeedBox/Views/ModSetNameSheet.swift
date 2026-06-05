@@ -19,31 +19,31 @@ enum ModSetEditorMode: Identifiable {
     var title: String {
         switch self {
         case .create:
-            return "New Mod Set"
+            return AppStrings.ModSetEditor.createTitle
         case .duplicate:
-            return "Duplicate Mod Set"
+            return AppStrings.ModSetEditor.duplicateTitle
         case .rename:
-            return "Rename Mod Set"
+            return AppStrings.ModSetEditor.renameTitle
         }
     }
 
     var actionTitle: String {
         switch self {
         case .create:
-            return "Create"
+            return AppStrings.ModSetEditor.createAction
         case .duplicate:
-            return "Duplicate"
+            return AppStrings.ModSetEditor.duplicateAction
         case .rename:
-            return "Rename"
+            return AppStrings.ModSetEditor.renameAction
         }
     }
 
     var initialName: String {
         switch self {
         case .create:
-            return "New Set"
+            return AppStrings.ModSetNames.newSet
         case .duplicate(let set):
-            return "\(set.name) Copy"
+            return AppStrings.ModSetNames.copiedSetName(set.name)
         case .rename(let set):
             return set.name
         }

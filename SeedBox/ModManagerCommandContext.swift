@@ -11,6 +11,7 @@ struct ModManagerCommandContext {
     var renameSelectedModSet: () -> Void
     var deleteSelectedModSet: () -> Void
     var revealModsFolder: () -> Void
+    var revealArchivedModsFolder: () -> Void
     var revealSelectedMod: () -> Void
     var deleteSelectedMod: () -> Void
 

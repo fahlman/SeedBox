@@ -11,6 +11,7 @@ struct ModManagerState: Equatable, Sendable {
     var appliedModSetID: String?
     var activityMessage: String
     var auditTrail: AuditTrailState
+    var pendingSourceCleanupOffer: SourceCleanupOffer?
 
     var readiness: ModManagerReadiness {
         if !hasSavedFolderAccess {
@@ -41,6 +42,36 @@ struct ModManagerState: Equatable, Sendable {
     }
 }
 
+struct SourceCleanupOffer: Identifiable, Equatable, Sendable {
+    var id: UUID
+    var sourceURLs: [URL]
+    var importSummary: String
+    var cleanupSummary: String?
+    var isNotificationOnly: Bool
+
+    init(
+        id: UUID = UUID(),
+        sourceURLs: [URL],
+        importSummary: String,
+        cleanupSummary: String? = nil,
+        isNotificationOnly: Bool = false
+    ) {
+        self.id = id
+        self.sourceURLs = sourceURLs
+        self.importSummary = importSummary
+        self.cleanupSummary = cleanupSummary
+        self.isNotificationOnly = isNotificationOnly
+    }
+
+    var sourceCount: Int {
+        sourceURLs.count
+    }
+
+    var selectedItemText: String {
+        AppStrings.SourceCleanup.selectedItemText(count: sourceCount)
+    }
+}
+
 enum ModManagerReadiness: Equatable, Sendable {
     case needsFolderAccess
     case missingModsFolder
@@ -57,31 +88,31 @@ enum ModManagerReadiness: Equatable, Sendable {
     func setupTitle(modFolderName: String) -> String {
         switch self {
         case .needsFolderAccess:
-            return "Choose Mods Folder"
+            return AppStrings.Setup.chooseModsFolderTitle
         case .missingModsFolder:
-            return "Create \(modFolderName)"
+            return AppStrings.Setup.createFolderTitle(modFolderName)
         case .ready:
-            return "Ready"
+            return AppStrings.Setup.ready
         }
     }
 
     func setupDetail(modFolderName: String) -> String {
         switch self {
         case .needsFolderAccess:
-            return "Select the Mods folder Seed Box should manage."
+            return AppStrings.Setup.selectModsFolder
         case .missingModsFolder:
-            return "Seed Box manages this Mods folder directly."
+            return AppStrings.Setup.seedBoxManagesModsFolder
         case .ready:
-            return "\(modFolderName) is ready."
+            return AppStrings.Setup.folderIsReady(modFolderName)
         }
     }
 
     var primarySetupButtonTitle: String {
         switch self {
         case .needsFolderAccess:
-            return "Choose Folder"
+            return AppStrings.Setup.chooseFolder
         case .missingModsFolder, .ready:
-            return "Create Folder"
+            return AppStrings.Setup.createFolder
         }
     }
 
@@ -97,11 +128,11 @@ enum ModManagerReadiness: Equatable, Sendable {
     var modsFolderStatusText: String {
         switch self {
         case .ready:
-            return "Ready"
+            return AppStrings.Setup.ready
         case .needsFolderAccess:
-            return "Needs access"
+            return AppStrings.Setup.needsAccess
         case .missingModsFolder:
-            return "Missing"
+            return AppStrings.Setup.missing
         }
     }
 }

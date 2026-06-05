@@ -16,6 +16,14 @@ struct ModNameCell: View {
                     .lineLimit(1)
             }
 
+            if let description = mod.descriptionText {
+                Text(description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .help(description)
+            }
+
             if let missingDependenciesText = mod.missingRequiredDependenciesText {
                 Label(missingDependenciesText, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)

@@ -11,16 +11,60 @@ enum ModLibraryError: Error, Equatable, LocalizedError, Sendable {
     var errorDescription: String? {
         switch self {
         case .modFolderMissing(let url):
-            return "The mod folder does not exist at \(url.path)."
+            return AppStrings.Errors.modFolderDoesNotExist(at: url.path)
         case .destinationExists(let url):
-            return "A mod already exists at \(url.path)."
+            return AppStrings.Errors.modAlreadyExists(at: url.path)
         case .modAlreadyInstalled(let folderName, let url):
-            return "\(folderName) is already installed at \(url.path)."
+            return AppStrings.Errors.modAlreadyInstalled(folderName: folderName, path: url.path)
         case .invalidDisabledName(let name):
-            return "The disabled folder name \(name) cannot be enabled safely."
+            return AppStrings.Errors.disabledFolderNameCannotBeEnabled(name)
         case .noInstallableMods(let url):
-            return "No installable mod folders were found in \(url.path)."
+            return AppStrings.Errors.noInstallableMods(at: url.path)
         }
+    }
+}
+
+struct InstalledModResult: Equatable, Sendable {
+    var sourceURL: URL
+    var destinationURL: URL
+    var displayName: String
+    var version: String?
+}
+
+struct UpdatedModResult: Equatable, Sendable {
+    var sourceURL: URL
+    var destinationURL: URL
+    var archivedURL: URL
+    var displayName: String
+    var previousVersion: String?
+    var installedVersion: String?
+}
+
+struct SkippedModInstallResult: Equatable, Sendable {
+    var sourceURL: URL
+    var existingURL: URL?
+    var displayName: String
+    var selectedVersion: String?
+    var existingVersion: String?
+    var reason: SkippedModInstallReason
+}
+
+enum SkippedModInstallReason: Equatable, Sendable {
+    case alreadyInstalled
+    case duplicateInSelection
+}
+
+struct ModInstallResult: Equatable, Sendable {
+    var installed: [InstalledModResult] = []
+    var updated: [UpdatedModResult] = []
+    var skipped: [SkippedModInstallResult] = []
+
+    var installedURLs: [URL] {
+        installed.map(\.destinationURL) + updated.map(\.destinationURL)
+    }
+
+    var didChangeInstalledMods: Bool {
+        !installed.isEmpty || !updated.isEmpty
     }
 }
 
@@ -57,11 +101,12 @@ enum ModLibrary {
             )
         }
 
-        return disambiguatedIDs(for: scannedMods)
+        let sortedMods = disambiguatedIDs(for: scannedMods)
             .sorted { lhs, rhs in
                 lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
             }
-            .withResolvedRequiredDependencies()
+
+        return ModDependencyGraph(mods: sortedMods).resolvedMods()
     }
 
     static func setEnabled(
@@ -99,13 +144,17 @@ enum ModLibrary {
         from sourceURLs: [URL],
         into install: StardewInstall,
         enabled: Bool = true,
+        archiveDirectory: URL? = nil,
         fileManager: FileManager = .default
-    ) throws -> [URL] {
+    ) throws -> ModInstallResult {
         guard fileManager.directoryExists(at: install.modDirectoryURL) else {
             throw ModLibraryError.modFolderMissing(install.modDirectoryURL)
         }
 
-        var pendingInstalls: [(sourceURL: URL, destinationURL: URL)] = []
+        let resolvedArchiveDirectory = archiveDirectory ?? install.archivedModsDirectoryURL
+        var result = ModInstallResult()
+        var pendingOperations: [PendingInstallOperation] = []
+        var pendingIdentities: Set<ModInstallIdentity> = []
         var pendingDestinationURLsByToken: [String: URL] = [:]
         var temporaryExtractionDirectories: [URL] = []
         defer {
@@ -115,6 +164,10 @@ enum ModLibrary {
         }
 
         let existingModURLsByToken = installedModURLsByToken(
+            in: install.modDirectoryURL,
+            fileManager: fileManager
+        )
+        let installedMods = installedModLocations(
             in: install.modDirectoryURL,
             fileManager: fileManager
         )
@@ -130,6 +183,7 @@ enum ModLibrary {
             }
 
             for candidate in installSource.candidates {
+                let candidateIdentity = installIdentity(for: candidate)
                 let destinationFolderName = destinationFolderName(
                     for: candidate.destinationFolderName,
                     enabled: enabled
@@ -142,48 +196,144 @@ enum ModLibrary {
                 let destinationURL = install.modDirectoryURL
                     .appendingPathComponent(destinationFolderName)
                 let destinationToken = folderName.normalizedFolderToken
+                let operationIdentity = candidateIdentity ?? .folderToken(destinationToken)
 
-                if fileManager.fileExists(atPath: destinationURL.path) {
+                guard !pendingIdentities.contains(operationIdentity) else {
+                    result.skipped.append(
+                        skippedResult(
+                            for: candidate,
+                            existingURL: pendingDestinationURLsByToken[destinationToken],
+                            reason: .duplicateInSelection
+                        )
+                    )
+                    continue
+                }
+
+                if let existingMod = matchingInstalledMod(
+                    for: candidate,
+                    destinationToken: destinationToken,
+                    installedMods: installedMods
+                ) {
+                    if shouldUpdate(candidate: candidate, existingMod: existingMod) {
+                        pendingIdentities.insert(operationIdentity)
+                        pendingOperations.append(
+                            .update(
+                                candidate: candidate,
+                                existingMod: existingMod
+                            )
+                        )
+                    } else {
+                        result.skipped.append(
+                            skippedResult(
+                                for: candidate,
+                                existingMod: existingMod,
+                                reason: .alreadyInstalled
+                            )
+                        )
+                    }
+                    continue
+                }
+
+                if fileManager.fileExists(atPath: destinationURL.path),
+                   !fileManager.directoryExists(at: destinationURL) {
                     throw ModLibraryError.destinationExists(destinationURL)
                 }
 
                 if let existingURL = existingModURLsByToken[destinationToken] {
-                    throw ModLibraryError.modAlreadyInstalled(folderName, existingURL)
+                    result.skipped.append(
+                        skippedResult(
+                            for: candidate,
+                            existingURL: existingURL,
+                            reason: .alreadyInstalled
+                        )
+                    )
+                    continue
                 }
 
                 if let pendingDestinationURL = pendingDestinationURLsByToken[destinationToken] {
-                    throw ModLibraryError.modAlreadyInstalled(folderName, pendingDestinationURL)
+                    result.skipped.append(
+                        skippedResult(
+                            for: candidate,
+                            existingURL: pendingDestinationURL,
+                            reason: .duplicateInSelection
+                        )
+                    )
+                    continue
                 }
 
+                pendingIdentities.insert(operationIdentity)
                 pendingDestinationURLsByToken[destinationToken] = destinationURL
-                pendingInstalls.append((candidate.sourceURL, destinationURL))
+                pendingOperations.append(.install(candidate: candidate, destinationURL: destinationURL))
             }
         }
 
-        var installedURLs: [URL] = []
+        var completedOperations: [CompletedInstallOperation] = []
         do {
-            for pendingInstall in pendingInstalls {
-                try fileManager.copyItem(at: pendingInstall.sourceURL, to: pendingInstall.destinationURL)
-                installedURLs.append(pendingInstall.destinationURL)
+            for pendingOperation in pendingOperations {
+                switch pendingOperation {
+                case .install(let candidate, let destinationURL):
+                    try fileManager.copyItem(at: candidate.sourceURL, to: destinationURL)
+                    result.installed.append(
+                        InstalledModResult(
+                            sourceURL: candidate.sourceURL,
+                            destinationURL: destinationURL,
+                            displayName: displayName(for: candidate),
+                            version: candidate.manifest?.version?.trimmedNonEmpty
+                        )
+                    )
+                    completedOperations.append(.installed(destinationURL))
+                case .update(let candidate, let existingMod):
+                    let archivedURL = try ModArchive.archive(
+                        existingMod.url,
+                        in: resolvedArchiveDirectory,
+                        reason: .updated,
+                        fileManager: fileManager
+                    )
+                    do {
+                        try fileManager.copyItem(at: candidate.sourceURL, to: existingMod.url)
+                    } catch {
+                        try? fileManager.moveItem(at: archivedURL, to: existingMod.url)
+                        throw error
+                    }
+                    result.updated.append(
+                        UpdatedModResult(
+                            sourceURL: candidate.sourceURL,
+                            destinationURL: existingMod.url,
+                            archivedURL: archivedURL,
+                            displayName: displayName(for: candidate, fallback: existingMod.displayName),
+                            previousVersion: existingMod.version,
+                            installedVersion: candidate.manifest?.version?.trimmedNonEmpty
+                        )
+                    )
+                    completedOperations.append(.updated(destinationURL: existingMod.url, archivedURL: archivedURL))
+                }
             }
         } catch {
-            for installedURL in installedURLs.reversed() {
-                try? fileManager.removeItem(at: installedURL)
+            for completedOperation in completedOperations.reversed() {
+                switch completedOperation {
+                case .installed(let destinationURL):
+                    try? fileManager.removeItem(at: destinationURL)
+                case .updated(let destinationURL, let archivedURL):
+                    try? fileManager.removeItem(at: destinationURL)
+                    try? fileManager.moveItem(at: archivedURL, to: destinationURL)
+                }
             }
             throw error
         }
 
-        return installedURLs
+        return result
     }
 
-    static func trash(
+    static func archive(
         _ mod: ModInfo,
+        in archiveDirectory: URL,
         fileManager: FileManager = .default
-    ) throws {
-        var resultingURL: NSURL?
-        try fileManager.trashItem(
-            at: mod.url,
-            resultingItemURL: &resultingURL
+    ) throws -> URL {
+        try ModArchive.archive(
+            mod.url,
+            in: archiveDirectory,
+            reason: .deleted,
+            fileManager: fileManager
         )
     }
 
@@ -195,6 +345,40 @@ enum ModLibrary {
     private struct InstallCandidate {
         var sourceURL: URL
         var destinationFolderName: String
+        var manifest: ModManifest?
+    }
+
+    private struct InstalledModLocation {
+        var url: URL
+        var folderName: String
+        var manifest: ModManifest?
+
+        var displayName: String {
+            manifest?.name ?? folderName.trimmingPrefix(Character("."))
+        }
+
+        var version: String? {
+            manifest?.version?.trimmedNonEmpty
+        }
+
+        var normalizedUniqueID: String? {
+            manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID
+        }
+    }
+
+    private enum ModInstallIdentity: Hashable {
+        case uniqueID(String)
+        case folderToken(String)
+    }
+
+    private enum PendingInstallOperation {
+        case install(candidate: InstallCandidate, destinationURL: URL)
+        case update(candidate: InstallCandidate, existingMod: InstalledModLocation)
+    }
+
+    private enum CompletedInstallOperation {
+        case installed(URL)
+        case updated(destinationURL: URL, archivedURL: URL)
     }
 
     private static func resolveInstallSource(
@@ -236,7 +420,8 @@ enum ModLibrary {
             return [
                 InstallCandidate(
                     sourceURL: sourceURL,
-                    destinationFolderName: rootDestinationFolderName ?? sourceURL.lastPathComponent
+                    destinationFolderName: rootDestinationFolderName ?? sourceURL.lastPathComponent,
+                    manifest: loadManifest(at: sourceURL.appendingPathComponent("manifest.json"))
                 )
             ]
         }
@@ -269,7 +454,8 @@ enum ModLibrary {
                 return [
                     InstallCandidate(
                         sourceURL: childURL,
-                        destinationFolderName: childURL.lastPathComponent
+                        destinationFolderName: childURL.lastPathComponent,
+                        manifest: loadManifest(at: childURL.appendingPathComponent("manifest.json"))
                     )
                 ]
             }
@@ -341,6 +527,108 @@ enum ModLibrary {
         }
     }
 
+    private static func matchingInstalledMod(
+        for candidate: InstallCandidate,
+        destinationToken: String,
+        installedMods: [InstalledModLocation]
+    ) -> InstalledModLocation? {
+        if let candidateUniqueID = candidate.manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID,
+           let match = installedMods.first(where: { installedMod in
+               installedMod.normalizedUniqueID == candidateUniqueID
+           }) {
+            return match
+        }
+
+        return installedMods.first { installedMod in
+            installedMod.folderName.normalizedFolderToken == destinationToken
+        }
+    }
+
+    private static func installIdentity(for candidate: InstallCandidate) -> ModInstallIdentity? {
+        guard let uniqueID = candidate.manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID,
+              !uniqueID.isEmpty
+        else {
+            return nil
+        }
+
+        return .uniqueID(uniqueID)
+    }
+
+    private static func shouldUpdate(
+        candidate: InstallCandidate,
+        existingMod: InstalledModLocation
+    ) -> Bool {
+        guard let candidateVersion = candidate.manifest?.version?.trimmedNonEmpty,
+              let existingVersion = existingMod.version
+        else {
+            return false
+        }
+
+        return ModVersionComparator.compare(candidateVersion, to: existingVersion) == .orderedDescending
+    }
+
+    private static func skippedResult(
+        for candidate: InstallCandidate,
+        existingMod: InstalledModLocation,
+        reason: SkippedModInstallReason
+    ) -> SkippedModInstallResult {
+        skippedResult(
+            for: candidate,
+            existingURL: existingMod.url,
+            existingVersion: existingMod.version,
+            fallbackName: existingMod.displayName,
+            reason: reason
+        )
+    }
+
+    private static func skippedResult(
+        for candidate: InstallCandidate,
+        existingURL: URL?,
+        existingVersion: String? = nil,
+        fallbackName: String? = nil,
+        reason: SkippedModInstallReason
+    ) -> SkippedModInstallResult {
+        SkippedModInstallResult(
+            sourceURL: candidate.sourceURL,
+            existingURL: existingURL,
+            displayName: displayName(for: candidate, fallback: fallbackName),
+            selectedVersion: candidate.manifest?.version?.trimmedNonEmpty,
+            existingVersion: existingVersion,
+            reason: reason
+        )
+    }
+
+    private static func displayName(
+        for candidate: InstallCandidate,
+        fallback: String? = nil
+    ) -> String {
+        candidate.manifest?.name?.trimmedNonEmpty
+            ?? fallback
+            ?? candidate.destinationFolderName.trimmingPrefix(Character("."))
+    }
+
+    private static func installedModLocations(
+        in modsDirectory: URL,
+        fileManager: FileManager
+    ) -> [InstalledModLocation] {
+        let installedURLs = (try? fileManager.contentsOfDirectory(
+            at: modsDirectory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: []
+        )) ?? []
+
+        return installedURLs
+            .filter { fileManager.directoryExists(at: $0) }
+            .map { installedURL in
+                InstalledModLocation(
+                    url: installedURL,
+                    folderName: installedURL.lastPathComponent,
+                    manifest: findManifest(in: installedURL, fileManager: fileManager)
+                        .flatMap { loadManifest(at: $0) }
+                )
+            }
+    }
+
     private static func installedModURLsByToken(
         in modsDirectory: URL,
         fileManager: FileManager
@@ -403,96 +691,5 @@ enum ModLibrary {
         }
 
         return nil
-    }
-}
-
-private extension Array where Element == ModInfo {
-    func withResolvedRequiredDependencies() -> [ModInfo] {
-        let enabledUniqueIDs: Set<String> = Set(
-            compactMap { mod in
-                guard mod.isEnabled else {
-                    return nil
-                }
-                return mod.manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID
-            }
-        )
-
-        var resolvedMods = self
-
-        for index in resolvedMods.indices {
-            guard resolvedMods[index].isEnabled else {
-                resolvedMods[index].missingRequiredDependencyIDs = []
-                resolvedMods[index].missingOptionalDependencyIDs = []
-                continue
-            }
-
-            let ownUniqueID = resolvedMods[index].manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID
-            let dependencies = resolvedMods[index].manifest?.dependencies ?? []
-
-            var requiredIDs: [String] = []
-            if let contentPackTarget = resolvedMods[index].manifest?.contentPackFor?.uniqueID?.trimmedNonEmpty {
-                requiredIDs.append(contentPackTarget)
-            }
-
-            requiredIDs.append(contentsOf: dependencies.compactMap { dependency in
-                guard dependency.isRequired != false else {
-                    return nil
-                }
-                return dependency.uniqueID?.trimmedNonEmpty
-            })
-
-            let optionalIDs: [String] = dependencies.compactMap { dependency in
-                guard dependency.isRequired == false else {
-                    return nil
-                }
-                return dependency.uniqueID?.trimmedNonEmpty
-            }
-
-            var missingIDs: [String] = []
-            var seenMissingIDs: Set<String> = []
-
-            for requiredID in requiredIDs {
-                let normalizedRequiredID = requiredID.normalizedDependencyID
-                if normalizedRequiredID.isEmpty || normalizedRequiredID == ownUniqueID {
-                    continue
-                }
-                guard !enabledUniqueIDs.contains(normalizedRequiredID) else {
-                    continue
-                }
-                guard !seenMissingIDs.contains(normalizedRequiredID) else {
-                    continue
-                }
-
-                seenMissingIDs.insert(normalizedRequiredID)
-                missingIDs.append(requiredID)
-            }
-
-            var missingOptionalIDs: [String] = []
-            var seenMissingOptionalIDs: Set<String> = []
-
-            for optionalID in optionalIDs {
-                let normalizedOptionalID = optionalID.normalizedDependencyID
-                if normalizedOptionalID.isEmpty || normalizedOptionalID == ownUniqueID {
-                    continue
-                }
-                if seenMissingIDs.contains(normalizedOptionalID) {
-                    continue
-                }
-                guard !enabledUniqueIDs.contains(normalizedOptionalID) else {
-                    continue
-                }
-                guard !seenMissingOptionalIDs.contains(normalizedOptionalID) else {
-                    continue
-                }
-
-                seenMissingOptionalIDs.insert(normalizedOptionalID)
-                missingOptionalIDs.append(optionalID)
-            }
-
-            resolvedMods[index].missingRequiredDependencyIDs = missingIDs
-            resolvedMods[index].missingOptionalDependencyIDs = missingOptionalIDs
-        }
-
-        return resolvedMods
     }
 }

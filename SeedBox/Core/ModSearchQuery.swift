@@ -6,6 +6,9 @@ struct ModSearchQuery: Sendable {
         case mod
         case author
         case type
+        case dependency
+        case requires
+        case requiredby
     }
 
     private struct Term: Sendable {
@@ -19,7 +22,7 @@ struct ModSearchQuery: Sendable {
         terms = Self.parse(rawValue)
     }
 
-    func matches(_ mod: ModInfo) -> Bool {
+    func matches(_ mod: ModInfo, in graph: ModDependencyGraph? = nil) -> Bool {
         guard !terms.isEmpty else {
             return true
         }
@@ -29,11 +32,24 @@ struct ModSearchQuery: Sendable {
             case .state:
                 return mod.stateText.matchesSearchValue(term.value)
             case .mod:
-                return "\(mod.displayName) \(mod.versionText)".matchesSearchValue(term.value)
+                return [
+                    mod.displayName,
+                    mod.versionText,
+                    mod.descriptionText ?? ""
+                ].contains { $0.matchesSearchValue(term.value) }
             case .author:
                 return mod.authorText.matchesSearchValue(term.value)
             case .type:
                 return mod.typeText.matchesSearchValue(term.value)
+            case .dependency:
+                return matchesDependencyField(term.value, mod: mod, graph: graph)
+            case .requires:
+                return matchesRequiresField(term.value, mod: mod, graph: graph)
+            case .requiredby:
+                return graph?.dependents(of: mod).contains { dependent in
+                    dependent.displayName.matchesSearchValue(term.value)
+                        || dependent.manifest?.uniqueID?.matchesSearchValue(term.value) == true
+                } ?? false
             case nil:
                 return [
                     mod.stateText,
@@ -44,8 +60,57 @@ struct ModSearchQuery: Sendable {
                     mod.manifest?.description ?? "",
                     mod.manifest?.uniqueID ?? ""
                 ].contains { $0.matchesSearchValue(term.value) }
+                    || (graph?.dependencySearchValues(for: mod).contains {
+                        $0.matchesSearchValue(term.value)
+                    } ?? false)
             }
         }
+    }
+
+    private func matchesDependencyField(
+        _ value: String,
+        mod: ModInfo,
+        graph: ModDependencyGraph?
+    ) -> Bool {
+        let normalizedValue = value.normalizedSearchText
+        let dependencyIssues = mod.missingRequiredDependencies + mod.missingOptionalDependencies
+
+        switch normalizedValue {
+        case "missing":
+            return dependencyIssues.contains { $0.problem == .missing }
+        case "disabled":
+            return dependencyIssues.contains { $0.problem == .disabled }
+        case "outdated", "old", "version":
+            return dependencyIssues.contains { $0.problem == .versionTooOld }
+        case "required":
+            return mod.hasMissingRequiredDependencies
+        case "optional":
+            return mod.hasMissingOptionalDependencies
+        case "ok", "healthy":
+            return dependencyIssues.isEmpty
+        default:
+            return graph?.dependencySearchValues(for: mod).contains {
+                $0.matchesSearchValue(value)
+            } ?? false
+        }
+    }
+
+    private func matchesRequiresField(
+        _ value: String,
+        mod: ModInfo,
+        graph: ModDependencyGraph?
+    ) -> Bool {
+        let requirementValues = mod.dependencyRequirements.flatMap { requirement in
+            [
+                requirement.uniqueID,
+                requirement.minimumVersion ?? ""
+            ]
+        }
+
+        return requirementValues.contains { $0.matchesSearchValue(value) }
+            || (graph?.dependencySearchValues(for: mod).contains {
+                $0.matchesSearchValue(value)
+            } ?? false)
     }
 
     private static func parse(_ rawValue: String) -> [Term] {

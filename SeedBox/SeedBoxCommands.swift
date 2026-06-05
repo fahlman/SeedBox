@@ -1,16 +1,15 @@
 import SwiftUI
 
 struct SeedBoxCommands: Commands {
-    @Environment(\.openWindow) private var openWindow
     @FocusedValue(\.modManagerCommandContext) private var context
-    @AppStorage(ModManagerTabPreferences.alwaysShowTabBarKey) private var alwaysShowTabBar = false
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
-            Button("New Window") {
-                openWindow(id: SeedBoxSceneID.modManagerWindow)
+            Button("New Mod Set") {
+                context?.createModSet()
             }
             .keyboardShortcut("n", modifiers: [.command])
+            .disabled(!canManageMods || context == nil)
         }
 
         CommandGroup(replacing: .importExport) {
@@ -27,14 +26,9 @@ struct SeedBoxCommands: Commands {
             .disabled(context == nil)
         }
 
-        CommandGroup(replacing: .saveItem) {}
         CommandGroup(replacing: .printItem) {}
 
         CommandGroup(replacing: .sidebar) {
-            Toggle("Always Show Tab Bar", isOn: $alwaysShowTabBar)
-
-            Divider()
-
             Button("Refresh Mods Folder") {
                 context?.refresh()
             }
@@ -56,9 +50,14 @@ struct SeedBoxCommands: Commands {
             }
             .disabled(!canManageMods)
 
+            Button("Reveal Archived Mods in Finder") {
+                context?.revealArchivedModsFolder()
+            }
+            .disabled(context == nil)
+
             Divider()
 
-            Button("Move Selected Mod to Trash", role: .destructive) {
+            Button("Delete Selected Mod", role: .destructive) {
                 context?.deleteSelectedMod()
             }
             .keyboardShortcut(.delete, modifiers: [.command])
@@ -66,12 +65,6 @@ struct SeedBoxCommands: Commands {
         }
 
         CommandMenu("Mod Set") {
-            Button("New Mod Set") {
-                context?.createModSet()
-            }
-            .keyboardShortcut("n", modifiers: [.command, .option])
-            .disabled(!canManageMods || context == nil)
-
             Button("Duplicate Mod Set") {
                 context?.duplicateSelectedModSet()
             }

@@ -77,22 +77,31 @@ class SeedBoxTestCase: XCTestCase {
         name: String,
         to directoryURL: URL,
         author: String = "Test Author",
+        version: String = "1.2.3",
+        description: String = "A test mod.",
         uniqueID: String? = nil,
         contentPackForUniqueID: String? = nil,
-        dependencies: [(uniqueID: String, isRequired: Bool?)] = []
+        contentPackForMinimumVersion: String? = nil,
+        dependencies: [(uniqueID: String, isRequired: Bool?)] = [],
+        dependencyMinimumVersions: [String: String] = [:]
     ) throws {
         var manifest: [String: Any] = [
             "Name": name,
             "Author": author,
-            "Version": "1.2.3",
-            "Description": "A test mod.",
+            "Version": version,
+            "Description": description,
             "UniqueID": uniqueID ?? "Test.\(name.replacingOccurrences(of: " ", with: ""))"
         ]
 
         if let contentPackForUniqueID {
-            manifest["ContentPackFor"] = [
+            var contentPackFor: [String: Any] = [
                 "UniqueID": contentPackForUniqueID
             ]
+            if let contentPackForMinimumVersion {
+                contentPackFor["MinimumVersion"] = contentPackForMinimumVersion
+            }
+
+            manifest["ContentPackFor"] = contentPackFor
         }
 
         if !dependencies.isEmpty {
@@ -103,6 +112,9 @@ class SeedBoxTestCase: XCTestCase {
 
                 if let isRequired = dependency.isRequired {
                     encodedDependency["IsRequired"] = isRequired
+                }
+                if let minimumVersion = dependencyMinimumVersions[dependency.uniqueID] {
+                    encodedDependency["MinimumVersion"] = minimumVersion
                 }
 
                 return encodedDependency

@@ -6,6 +6,7 @@ struct ModList: View {
     @Binding var selectedModIDs: Set<String>
     var selectedMod: ModInfo?
     var addMods: () -> Void
+    var requestSetModEnabled: (ModInfo, Bool) -> Void
     var revealSelectedMod: () -> Void
     var requestDeleteSelectedMod: () -> Void
     @SceneStorage("modList.sortColumn") private var storedSortColumn = ModListSortColumn.mod.rawValue
@@ -24,9 +25,7 @@ struct ModList: View {
                     Toggle(row.enabledText, isOn: Binding(
                         get: { row.mod.isEnabled },
                         set: { enabled in
-                            Task {
-                                await viewModel.setMod(row.mod, enabled: enabled)
-                            }
+                            requestSetModEnabled(row.mod, enabled)
                         }
                     ))
                     .labelsHidden()
@@ -54,14 +53,14 @@ struct ModList: View {
                 Button {
                     revealSelectedMod()
                 } label: {
-                    Label("Reveal in Finder", systemImage: "magnifyingglass")
+                    Label("Reveal in Finder", systemImage: "eye")
                 }
                 .disabled(selectedMod == nil || !canManageMods)
 
                 Button(role: .destructive) {
                     requestDeleteSelectedMod()
                 } label: {
-                    Label("Move to Trash", systemImage: "trash")
+                    Label("Delete Mod", systemImage: "trash")
                 }
                 .disabled(selectedMod == nil || !canManageMods)
             }

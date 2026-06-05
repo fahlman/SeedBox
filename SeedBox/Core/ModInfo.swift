@@ -6,8 +6,8 @@ struct ModInfo: Identifiable, Equatable, Sendable {
     var url: URL
     var isEnabled: Bool
     var manifest: ModManifest?
-    var missingRequiredDependencyIDs: [String]
-    var missingOptionalDependencyIDs: [String]
+    var missingRequiredDependencies: [ModDependencyResolution]
+    var missingOptionalDependencies: [ModDependencyResolution]
 
     init(
         id: String? = nil,
@@ -15,15 +15,15 @@ struct ModInfo: Identifiable, Equatable, Sendable {
         url: URL,
         isEnabled: Bool,
         manifest: ModManifest?,
-        missingRequiredDependencyIDs: [String] = [],
-        missingOptionalDependencyIDs: [String] = []
+        missingRequiredDependencies: [ModDependencyResolution] = [],
+        missingOptionalDependencies: [ModDependencyResolution] = []
     ) {
         self.folderName = folderName
         self.url = url
         self.isEnabled = isEnabled
         self.manifest = manifest
-        self.missingRequiredDependencyIDs = missingRequiredDependencyIDs
-        self.missingOptionalDependencyIDs = missingOptionalDependencyIDs
+        self.missingRequiredDependencies = missingRequiredDependencies
+        self.missingOptionalDependencies = missingOptionalDependencies
         self.id = id ?? Self.stableID(folderName: folderName, url: url)
     }
 
@@ -42,34 +42,113 @@ struct ModInfo: Identifiable, Equatable, Sendable {
     }
 
     var versionText: String {
-        manifest?.version ?? "Unknown version"
+        manifest?.version ?? AppStrings.Mods.unknownVersion
     }
 
     var authorText: String {
-        manifest?.author ?? "Unknown author"
+        manifest?.author ?? AppStrings.Mods.unknownAuthor
+    }
+
+    var descriptionText: String? {
+        guard let description = manifest?.description?.trimmedNonEmpty else {
+            return nil
+        }
+
+        return description.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+
+    var dependencyRequirements: [ModDependencyRequirement] {
+        requiredDependencyRequirements + optionalDependencyRequirements
+    }
+
+    var requiredDependencyRequirements: [ModDependencyRequirement] {
+        var requirements: [ModDependencyRequirement] = []
+
+        if let contentPackFor = manifest?.contentPackFor?.uniqueID?.trimmedNonEmpty {
+            requirements.append(
+                ModDependencyRequirement(
+                    uniqueID: contentPackFor,
+                    minimumVersion: manifest?.contentPackFor?.minimumVersion?.trimmedNonEmpty,
+                    kind: .contentPackFor
+                )
+            )
+        }
+
+        if let dependencies = manifest?.dependencies {
+            requirements.append(contentsOf: dependencies.compactMap { dependency in
+                guard dependency.isRequired != false else {
+                    return nil
+                }
+
+                guard let uniqueID = dependency.uniqueID?.trimmedNonEmpty else {
+                    return nil
+                }
+
+                return ModDependencyRequirement(
+                    uniqueID: uniqueID,
+                    minimumVersion: dependency.minimumVersion?.trimmedNonEmpty,
+                    kind: .requiredDependency
+                )
+            })
+        }
+
+        return requirements.uniquedByNormalizedDependencyID()
+    }
+
+    var optionalDependencyRequirements: [ModDependencyRequirement] {
+        guard let dependencies = manifest?.dependencies else {
+            return []
+        }
+
+        return dependencies.compactMap { dependency in
+            guard dependency.isRequired == false,
+                  let uniqueID = dependency.uniqueID?.trimmedNonEmpty
+            else {
+                return nil
+            }
+
+            return ModDependencyRequirement(
+                uniqueID: uniqueID,
+                minimumVersion: dependency.minimumVersion?.trimmedNonEmpty,
+                kind: .optionalDependency
+            )
+        }
+        .uniquedByNormalizedDependencyID()
+    }
+
+    var requiredDependencyIDs: [String] {
+        requiredDependencyRequirements.map(\.uniqueID)
+    }
+
+    var missingRequiredDependencyIDs: [String] {
+        missingRequiredDependencies.map(\.requirement.uniqueID)
+    }
+
+    var missingOptionalDependencyIDs: [String] {
+        missingOptionalDependencies.map(\.requirement.uniqueID)
     }
 
     var stateText: String {
-        isEnabled ? "Enabled" : "Disabled"
+        isEnabled ? AppStrings.Mods.enabled : AppStrings.Mods.disabled
     }
 
     var typeText: String {
         guard let manifest else {
-            return "Unknown"
+            return AppStrings.Mods.unknown
         }
 
         if manifest.contentPackFor?.uniqueID?.caseInsensitiveCompare("Pathoschild.ContentPatcher") == .orderedSame {
-            return "Content Patcher"
+            return AppStrings.Mods.contentPatcher
         }
 
-        return "SMAPI"
+        return AppStrings.Mods.smapi
     }
 
     var manifestMetadataText: String? {
         var segments: [String] = []
 
         if let contentPackFor = manifest?.contentPackFor?.uniqueID?.trimmedNonEmpty {
-            segments.append("For \(contentPackFor)")
+            segments.append(AppStrings.Mods.contentPackFor(contentPackFor))
         }
 
         if let dependencies = manifest?.dependencies, !dependencies.isEmpty {
@@ -77,11 +156,14 @@ struct ModInfo: Identifiable, Equatable, Sendable {
             let optionalCount = dependencies.filter { $0.isRequired == false }.count
 
             if requiredCount > 0 && optionalCount > 0 {
-                segments.append("\(requiredCount) required + \(optionalCount) optional deps")
+                segments.append(AppStrings.Mods.dependencyMetadata(
+                    requiredCount: requiredCount,
+                    optionalCount: optionalCount
+                ))
             } else if requiredCount > 0 {
-                segments.append("\(requiredCount) required \(requiredCount == 1 ? "dep" : "deps")")
+                segments.append(AppStrings.Mods.requiredDependencyMetadata(count: requiredCount))
             } else {
-                segments.append("\(optionalCount) optional \(optionalCount == 1 ? "dep" : "deps")")
+                segments.append(AppStrings.Mods.optionalDependencyMetadata(count: optionalCount))
             }
         }
 
@@ -100,7 +182,9 @@ struct ModInfo: Identifiable, Equatable, Sendable {
         guard hasMissingRequiredDependencies else {
             return nil
         }
-        return "Missing required: \(missingRequiredDependencyIDs.joined(separator: ", "))"
+        return AppStrings.Mods.missingRequiredDependencies(
+            missingRequiredDependencies.map(\.summaryText).joined(separator: ", ")
+        )
     }
 
     var hasMissingOptionalDependencies: Bool {
@@ -111,6 +195,39 @@ struct ModInfo: Identifiable, Equatable, Sendable {
         guard hasMissingOptionalDependencies else {
             return nil
         }
-        return "Missing optional: \(missingOptionalDependencyIDs.joined(separator: ", "))"
+        return AppStrings.Mods.missingOptionalDependencies(
+            missingOptionalDependencies.map(\.summaryText).joined(separator: ", ")
+        )
+    }
+}
+
+private extension Array where Element == ModDependencyRequirement {
+    func uniquedByNormalizedDependencyID() -> [ModDependencyRequirement] {
+        var requirements: [ModDependencyRequirement] = []
+        var indexesByID: [String: Int] = [:]
+
+        for requirement in self {
+            let normalizedID = requirement.normalizedUniqueID
+            guard !normalizedID.isEmpty else {
+                continue
+            }
+
+            guard let existingIndex = indexesByID[normalizedID] else {
+                indexesByID[normalizedID] = requirements.count
+                requirements.append(requirement)
+                continue
+            }
+
+            let existingMinimumVersion = requirements[existingIndex].minimumVersion
+            if existingMinimumVersion == nil
+                || ModVersionComparator.compare(
+                    requirement.minimumVersion ?? "",
+                    to: existingMinimumVersion ?? ""
+                ) == .orderedDescending {
+                requirements[existingIndex].minimumVersion = requirement.minimumVersion
+            }
+        }
+
+        return requirements
     }
 }

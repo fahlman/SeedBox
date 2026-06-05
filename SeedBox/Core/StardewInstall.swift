@@ -3,6 +3,7 @@ import Foundation
 struct StardewInstall: Equatable, Sendable {
     static let modFolderName = "Mods"
     static let modSetFolderName = "Mod Sets"
+    static let archivedModsFolderName = "Archived Mods"
     static let auditLogFileName = "Audit Log.plist"
     static let applicationSupportFolderName = "Seed Box"
 
@@ -120,6 +121,13 @@ struct StardewInstall: Equatable, Sendable {
         Self.auditLogURL(forModSetDirectory: modSetDirectory)
     }
 
+    var archivedModsDirectoryURL: URL {
+        modSetDirectory
+            .standardizedFileURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(Self.archivedModsFolderName, isDirectory: true)
+    }
+
     func status(fileManager: FileManager = .default) -> InstallationStatus {
         let modDirectoryExists = fileManager.directoryExists(at: modDirectoryURL)
 
@@ -152,11 +160,11 @@ struct InstallationStatus: Equatable, Sendable {
     }
 
     var headline: String {
-        canManageMods ? "Ready" : "Needs setup"
+        canManageMods ? AppStrings.Errors.ready : AppStrings.Errors.needsSetup
     }
 
     var detail: String {
-        issues.first?.message ?? "Seed Box manages the default Mods folder."
+        issues.first?.message ?? AppStrings.Errors.seedBoxManagesDefaultModsFolder
     }
 }
 
@@ -166,7 +174,7 @@ enum InstallationIssue: Equatable, Sendable {
     var message: String {
         switch self {
         case .missingModDirectory(let url):
-            return "The mod folder does not exist at \(url.path)."
+            return AppStrings.Errors.modFolderDoesNotExist(at: url.path)
         }
     }
 }

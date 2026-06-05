@@ -9,24 +9,24 @@ enum ModSetStoreError: Error, Equatable, LocalizedError, Sendable {
     var errorDescription: String? {
         switch self {
         case .cannotEditIncludedSet:
-            return "Included mod sets cannot be edited."
+            return AppStrings.Errors.cannotEditIncludedSets
         case .cannotDeleteIncludedSet:
-            return "Included mod sets cannot be deleted."
+            return AppStrings.Errors.cannotDeleteIncludedSets
         case .duplicateSetName(let name):
-            return "A mod set named \(name) already exists."
+            return AppStrings.Errors.duplicateModSetName(name)
         case .missingSet(let id):
-            return "Mod set \(id) was not found."
+            return AppStrings.Errors.modSetNotFound(id)
         }
     }
 }
 
 enum ModSetStore {
     static let allSetID = "all"
-    static let allSetName = "All"
+    static let allSetName = AppStrings.ModSetNames.all
     static let noneSetID = "none"
-    static let noneSetName = "None"
+    static let noneSetName = AppStrings.ModSetNames.none
     static let defaultSetID = "default"
-    static let defaultSetName = "Default"
+    static let defaultSetName = AppStrings.ModSetNames.defaultSet
     static let includedSetIDs: Set<String> = [
         allSetID,
         noneSetID,
@@ -87,7 +87,7 @@ enum ModSetStore {
         guard !trimmedName.isEmpty else {
             return ModSet(
                 id: UUID().uuidString,
-                name: "Untitled Set",
+                name: AppStrings.ModSetNames.untitledSet,
                 disabledFolderNames: normalizeFolderNames(sourceSet.disabledFolderNames),
                 isDefault: false,
                 isIncluded: false

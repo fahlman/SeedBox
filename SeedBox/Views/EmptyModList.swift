@@ -10,17 +10,17 @@ struct EmptyModList: View {
                 .font(.system(size: 38))
                 .foregroundStyle(.secondary)
 
-            Text("No mods in \(viewModel.modFolderName)")
+            Text(AppStrings.EmptyState.noMods(in: viewModel.modFolderName))
                 .font(.title3.weight(.semibold))
 
-            Text("Add a mod folder or ZIP archive to install it.")
+            Text(AppStrings.EmptyState.addModsPrompt)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
             Button {
                 addMods()
             } label: {
-                Label("Add Mods", systemImage: "plus")
+                Label("Add Mods", systemImage: "square.and.arrow.down")
             }
             .buttonStyle(.borderedProminent)
             .disabled(!viewModel.state.readiness.canManageMods)

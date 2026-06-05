@@ -6,26 +6,24 @@ struct SeedBoxApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        WindowGroup("Seed Box", id: SeedBoxSceneID.modManagerWindow) {
+        Window(AppStrings.App.name, id: "mod-manager") {
             ModManagerWindow()
                 .frame(minWidth: 780, minHeight: 560)
         }
         .windowStyle(.titleBar)
+        .defaultLaunchBehavior(.presented)
+        .commandsRemoved()
+        .commands {
+            SeedBoxCommands()
+        }
 
         Settings {
             SettingsSceneView()
         }
-
-        .commands {
-            SeedBoxCommands()
-        }
     }
 }
 
-enum SeedBoxSceneID {
-    static let modManagerWindow = "mod-manager"
-}
-
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         UserNotificationModFolderChangeNotifier.shared.requestAuthorization()

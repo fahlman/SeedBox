@@ -59,6 +59,18 @@ struct SettingsView: View {
                     Spacer()
                 }
             }
+
+            Section("Adding Mods") {
+                Toggle(
+                    "Move mod files to trash after successfully adding mods",
+                    isOn: moveModFilesToTrashBinding
+                )
+
+                Toggle(
+                    "Do not display notification after successfully adding mods",
+                    isOn: suppressAddModsSuccessNotificationBinding
+                )
+            }
         }
         .formStyle(.grouped)
         .padding(20)
@@ -80,5 +92,27 @@ struct SettingsView: View {
 
     private var readiness: ModManagerReadiness {
         viewModel.state.readiness
+    }
+
+    private var moveModFilesToTrashBinding: Binding<Bool> {
+        Binding(
+            get: {
+                viewModel.sourceCleanupSettings.moveModFilesToTrashAfterAddingMods
+            },
+            set: { isEnabled in
+                viewModel.setMoveModFilesToTrashAfterAddingMods(isEnabled)
+            }
+        )
+    }
+
+    private var suppressAddModsSuccessNotificationBinding: Binding<Bool> {
+        Binding(
+            get: {
+                viewModel.sourceCleanupSettings.suppressAddModsSuccessNotification
+            },
+            set: { isEnabled in
+                viewModel.setSuppressAddModsSuccessNotification(isEnabled)
+            }
+        )
     }
 }

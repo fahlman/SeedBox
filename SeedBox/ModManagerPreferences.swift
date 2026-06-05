@@ -7,6 +7,8 @@ struct ModManagerPreferences {
         static let lastAppliedModSetID = "lastAppliedModSetID"
         static let lastKnownModFolderTokens = "lastKnownModFolderTokens"
         static let modsDirectoryPath = "modsDirectoryPath"
+        static let moveModFilesToTrashAfterAddingMods = "moveModFilesToTrashAfterAddingMods"
+        static let suppressAddModsSuccessNotification = "suppressAddModsSuccessNotification"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -27,6 +29,31 @@ struct ModManagerPreferences {
 
     var lastAppliedModSetID: String? {
         defaults.string(forKey: Key.lastAppliedModSetID)
+    }
+
+    var sourceCleanupSettings: SourceCleanupSettings {
+        SourceCleanupSettings(
+            moveModFilesToTrashAfterAddingMods: moveModFilesToTrashAfterAddingMods,
+            suppressAddModsSuccessNotification: suppressAddModsSuccessNotification
+        )
+    }
+
+    var moveModFilesToTrashAfterAddingMods: Bool {
+        get {
+            defaults.bool(forKey: Key.moveModFilesToTrashAfterAddingMods)
+        }
+        nonmutating set {
+            defaults.set(newValue, forKey: Key.moveModFilesToTrashAfterAddingMods)
+        }
+    }
+
+    var suppressAddModsSuccessNotification: Bool {
+        get {
+            defaults.bool(forKey: Key.suppressAddModsSuccessNotification)
+        }
+        nonmutating set {
+            defaults.set(newValue, forKey: Key.suppressAddModsSuccessNotification)
+        }
     }
 
     func save(_ state: ModManagerState) {
@@ -52,4 +79,9 @@ struct ModManagerPreferences {
         Set(mods.map { $0.enabledFolderName.normalizedFolderToken })
             .sorted()
     }
+}
+
+struct SourceCleanupSettings: Equatable, Sendable {
+    var moveModFilesToTrashAfterAddingMods: Bool
+    var suppressAddModsSuccessNotification: Bool
 }

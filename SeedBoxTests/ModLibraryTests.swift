@@ -45,7 +45,7 @@ final class ModLibraryTests: SeedBoxTestCase {
         XCTAssertEqual(manifest.dependencies?.first?.uniqueID, "AnotherMod.UniqueID")
         XCTAssertEqual(manifest.dependencies?.first?.isRequired, true)
         XCTAssertEqual(mod.typeText, "Content Patcher")
-        XCTAssertEqual(mod.manifestMetadataText, "For Pathoschild.ContentPatcher • 1 required + 1 optional deps")
+        XCTAssertEqual(mod.manifestMetadataText, "For Pathoschild.ContentPatcher • 1 required + 1 optional dep")
     }
 
     func testClassifiesManifestModsAsSMAPI() throws {
@@ -85,7 +85,7 @@ final class ModLibraryTests: SeedBoxTestCase {
             }
         )
 
-        XCTAssertEqual(mod.manifestMetadataText, "1 required + 1 optional deps")
+        XCTAssertEqual(mod.manifestMetadataText, "1 required + 1 optional dep")
         XCTAssertEqual(mod.missingRequiredDependencyIDs, ["Framework.RequiredByDefault"])
         XCTAssertEqual(mod.missingOptionalDependencyIDs, ["Framework.Optional"])
     }
@@ -111,9 +111,147 @@ final class ModLibraryTests: SeedBoxTestCase {
         )
 
         XCTAssertEqual(mod.missingRequiredDependencyIDs, ["Framework.Required"])
-        XCTAssertEqual(mod.missingRequiredDependenciesText, "Missing required: Framework.Required")
+        XCTAssertEqual(mod.missingRequiredDependenciesText, "Missing required: Framework.Required is not installed")
         XCTAssertEqual(mod.missingOptionalDependencyIDs, ["Framework.Optional"])
-        XCTAssertEqual(mod.missingOptionalDependenciesText, "Missing optional: Framework.Optional")
+        XCTAssertEqual(mod.missingOptionalDependenciesText, "Missing optional: Framework.Optional is not installed")
+    }
+
+    func testPreflightWarnsWhenEnablingModWithMissingRequiredDependency() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let modURL = install.modDirectoryURL.appendingPathComponent(".PackA")
+
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try writeManifest(
+            name: "Pack A",
+            to: modURL,
+            uniqueID: "Author.PackA",
+            dependencies: [
+                ("Framework.Required", true)
+            ]
+        )
+
+        let mod = try XCTUnwrap(
+            ModLibrary.scan(install: install).first(where: { $0.folderName == ".PackA" })
+        )
+
+        XCTAssertEqual(
+            ModDependencyPreflight.missingRequiredDependencyIDsIfEnabled(
+                mod,
+                among: try ModLibrary.scan(install: install)
+            ),
+            ["Framework.Required"]
+        )
+    }
+
+    func testPreflightWarnsWhenDisablingEnabledRequiredDependency() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let modURL = install.modDirectoryURL.appendingPathComponent("PackA")
+        let dependencyURL = install.modDirectoryURL.appendingPathComponent("FrameworkRequired")
+
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: dependencyURL, withIntermediateDirectories: true)
+        try writeManifest(
+            name: "Pack A",
+            to: modURL,
+            uniqueID: "Author.PackA",
+            dependencies: [
+                ("Framework.Required", true)
+            ]
+        )
+        try writeManifest(
+            name: "Framework Required",
+            to: dependencyURL,
+            uniqueID: "Framework.Required"
+        )
+
+        let mods = try ModLibrary.scan(install: install)
+        let dependency = try XCTUnwrap(
+            mods.first(where: { $0.displayName == "Framework Required" })
+        )
+
+        XCTAssertEqual(
+            ModDependencyPreflight.enabledDependentsIfDisabled(
+                dependency,
+                among: mods
+            )
+            .map(\.displayName),
+            ["Pack A"]
+        )
+    }
+
+    func testPreflightWarnsWhenDisablingContentPackHost() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let contentPatcherURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
+        let expandedURL = install.modDirectoryURL.appendingPathComponent("StardewValleyExpanded")
+
+        try FileManager.default.createDirectory(at: contentPatcherURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: expandedURL, withIntermediateDirectories: true)
+        try writeManifest(
+            name: "Content Patcher",
+            to: contentPatcherURL,
+            uniqueID: "Pathoschild.ContentPatcher"
+        )
+        try writeManifest(
+            name: "Stardew Valley Expanded",
+            to: expandedURL,
+            uniqueID: "FlashShifter.StardewValleyExpandedCP",
+            contentPackForUniqueID: "Pathoschild.ContentPatcher"
+        )
+
+        let mods = try ModLibrary.scan(install: install)
+        let contentPatcher = try XCTUnwrap(
+            mods.first(where: { $0.displayName == "Content Patcher" })
+        )
+
+        XCTAssertEqual(
+            ModDependencyPreflight.enabledDependentsIfDisabled(
+                contentPatcher,
+                among: mods
+            )
+            .map(\.displayName),
+            ["Stardew Valley Expanded"]
+        )
+    }
+
+    func testPreflightWarnsWhenApplyingSetWouldDisableRequiredDependency() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let modURL = install.modDirectoryURL.appendingPathComponent("PackA")
+        let dependencyURL = install.modDirectoryURL.appendingPathComponent("FrameworkRequired")
+
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: dependencyURL, withIntermediateDirectories: true)
+        try writeManifest(
+            name: "Pack A",
+            to: modURL,
+            uniqueID: "Author.PackA",
+            dependencies: [
+                ("Framework.Required", true)
+            ]
+        )
+        try writeManifest(
+            name: "Framework Required",
+            to: dependencyURL,
+            uniqueID: "Framework.Required"
+        )
+
+        let issues = ModDependencyPreflight.issues(
+            applying: ModSet(
+                id: "broken",
+                name: "Broken",
+                disabledFolderNames: ["FrameworkRequired"],
+                isDefault: false
+            ),
+            to: try ModLibrary.scan(install: install)
+        )
+
+        XCTAssertEqual(issues.map(\.modName), ["Pack A"])
+        XCTAssertEqual(issues.first?.missingRequiredDependencyIDs, ["Framework.Required"])
+        XCTAssertEqual(issues.first?.unsatisfiedRequirements.map(\.problem), [.disabled])
+        XCTAssertEqual(issues.first?.dependencySummaryText, "Framework Required is disabled")
     }
 
     func testFlagsMissingOptionalDependencies() throws {
@@ -162,6 +300,75 @@ final class ModLibraryTests: SeedBoxTestCase {
         )
 
         XCTAssertEqual(mod.missingRequiredDependencyIDs, ["Framework.Required"])
+        XCTAssertEqual(mod.missingRequiredDependencies.first?.problem, .disabled)
+        XCTAssertEqual(mod.missingRequiredDependenciesText, "Missing required: Framework Required is disabled")
+    }
+
+    func testFlagsDisabledContentPackHostAsMissingRequiredDependency() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let contentPatcherURL = install.modDirectoryURL.appendingPathComponent(".ContentPatcher")
+        let expandedURL = install.modDirectoryURL.appendingPathComponent("StardewValleyExpanded")
+
+        try FileManager.default.createDirectory(at: contentPatcherURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: expandedURL, withIntermediateDirectories: true)
+        try writeManifest(
+            name: "Content Patcher",
+            to: contentPatcherURL,
+            uniqueID: "Pathoschild.ContentPatcher"
+        )
+        try writeManifest(
+            name: "Stardew Valley Expanded",
+            to: expandedURL,
+            uniqueID: "FlashShifter.StardewValleyExpandedCP",
+            contentPackForUniqueID: "Pathoschild.ContentPatcher"
+        )
+
+        let mod = try XCTUnwrap(
+            ModLibrary.scan(install: install).first {
+                $0.displayName == "Stardew Valley Expanded"
+            }
+        )
+
+        XCTAssertEqual(mod.missingRequiredDependencyIDs, ["Pathoschild.ContentPatcher"])
+        XCTAssertEqual(mod.missingRequiredDependencies.first?.problem, .disabled)
+        XCTAssertEqual(mod.missingRequiredDependenciesText, "Missing required: Content Patcher is disabled")
+    }
+
+    func testFlagsOutdatedContentPackHostAsMissingRequiredDependency() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let contentPatcherURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
+        let expandedURL = install.modDirectoryURL.appendingPathComponent("StardewValleyExpanded")
+
+        try FileManager.default.createDirectory(at: contentPatcherURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: expandedURL, withIntermediateDirectories: true)
+        try writeManifest(
+            name: "Content Patcher",
+            to: contentPatcherURL,
+            version: "1.0.0",
+            uniqueID: "Pathoschild.ContentPatcher"
+        )
+        try writeManifest(
+            name: "Stardew Valley Expanded",
+            to: expandedURL,
+            uniqueID: "FlashShifter.StardewValleyExpandedCP",
+            contentPackForUniqueID: "Pathoschild.ContentPatcher",
+            contentPackForMinimumVersion: "2.0.0"
+        )
+
+        let mod = try XCTUnwrap(
+            ModLibrary.scan(install: install).first {
+                $0.displayName == "Stardew Valley Expanded"
+            }
+        )
+
+        XCTAssertEqual(mod.missingRequiredDependencyIDs, ["Pathoschild.ContentPatcher"])
+        XCTAssertEqual(mod.missingRequiredDependencies.first?.problem, .versionTooOld)
+        XCTAssertEqual(
+            mod.missingRequiredDependenciesText,
+            "Missing required: Content Patcher 1.0.0 is older than required 2.0.0"
+        )
     }
 
     func testClearsMissingRequiredDependenciesWhenEnabledDependencyExists() throws {
@@ -275,9 +482,9 @@ final class ModLibraryTests: SeedBoxTestCase {
         try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
         try writeManifest(name: "Content Patcher", to: modURL)
 
-        let installedURLs = try ModLibrary.installMods(from: [modURL], into: install)
+        let installResult = try ModLibrary.installMods(from: [modURL], into: install)
 
-        XCTAssertEqual(installedURLs.map(\.lastPathComponent), ["ContentPatcher"])
+        XCTAssertEqual(installResult.installedURLs.map(\.lastPathComponent), ["ContentPatcher"])
         XCTAssertTrue(
             FileManager.default.fileExists(
                 atPath: install.modDirectoryURL
@@ -304,9 +511,9 @@ final class ModLibraryTests: SeedBoxTestCase {
             encoding: .utf8
         )
 
-        let installedURLs = try ModLibrary.installMods(from: [packageURL], into: install)
+        let installResult = try ModLibrary.installMods(from: [packageURL], into: install)
 
-        XCTAssertEqual(installedURLs.map(\.lastPathComponent), ["ActualMod"])
+        XCTAssertEqual(installResult.installedURLs.map(\.lastPathComponent), ["ActualMod"])
         XCTAssertTrue(
             FileManager.default.fileExists(
                 atPath: install.modDirectoryURL
@@ -346,9 +553,9 @@ final class ModLibraryTests: SeedBoxTestCase {
         )
         try makeZip(from: packageURL, to: zipURL)
 
-        let installedURLs = try ModLibrary.installMods(from: [zipURL], into: install)
+        let installResult = try ModLibrary.installMods(from: [zipURL], into: install)
 
-        XCTAssertEqual(installedURLs.map(\.lastPathComponent), ["ActualMod"])
+        XCTAssertEqual(installResult.installedURLs.map(\.lastPathComponent), ["ActualMod"])
         XCTAssertTrue(
             FileManager.default.fileExists(
                 atPath: install.modDirectoryURL
@@ -364,6 +571,73 @@ final class ModLibraryTests: SeedBoxTestCase {
         )
     }
 
+    func testInstallsMultipleModFoldersFromZipArchive() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads")
+        let packageURL = downloadsURL.appendingPathComponent("Stardew Valley Expanded Package")
+        let wrapperURL = packageURL.appendingPathComponent("Stardew Valley Expanded")
+        let expandedURL = wrapperURL.appendingPathComponent("Stardew Valley Expanded")
+        let farmURL = wrapperURL.appendingPathComponent("Grandpa's Farm")
+        let supportURL = wrapperURL.appendingPathComponent("Expanded Preconditions Utility")
+        let zipURL = downloadsURL.appendingPathComponent("StardewValleyExpanded.zip")
+
+        try FileManager.default.createDirectory(at: expandedURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: farmURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: supportURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Stardew Valley Expanded", to: expandedURL)
+        try writeManifest(name: "Grandpa's Farm", to: farmURL)
+        try writeManifest(name: "Expanded Preconditions Utility", to: supportURL)
+        try "Installation notes".write(
+            to: wrapperURL.appendingPathComponent("README.txt"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try makeZip(from: packageURL, to: zipURL)
+
+        let installResult = try ModLibrary.installMods(from: [zipURL], into: install)
+
+        XCTAssertEqual(
+            Set(installResult.installedURLs.map(\.lastPathComponent)),
+            [
+                "Expanded Preconditions Utility",
+                "Grandpa's Farm",
+                "Stardew Valley Expanded"
+            ]
+        )
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent("Stardew Valley Expanded")
+                    .appendingPathComponent("manifest.json")
+                    .path
+            )
+        )
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent("Grandpa's Farm")
+                    .appendingPathComponent("manifest.json")
+                    .path
+            )
+        )
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent("Expanded Preconditions Utility")
+                    .appendingPathComponent("manifest.json")
+                    .path
+            )
+        )
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent("Stardew Valley Expanded Package")
+                    .path
+            )
+        )
+    }
+
     func testInstallsZipWithManifestAtArchiveRootUsingZipFileName() throws {
         let modsDirectory = try makeModsDirectory()
         let install = StardewInstall(modsDirectory: modsDirectory)
@@ -375,20 +649,66 @@ final class ModLibraryTests: SeedBoxTestCase {
         try writeManifest(name: "Root Packed Mod", to: packageURL)
         try makeZip(from: packageURL, to: zipURL)
 
-        let installedURLs = try ModLibrary.installMods(from: [zipURL], into: install)
+        let installResult = try ModLibrary.installMods(from: [zipURL], into: install)
 
-        XCTAssertEqual(installedURLs.map(\.lastPathComponent), ["RootPackedMod"])
+        XCTAssertEqual(installResult.installedURLs.map(\.lastPathComponent), ["RootPackedMod"])
         XCTAssertTrue(
             FileManager.default.fileExists(
                 atPath: install.modDirectoryURL
                     .appendingPathComponent("RootPackedMod")
                     .appendingPathComponent("manifest.json")
                     .path
-            )
+                )
         )
     }
 
-    func testInstallRejectsExistingDisabledCopy() throws {
+    func testInstallUpdatesExistingModWhenSelectedVersionIsNewer() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads")
+        let sourceURL = downloadsURL.appendingPathComponent("RenamedContentPatcher")
+        let existingURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
+
+        try FileManager.default.createDirectory(at: sourceURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: existingURL, withIntermediateDirectories: true)
+        try writeManifest(
+            name: "Content Patcher",
+            to: sourceURL,
+            version: "1.10.0",
+            uniqueID: "Pathoschild.ContentPatcher"
+        )
+        try writeManifest(
+            name: "Content Patcher",
+            to: existingURL,
+            version: "1.2.0",
+            uniqueID: "Pathoschild.ContentPatcher"
+        )
+
+        let installResult = try ModLibrary.installMods(from: [sourceURL], into: install)
+
+        XCTAssertTrue(installResult.installed.isEmpty)
+        XCTAssertTrue(installResult.skipped.isEmpty)
+        let update = try XCTUnwrap(installResult.updated.first)
+        XCTAssertEqual(update.displayName, "Content Patcher")
+        XCTAssertEqual(update.previousVersion, "1.2.0")
+        XCTAssertEqual(update.installedVersion, "1.10.0")
+        assertSameFileURL(update.destinationURL, existingURL)
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: existingURL.appendingPathComponent("manifest.json").path
+            )
+        )
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: update.archivedURL.appendingPathComponent("manifest.json").path
+            )
+        )
+
+        let updatedMod = try XCTUnwrap(ModLibrary.scan(install: install).first)
+        XCTAssertEqual(updatedMod.versionText, "1.10.0")
+    }
+
+    func testInstallSkipsExistingDisabledCopy() throws {
         let modsDirectory = try makeModsDirectory()
         let install = StardewInstall(modsDirectory: modsDirectory)
         let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads")
@@ -400,18 +720,17 @@ final class ModLibraryTests: SeedBoxTestCase {
         try writeManifest(name: "Content Patcher", to: sourceURL)
         try writeManifest(name: "Content Patcher", to: existingDisabledURL)
 
-        XCTAssertThrowsError(
-            try ModLibrary.installMods(from: [sourceURL], into: install)
-        ) { error in
-            guard case .modAlreadyInstalled(let folderName, let url) = error as? ModLibraryError else {
-                XCTFail("Expected modAlreadyInstalled error, got \(error).")
-                return
-            }
+        let installResult = try ModLibrary.installMods(from: [sourceURL], into: install)
 
-            XCTAssertEqual(folderName, "ContentPatcher")
-            assertSameFileURL(url, existingDisabledURL)
-        }
-
+        XCTAssertTrue(installResult.installed.isEmpty)
+        XCTAssertTrue(installResult.updated.isEmpty)
+        XCTAssertEqual(installResult.skipped.count, 1)
+        XCTAssertEqual(installResult.skipped.first?.displayName, "Content Patcher")
+        XCTAssertEqual(installResult.skipped.first?.reason, .alreadyInstalled)
+        assertSameFileURL(
+            try XCTUnwrap(installResult.skipped.first?.existingURL),
+            existingDisabledURL
+        )
         XCTAssertFalse(
             FileManager.default.fileExists(
                 atPath: install.modDirectoryURL.appendingPathComponent("ContentPatcher").path
@@ -419,7 +738,7 @@ final class ModLibraryTests: SeedBoxTestCase {
         )
     }
 
-    func testInstallRejectsEnabledAndDisabledCopiesInSameBatchBeforeCopying() throws {
+    func testInstallSkipsDuplicateCopiesInSameBatch() throws {
         let modsDirectory = try makeModsDirectory()
         let install = StardewInstall(modsDirectory: modsDirectory)
         let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads")
@@ -431,21 +750,19 @@ final class ModLibraryTests: SeedBoxTestCase {
         try writeManifest(name: "Content Patcher", to: enabledSourceURL)
         try writeManifest(name: "Content Patcher", to: disabledSourceURL)
 
-        XCTAssertThrowsError(
-            try ModLibrary.installMods(from: [enabledSourceURL, disabledSourceURL], into: install)
-        ) { error in
-            XCTAssertEqual(
-                error as? ModLibraryError,
-                .modAlreadyInstalled(
-                    "ContentPatcher",
-                    install.modDirectoryURL.appendingPathComponent("ContentPatcher")
-                )
-            )
-        }
+        let installResult = try ModLibrary.installMods(
+            from: [enabledSourceURL, disabledSourceURL],
+            into: install
+        )
 
-        XCTAssertFalse(
+        XCTAssertEqual(installResult.installed.map(\.displayName), ["Content Patcher"])
+        XCTAssertEqual(installResult.skipped.map(\.reason), [.duplicateInSelection])
+        XCTAssertTrue(
             FileManager.default.fileExists(
-                atPath: install.modDirectoryURL.appendingPathComponent("ContentPatcher").path
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent("ContentPatcher")
+                    .appendingPathComponent("manifest.json")
+                    .path
             )
         )
         XCTAssertFalse(
@@ -455,7 +772,7 @@ final class ModLibraryTests: SeedBoxTestCase {
         )
     }
 
-    func testInstallPreflightsDestinationsBeforeCopying() throws {
+    func testInstallSkipsExistingModAndInstallsOtherSelections() throws {
         let modsDirectory = try makeModsDirectory()
         let install = StardewInstall(modsDirectory: modsDirectory)
         let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads")
@@ -470,20 +787,20 @@ final class ModLibraryTests: SeedBoxTestCase {
         try writeManifest(name: "Content Patcher", to: conflictingModURL)
         try writeManifest(name: "Content Patcher", to: existingModURL)
 
-        XCTAssertThrowsError(
-            try ModLibrary.installMods(from: [newModURL, conflictingModURL], into: install)
-        ) { error in
-            guard case .destinationExists(let destinationURL) = error as? ModLibraryError else {
-                XCTFail("Expected destinationExists error, got \(error).")
-                return
-            }
+        let installResult = try ModLibrary.installMods(
+            from: [newModURL, conflictingModURL],
+            into: install
+        )
 
-            XCTAssertEqual(destinationURL.standardizedFileURL.path, existingModURL.standardizedFileURL.path)
-        }
-
-        XCTAssertFalse(
+        XCTAssertEqual(installResult.installed.map(\.displayName), ["New Mod"])
+        XCTAssertEqual(installResult.skipped.map(\.displayName), ["Content Patcher"])
+        XCTAssertEqual(installResult.skipped.map(\.reason), [.alreadyInstalled])
+        XCTAssertTrue(
             FileManager.default.fileExists(
-                atPath: install.modDirectoryURL.appendingPathComponent("NewMod").path
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent("NewMod")
+                    .appendingPathComponent("manifest.json")
+                    .path
             )
         )
     }
