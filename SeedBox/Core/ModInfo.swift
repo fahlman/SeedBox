@@ -144,6 +144,58 @@ struct ModInfo: Identifiable, Equatable, Sendable {
         return AppStrings.Mods.smapi
     }
 
+    var updateSourceText: String {
+        let sites = updateKeySites
+        guard !sites.isEmpty else {
+            return AppStrings.Mods.notLinked
+        }
+
+        return sites.joined(separator: ", ")
+    }
+
+    var updateKeysText: String? {
+        guard let updateKeys = manifest?.updateKeys, !updateKeys.isEmpty else {
+            return nil
+        }
+
+        return updateKeys.joined(separator: ", ")
+    }
+
+    var updateKeySites: [String] {
+        let sites = (manifest?.updateKeys ?? []).compactMap { key -> String? in
+            guard let separatorIndex = key.firstIndex(of: ":") else {
+                return nil
+            }
+
+            let site = String(key[..<separatorIndex]).trimmedNonEmpty
+            guard let site else {
+                return nil
+            }
+
+            switch site.lowercased() {
+            case "nexus":
+                return AppStrings.Mods.nexus
+            case "github":
+                return AppStrings.Mods.github
+            case "curseforge":
+                return AppStrings.Mods.curseForge
+            case "moddrop":
+                return AppStrings.Mods.modDrop
+            default:
+                return site
+            }
+        }
+
+        var seen: Set<String> = []
+        return sites.filter { site in
+            guard !seen.contains(site) else {
+                return false
+            }
+            seen.insert(site)
+            return true
+        }
+    }
+
     var manifestMetadataText: String? {
         var segments: [String] = []
 

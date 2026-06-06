@@ -29,10 +29,11 @@ actor ModManagerService {
             nextState.status = install.status()
         }
 
+        automaticallyPruneExpiredArchivedMods(in: &nextState)
         reloadMods(in: &nextState)
+        reloadArchivedMods(in: &nextState)
         reloadModSets(in: &nextState)
         reloadAuditTrail(in: &nextState)
-        pruneExpiredArchivedMods(in: &nextState)
         return nextState
     }
 
@@ -160,6 +161,7 @@ actor ModManagerService {
     func addMods(
         from selectedURLs: [URL],
         sourceCleanupSettings: SourceCleanupSettings,
+        replacementPolicy: ModInstallReplacementPolicy = .newerOnly,
         in state: ModManagerState
     ) -> ModManagerState {
         var nextState = state
@@ -186,12 +188,64 @@ actor ModManagerService {
                     from: selectedURLs,
                     into: currentInstall,
                     enabled: addedModsShouldBeEnabled,
+                    replacementPolicy: replacementPolicy,
                     archiveDirectory: currentInstall.archivedModsDirectoryURL
                 )
             }
             return reconcileInstallResult(
                 installResult,
                 source: .selectedSources(selectedURLs),
+                shouldEnable: addedModsShouldBeEnabled,
+                sourceCleanupSettings: sourceCleanupSettings,
+                in: nextState
+            )
+        } catch is SecurityScopedFolderAccessError {
+            return nextState
+        } catch {
+            record(AppStrings.Status.couldNotAddMods(error.localizedDescription), in: &nextState)
+            return nextState
+        }
+    }
+
+    func addPreviewedMods(
+        _ preview: ModImportPreview,
+        sourceCleanupSettings: SourceCleanupSettings,
+        in state: ModManagerState
+    ) -> ModManagerState {
+        var nextState = state
+        nextState.pendingSourceCleanupOffer = nil
+        guard guardCanManageMods(in: &nextState) else {
+            ModLibrary.discardImportPreview(preview)
+            return nextState
+        }
+
+        guard preview.canInstall else {
+            ModLibrary.discardImportPreview(preview)
+            record(AppStrings.Status.noModFoldersInstalled, in: &nextState)
+            return nextState
+        }
+
+        let accessURLs = preview.sourceURLs + preview.installableItems.map(\.sourceURL)
+        let sourceTokens = accessURLs.map(SecurityScopedAccessToken.init(url:))
+        defer {
+            sourceTokens.forEach { $0.stop() }
+            ModLibrary.discardImportPreview(preview)
+        }
+
+        do {
+            let currentInstall = install(for: nextState)
+            let addedModsShouldBeEnabled = nextState.appliedModSetID != ModSetStore.noneSetID
+            let installResult = try performWithFolderAccess(state: &nextState) {
+                try ModLibrary.installPreview(
+                    preview,
+                    into: currentInstall,
+                    enabled: addedModsShouldBeEnabled,
+                    archiveDirectory: currentInstall.archivedModsDirectoryURL
+                )
+            }
+            return reconcileInstallResult(
+                installResult,
+                source: .selectedSources(preview.sourceURLs),
                 shouldEnable: addedModsShouldBeEnabled,
                 sourceCleanupSettings: sourceCleanupSettings,
                 in: nextState
@@ -298,6 +352,77 @@ actor ModManagerService {
             return nextState
         } catch {
             record(AppStrings.Status.couldNotDeleteMod(mod.displayName, errorDescription: error.localizedDescription), in: &nextState)
+            return nextState
+        }
+    }
+
+    func restoreArchivedMods(
+        _ archivedMods: [ArchivedModInfo],
+        in state: ModManagerState
+    ) -> ModManagerState {
+        var nextState = state
+        guard guardCanManageMods(in: &nextState) else {
+            return nextState
+        }
+
+        guard !archivedMods.isEmpty else {
+            record(AppStrings.Status.chooseArchivedModsToRestore, in: &nextState)
+            return nextState
+        }
+
+        do {
+            let currentInstall = install(for: nextState)
+            let restoreResults = try performWithFolderAccess(state: &nextState) {
+                try ModLibrary.restoreArchivedMods(
+                    archivedMods,
+                    into: currentInstall,
+                    archiveDirectory: currentInstall.archivedModsDirectoryURL
+                )
+            }
+            let changeMessage = restoreSummary(for: restoreResults)
+            record(changeMessage, in: &nextState)
+            nextState = refreshedState(from: nextState)
+            var savedState = saveCurrentStateToSelectedModSet(
+                in: nextState,
+                recordingSuccess: AppStrings.Status.updatedModSet(
+                    after: changeMessage,
+                    setName: nextState.modSetSelection.selectedSetName
+                )
+            )
+            audit(
+                .modRestored,
+                summary: savedState.activityMessage.isEmpty ? changeMessage : savedState.activityMessage,
+                subjects: restoreResults.map(auditSubjectForRestoredMod),
+                details: restoreDetails(for: restoreResults),
+                in: &savedState
+            )
+            return savedState
+        } catch is SecurityScopedFolderAccessError {
+            return nextState
+        } catch {
+            record(AppStrings.Status.couldNotRestoreArchivedMods(error.localizedDescription), in: &nextState)
+            return nextState
+        }
+    }
+
+    func pruneExpiredArchives(in state: ModManagerState) -> ModManagerState {
+        var nextState = state
+        guard guardCanManageMods(in: &nextState) else {
+            return nextState
+        }
+
+        do {
+            let prunedCount = try pruneExpiredArchiveCount(in: nextState)
+            record(AppStrings.Status.prunedExpiredArchives(count: prunedCount), in: &nextState)
+            var refreshedState = refreshedState(from: nextState)
+            auditArchivesPruned(
+                count: prunedCount,
+                summary: refreshedState.activityMessage,
+                in: &refreshedState
+            )
+            return refreshedState
+        } catch {
+            record(AppStrings.Status.couldNotPruneArchivedMods(error.localizedDescription), in: &nextState)
             return nextState
         }
     }
@@ -542,23 +667,48 @@ actor ModManagerService {
     private func reloadMods(in state: inout ModManagerState) {
         guard state.readiness.canManageMods else {
             state.mods = []
+            state.invalidModFolders = []
+            state.archivedMods = []
+            state.archiveSummary = ModArchiveSummary()
             state.hasLoadedMods = false
             return
         }
 
         do {
             let currentInstall = install(for: state)
-            state.mods = try performWithFolderAccess(state: &state) {
-                try ModLibrary.scan(install: currentInstall)
+            let scanResult = try performWithFolderAccess(state: &state) {
+                try ModLibrary.scanWithDiagnostics(install: currentInstall)
             }
+            state.mods = scanResult.mods
+            state.invalidModFolders = scanResult.invalidFolders
             state.hasLoadedMods = true
         } catch is SecurityScopedFolderAccessError {
             state.mods = []
+            state.invalidModFolders = []
             state.hasLoadedMods = false
         } catch {
             state.mods = []
+            state.invalidModFolders = []
             state.hasLoadedMods = false
             record(AppStrings.Status.couldNotReadMods(error.localizedDescription), in: &state)
+        }
+    }
+
+    private func reloadArchivedMods(in state: inout ModManagerState) {
+        guard state.readiness.canManageMods else {
+            state.archivedMods = []
+            state.archiveSummary = ModArchiveSummary()
+            return
+        }
+
+        do {
+            let archiveDirectoryURL = install(for: state).archivedModsDirectoryURL
+            state.archivedMods = try ModArchive.archivedMods(in: archiveDirectoryURL)
+            state.archiveSummary = try ModArchive.summary(in: archiveDirectoryURL)
+        } catch {
+            state.archivedMods = []
+            state.archiveSummary = ModArchiveSummary()
+            record(AppStrings.Status.couldNotReadArchivedMods(error.localizedDescription), in: &state)
         }
     }
 
@@ -616,14 +766,63 @@ actor ModManagerService {
         }
     }
 
-    private func pruneExpiredArchivedMods(in state: inout ModManagerState) {
+    private func automaticallyPruneExpiredArchivedMods(in state: inout ModManagerState) {
+        guard state.archiveSettings.automaticallyPrunesExpiredArchives else {
+            return
+        }
+
         do {
-            try ModArchive.pruneExpiredArchives(
-                in: install(for: state).archivedModsDirectoryURL
+            let prunedCount = try pruneExpiredArchiveCount(in: state)
+            guard prunedCount > 0 else {
+                return
+            }
+
+            auditArchivesPruned(
+                count: prunedCount,
+                summary: AppStrings.Status.prunedExpiredArchives(count: prunedCount),
+                source: "automatic",
+                in: &state
             )
         } catch {
             record(AppStrings.Status.couldNotPruneArchivedMods(error.localizedDescription), in: &state)
         }
+    }
+
+    private func pruneExpiredArchiveCount(in state: ModManagerState) throws -> Int {
+        try ModArchive.pruneExpiredArchives(
+            in: install(for: state).archivedModsDirectoryURL,
+            olderThan: Date().addingTimeInterval(-state.archiveSettings.retentionInterval)
+        )
+    }
+
+    private func auditArchivesPruned(
+        count: Int,
+        summary: String,
+        source: String? = nil,
+        in state: inout ModManagerState
+    ) {
+        var details = [
+            "pruned_count": "\(count)",
+            "archive_retention_days": "\(state.archiveSettings.normalizedRetentionDays)"
+        ]
+        if let source {
+            details["source"] = source
+        }
+
+        audit(
+            .archivesPruned,
+            summary: summary,
+            subjects: [
+                AuditLogSubject(
+                    kind: .archive,
+                    id: nil,
+                    name: AppStrings.ModInspector.archiveSection,
+                    path: install(for: state).archivedModsDirectoryURL.path
+                )
+            ],
+            details: details,
+            in: &state
+        )
     }
 
     private enum AddedModSource {
@@ -719,7 +918,7 @@ actor ModManagerService {
                 source: source,
                 shouldEnable: shouldEnable
             )
-            details["archive_retention_days"] = "\(Int(ModArchive.retentionInterval / 86_400))"
+            details["archive_retention_days"] = "\(auditedState.archiveSettings.normalizedRetentionDays)"
             audit(
                 auditAction(for: installResult),
                 summary: auditedState.activityMessage.isEmpty ? changeMessage : auditedState.activityMessage,
@@ -816,10 +1015,11 @@ actor ModManagerService {
            installResult.updated.count == 1,
            installResult.skipped.isEmpty,
            let updated = installResult.updated.first {
-            return AppStrings.Status.updatedMod(
+            return AppStrings.Status.replacedMod(
                 updated.displayName,
                 previousVersion: updated.previousVersion,
-                installedVersion: updated.installedVersion
+                installedVersion: updated.installedVersion,
+                replacementKind: updated.replacementKind
             )
         }
 
@@ -847,6 +1047,32 @@ actor ModManagerService {
         }
 
         return sentences.joined(separator: " ")
+    }
+
+    private func restoreSummary(for restoreResults: [RestoredModResult]) -> String {
+        if restoreResults.count == 1,
+           let result = restoreResults.first {
+            if result.archivedCurrentURL != nil {
+                return AppStrings.Status.restoredModArchivedCurrent(result.displayName)
+            }
+
+            return AppStrings.Status.restoredMod(result.displayName)
+        }
+
+        return AppStrings.Status.restoredArchivedMods(count: restoreResults.count)
+    }
+
+    private func restoreDetails(for restoreResults: [RestoredModResult]) -> [String: String] {
+        [
+            "restored_count": "\(restoreResults.count)",
+            "source_paths": restoreResults.map(\.sourceURL.path).joined(separator: "\n"),
+            "destination_paths": restoreResults.map(\.destinationURL.path).joined(separator: "\n"),
+            "replaced_archive_paths": restoreResults.compactMap(\.archivedCurrentURL?.path).joined(separator: "\n"),
+            "versions": restoreResults.map { result in
+                "\(result.displayName): \(result.version ?? "unknown")"
+            }
+            .joined(separator: "\n")
+        ]
     }
 
     private func auditAction(for installResult: ModInstallResult) -> AuditLogAction {
@@ -1063,14 +1289,14 @@ actor ModManagerService {
         in state: inout ModManagerState
     ) {
         record(summary, in: &state)
-        guard !result.movedURLs.isEmpty else {
+        guard !result.movedURLs.isEmpty || !result.failures.isEmpty else {
             return
         }
 
         audit(
             .sourceFilesMovedToTrash,
             summary: summary,
-            subjects: result.movedURLs.map(auditSubjectForSourceFile),
+            subjects: (result.movedURLs + result.failures.map(\.url)).map(auditSubjectForSourceFile),
             details: [
                 "source_paths": sourceURLs.map(\.path).joined(separator: "\n"),
                 "trashed_paths": result.movedURLs.map(\.path).joined(separator: "\n"),
@@ -1234,6 +1460,15 @@ actor ModManagerService {
             id: nil,
             name: url.lastPathComponent.trimmingPrefix(Character(".")),
             path: url.path
+        )
+    }
+
+    private func auditSubjectForRestoredMod(_ result: RestoredModResult) -> AuditLogSubject {
+        AuditLogSubject(
+            kind: .mod,
+            id: nil,
+            name: result.displayName,
+            path: result.destinationURL.path
         )
     }
 

@@ -1,14 +1,20 @@
 import SwiftUI
 
 struct ModManagerToolbar: ToolbarContent {
-    @ObservedObject var viewModel: ModManagerViewModel
-    var selectedMod: ModInfo?
+    var presentationState: ModManagerPresentationState
+    var isShowingModInspector: Bool
     var selectModSet: (String) -> Void
+    var showProblems: () -> Void
+    var showActivity: () -> Void
+    var showModInspector: () -> Void
     var createModSet: () -> Void
     var duplicateSelectedModSet: () -> Void
     var renameSelectedModSet: () -> Void
     var deleteSelectedModSet: () -> Void
+    var compareSelectedModSet: () -> Void
     var addMods: () -> Void
+    var pruneExpiredArchives: () -> Void
+    var restorePreviousVersion: () -> Void
     var revealSelectedMod: () -> Void
     var deleteSelectedMod: () -> Void
 
@@ -27,7 +33,7 @@ struct ModManagerToolbar: ToolbarContent {
             }
             .pickerStyle(.menu)
             .help("Mod Set")
-            .disabled(selection.sets.isEmpty || !readiness.canManageMods)
+            .disabled(selection.sets.isEmpty || !presentationState.canManageMods)
 
             Button {
                 createModSet()
@@ -36,7 +42,7 @@ struct ModManagerToolbar: ToolbarContent {
             }
             .labelStyle(.iconOnly)
             .help("New Mod Set")
-            .disabled(!readiness.canManageMods)
+            .disabled(!presentationState.canManageMods)
 
             Button {
                 duplicateSelectedModSet()
@@ -45,7 +51,7 @@ struct ModManagerToolbar: ToolbarContent {
             }
             .labelStyle(.iconOnly)
             .help("Duplicate Set")
-            .disabled(selection.selectedSet == nil || !readiness.canManageMods)
+            .disabled(selection.selectedSet == nil || !presentationState.canManageMods)
 
             Button {
                 renameSelectedModSet()
@@ -54,7 +60,7 @@ struct ModManagerToolbar: ToolbarContent {
             }
             .labelStyle(.iconOnly)
             .help("Rename Set")
-            .disabled(!selection.selectedSetCanBeRenamed || !readiness.canManageMods)
+            .disabled(!selection.selectedSetCanBeRenamed || !presentationState.canManageMods)
 
             Button(role: .destructive) {
                 deleteSelectedModSet()
@@ -63,42 +69,92 @@ struct ModManagerToolbar: ToolbarContent {
             }
             .labelStyle(.iconOnly)
             .help("Delete Set")
-            .disabled(!selection.selectedSetCanBeDeleted || !readiness.canManageMods)
+            .disabled(!selection.selectedSetCanBeDeleted || !presentationState.canManageMods)
+
+            Button {
+                compareSelectedModSet()
+            } label: {
+                Label("Compare Mod Set", systemImage: "rectangle.split.2x1")
+            }
+            .labelStyle(.iconOnly)
+            .help("Compare Mod Set")
+            .disabled(!presentationState.canCompareSelectedModSet)
         }
 
         ToolbarItemGroup {
             Button {
+                showProblems()
+            } label: {
+                Label(AppStrings.Toolbar.problems, systemImage: "exclamationmark.triangle")
+            }
+            .labelStyle(.iconOnly)
+            .help(AppStrings.Toolbar.problems)
+            .disabled(!presentationState.canShowProblems)
+
+            Button {
+                showActivity()
+            } label: {
+                Label(AppStrings.Toolbar.activity, systemImage: "clock")
+            }
+            .labelStyle(.iconOnly)
+            .help(AppStrings.Toolbar.activity)
+            .disabled(!presentationState.canShowActivity)
+
+            Button {
                 addMods()
             } label: {
-                Label("Add Mods", systemImage: "square.and.arrow.down")
+                Label(AppStrings.Toolbar.addMods, systemImage: "square.and.arrow.down")
             }
-            .disabled(!readiness.canManageMods)
+            .disabled(!presentationState.canManageMods)
+
+            Button {
+                restorePreviousVersion()
+            } label: {
+                Label(AppStrings.Toolbar.restorePreviousVersion, systemImage: "arrow.uturn.backward")
+            }
+            .labelStyle(.iconOnly)
+            .help(AppStrings.Toolbar.restorePreviousVersion)
+            .disabled(!presentationState.canRestorePreviousVersion)
+
+            Button {
+                showModInspector()
+            } label: {
+                Label(isShowingModInspector ? AppStrings.Toolbar.hideDetails : AppStrings.Toolbar.showDetails, systemImage: "info.circle")
+            }
+            .labelStyle(.iconOnly)
+            .help(isShowingModInspector ? AppStrings.Toolbar.hideDetails : AppStrings.Toolbar.showDetails)
+            .disabled(!presentationState.canShowModInspector)
 
             Button {
                 revealSelectedMod()
             } label: {
-                Label("Reveal in Finder", systemImage: "eye")
+                Label(AppStrings.Toolbar.revealInFinder, systemImage: "eye")
             }
-            .disabled(selectedMod == nil || !readiness.canManageMods)
+            .disabled(!presentationState.canRevealSelectedMod)
 
             Button(role: .destructive) {
                 deleteSelectedMod()
             } label: {
-                Label("Delete Mod", systemImage: "trash")
+                Label(AppStrings.Toolbar.deleteMod, systemImage: "trash")
             }
-            .disabled(selectedMod == nil || !readiness.canManageMods)
+            .disabled(!presentationState.canDeleteSelectedMod)
+
+            Button {
+                pruneExpiredArchives()
+            } label: {
+                Label(AppStrings.Toolbar.pruneExpiredArchives, systemImage: "archivebox")
+            }
+            .labelStyle(.iconOnly)
+            .help(AppStrings.Toolbar.pruneExpiredArchives)
+            .disabled(!presentationState.canPruneExpiredArchives)
 
             SettingsLink {
-                Label("Settings", systemImage: "gearshape")
+                Label(AppStrings.Toolbar.settings, systemImage: "gearshape")
             }
         }
     }
 
-    private var readiness: ModManagerReadiness {
-        viewModel.state.readiness
-    }
-
     private var selection: ModSetSelectionState {
-        viewModel.state.modSetSelection
+        presentationState.modSetSelection
     }
 }

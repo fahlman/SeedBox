@@ -26,4 +26,8 @@ struct ModTableRow: Identifiable {
     var typeText: String {
         mod.typeText
     }
+
+    var updateSourceText: String {
+        mod.updateSourceText
+    }
 }

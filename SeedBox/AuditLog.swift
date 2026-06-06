@@ -10,12 +10,14 @@ enum AuditLogAction: String, Codable, Equatable, Sendable {
     case modEnabled
     case modDisabled
     case modDeleted
+    case modRestored
     case modMovedToTrash
     case sourceFilesMovedToTrash
     case modSetCreated
     case modSetRenamed
     case modSetApplied
     case modSetDeleted
+    case archivesPruned
 }
 
 enum AuditLogSubjectKind: String, Codable, Equatable, Sendable {
@@ -23,6 +25,7 @@ enum AuditLogSubjectKind: String, Codable, Equatable, Sendable {
     case modSet
     case modsFolder
     case sourceFile
+    case archive
 }
 
 struct AuditLogSubject: Codable, Equatable, Sendable {

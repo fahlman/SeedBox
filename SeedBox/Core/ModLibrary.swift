@@ -24,50 +24,6 @@ enum ModLibraryError: Error, Equatable, LocalizedError, Sendable {
     }
 }
 
-struct InstalledModResult: Equatable, Sendable {
-    var sourceURL: URL
-    var destinationURL: URL
-    var displayName: String
-    var version: String?
-}
-
-struct UpdatedModResult: Equatable, Sendable {
-    var sourceURL: URL
-    var destinationURL: URL
-    var archivedURL: URL
-    var displayName: String
-    var previousVersion: String?
-    var installedVersion: String?
-}
-
-struct SkippedModInstallResult: Equatable, Sendable {
-    var sourceURL: URL
-    var existingURL: URL?
-    var displayName: String
-    var selectedVersion: String?
-    var existingVersion: String?
-    var reason: SkippedModInstallReason
-}
-
-enum SkippedModInstallReason: Equatable, Sendable {
-    case alreadyInstalled
-    case duplicateInSelection
-}
-
-struct ModInstallResult: Equatable, Sendable {
-    var installed: [InstalledModResult] = []
-    var updated: [UpdatedModResult] = []
-    var skipped: [SkippedModInstallResult] = []
-
-    var installedURLs: [URL] {
-        installed.map(\.destinationURL) + updated.map(\.destinationURL)
-    }
-
-    var didChangeInstalledMods: Bool {
-        !installed.isEmpty || !updated.isEmpty
-    }
-}
-
 enum ModLibrary {
     private static let maximumInstallSearchDepth = 8
 
@@ -75,6 +31,13 @@ enum ModLibrary {
         install: StardewInstall,
         fileManager: FileManager = .default
     ) throws -> [ModInfo] {
+        try scanWithDiagnostics(install: install, fileManager: fileManager).mods
+    }
+
+    static func scanWithDiagnostics(
+        install: StardewInstall,
+        fileManager: FileManager = .default
+    ) throws -> ModLibraryScanResult {
         guard fileManager.directoryExists(at: install.modDirectoryURL) else {
             throw ModLibraryError.modFolderMissing(install.modDirectoryURL)
         }
@@ -91,13 +54,25 @@ enum ModLibrary {
             return fileManager.directoryExists(at: url)
         }
 
-        let scannedMods = folders.map { url in
+        var invalidFolders: [InvalidModFolder] = []
+        let scannedMods = folders.compactMap { url -> ModInfo? in
             let manifestURL = findManifest(in: url, fileManager: fileManager)
+            guard let manifestURL else {
+                invalidFolders.append(
+                    InvalidModFolder(
+                        url: url,
+                        folderName: url.lastPathComponent,
+                        reason: AppStrings.Problems.missingManifest
+                    )
+                )
+                return nil
+            }
+
             return ModInfo(
                 folderName: url.lastPathComponent,
                 url: url,
                 isEnabled: !url.lastPathComponent.hasPrefix("."),
-                manifest: manifestURL.flatMap { loadManifest(at: $0) }
+                manifest: loadManifest(at: manifestURL)
             )
         }
 
@@ -106,7 +81,14 @@ enum ModLibrary {
                 lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
             }
 
-        return ModDependencyGraph(mods: sortedMods).resolvedMods()
+        let sortedInvalidFolders = invalidFolders.sorted { lhs, rhs in
+            lhs.folderName.localizedCaseInsensitiveCompare(rhs.folderName) == .orderedAscending
+        }
+
+        return ModLibraryScanResult(
+            mods: ModDependencyGraph(mods: sortedMods).resolvedMods(),
+            invalidFolders: sortedInvalidFolders
+        )
     }
 
     static func setEnabled(
@@ -144,6 +126,7 @@ enum ModLibrary {
         from sourceURLs: [URL],
         into install: StardewInstall,
         enabled: Bool = true,
+        replacementPolicy: ModInstallReplacementPolicy = .newerOnly,
         archiveDirectory: URL? = nil,
         fileManager: FileManager = .default
     ) throws -> ModInstallResult {
@@ -214,12 +197,25 @@ enum ModLibrary {
                     destinationToken: destinationToken,
                     installedMods: installedMods
                 ) {
-                    if shouldUpdate(candidate: candidate, existingMod: existingMod) {
+                    if sameFileURL(candidate.sourceURL, existingMod.url) {
+                        result.skipped.append(
+                            skippedResult(
+                                for: candidate,
+                                existingMod: existingMod,
+                                reason: .alreadyInstalled
+                            )
+                        )
+                    } else if shouldReplace(
+                        candidate: candidate,
+                        existingMod: existingMod,
+                        policy: replacementPolicy
+                    ) {
                         pendingIdentities.insert(operationIdentity)
                         pendingOperations.append(
                             .update(
                                 candidate: candidate,
-                                existingMod: existingMod
+                                existingMod: existingMod,
+                                replacementKind: replacementKind(candidate: candidate, existingMod: existingMod)
                             )
                         )
                     } else {
@@ -282,7 +278,7 @@ enum ModLibrary {
                         )
                     )
                     completedOperations.append(.installed(destinationURL))
-                case .update(let candidate, let existingMod):
+                case .update(let candidate, let existingMod, let replacementKind):
                     let archivedURL = try ModArchive.archive(
                         existingMod.url,
                         in: resolvedArchiveDirectory,
@@ -302,7 +298,8 @@ enum ModLibrary {
                             archivedURL: archivedURL,
                             displayName: displayName(for: candidate, fallback: existingMod.displayName),
                             previousVersion: existingMod.version,
-                            installedVersion: candidate.manifest?.version?.trimmedNonEmpty
+                            installedVersion: candidate.manifest?.version?.trimmedNonEmpty,
+                            replacementKind: replacementKind
                         )
                     )
                     completedOperations.append(.updated(destinationURL: existingMod.url, archivedURL: archivedURL))
@@ -324,6 +321,128 @@ enum ModLibrary {
         return result
     }
 
+    static func previewImport(
+        from sourceURLs: [URL],
+        into install: StardewInstall,
+        fileManager: FileManager = .default
+    ) throws -> ModImportPreview {
+        guard fileManager.directoryExists(at: install.modDirectoryURL) else {
+            throw ModLibraryError.modFolderMissing(install.modDirectoryURL)
+        }
+
+        var items: [ModImportPreviewItem] = []
+        var pendingIdentities: Set<ModInstallIdentity> = []
+        var pendingDestinationURLsByToken: [String: URL] = [:]
+        var temporaryExtractionDirectories: [URL] = []
+
+        let existingModURLsByToken = installedModURLsByToken(
+            in: install.modDirectoryURL,
+            fileManager: fileManager
+        )
+        let installedMods = installedModLocations(
+            in: install.modDirectoryURL,
+            fileManager: fileManager
+        )
+
+        for sourceURL in sourceURLs {
+            let installSource = try resolveInstallSource(from: sourceURL, fileManager: fileManager)
+            if let temporaryExtractionDirectory = installSource.temporaryExtractionDirectory {
+                temporaryExtractionDirectories.append(temporaryExtractionDirectory)
+            }
+
+            guard !installSource.candidates.isEmpty else {
+                throw ModLibraryError.noInstallableMods(sourceURL)
+            }
+
+            for candidate in installSource.candidates {
+                let destinationFolderName = destinationFolderName(
+                    for: candidate.destinationFolderName,
+                    enabled: true
+                )
+                let folderName = destinationFolderName.trimmingPrefix(Character("."))
+                guard !folderName.isEmpty else {
+                    throw ModLibraryError.invalidDisabledName(candidate.destinationFolderName)
+                }
+
+                let destinationToken = folderName.normalizedFolderToken
+                let operationIdentity = installIdentity(for: candidate) ?? .folderToken(destinationToken)
+                let action: ModImportPreviewAction
+                let existingMod: InstalledModLocation?
+
+                if pendingIdentities.contains(operationIdentity)
+                    || pendingDestinationURLsByToken[destinationToken] != nil {
+                    existingMod = nil
+                    action = .duplicateInSelection
+                } else if let match = matchingInstalledMod(
+                    for: candidate,
+                    destinationToken: destinationToken,
+                    installedMods: installedMods
+                ) {
+                    existingMod = match
+                    action = sameFileURL(candidate.sourceURL, match.url)
+                        ? .alreadyInstalled
+                        : previewAction(candidate: candidate, existingMod: match)
+                    pendingIdentities.insert(operationIdentity)
+                } else if let existingURL = existingModURLsByToken[destinationToken] {
+                    existingMod = InstalledModLocation(url: existingURL, folderName: existingURL.lastPathComponent, manifest: nil)
+                    action = .alreadyInstalled
+                    pendingIdentities.insert(operationIdentity)
+                } else {
+                    existingMod = nil
+                    action = .install
+                    pendingIdentities.insert(operationIdentity)
+                    pendingDestinationURLsByToken[destinationToken] = install.modDirectoryURL
+                        .appendingPathComponent(destinationFolderName)
+                }
+
+                items.append(
+                    ModImportPreviewItem(
+                        sourceURL: candidate.sourceURL,
+                        displayName: displayName(for: candidate, fallback: existingMod?.displayName),
+                        selectedVersion: candidate.manifest?.version?.trimmedNonEmpty,
+                        existingVersion: existingMod?.version,
+                        destinationFolderName: destinationFolderName,
+                        existingFolderName: existingMod?.folderName,
+                        action: action,
+                        typeText: typeText(for: candidate.manifest)
+                    )
+                )
+            }
+        }
+
+        return ModImportPreview(
+            sourceURLs: sourceURLs,
+            items: items,
+            temporaryExtractionDirectories: temporaryExtractionDirectories
+        )
+    }
+
+    static func installPreview(
+        _ preview: ModImportPreview,
+        into install: StardewInstall,
+        enabled: Bool = true,
+        archiveDirectory: URL? = nil,
+        fileManager: FileManager = .default
+    ) throws -> ModInstallResult {
+        try installMods(
+            from: preview.installableItems.map(\.sourceURL),
+            into: install,
+            enabled: enabled,
+            replacementPolicy: .replaceExisting,
+            archiveDirectory: archiveDirectory,
+            fileManager: fileManager
+        )
+    }
+
+    static func discardImportPreview(
+        _ preview: ModImportPreview,
+        fileManager: FileManager = .default
+    ) {
+        for temporaryExtractionDirectory in preview.temporaryExtractionDirectories {
+            try? fileManager.removeItem(at: temporaryExtractionDirectory)
+        }
+    }
+
     static func archive(
         _ mod: ModInfo,
         in archiveDirectory: URL,
@@ -335,6 +454,113 @@ enum ModLibrary {
             reason: .deleted,
             fileManager: fileManager
         )
+    }
+
+    static func restoreArchivedMods(
+        _ archivedMods: [ArchivedModInfo],
+        into install: StardewInstall,
+        archiveDirectory: URL? = nil,
+        fileManager: FileManager = .default
+    ) throws -> [RestoredModResult] {
+        guard fileManager.directoryExists(at: install.modDirectoryURL) else {
+            throw ModLibraryError.modFolderMissing(install.modDirectoryURL)
+        }
+
+        let resolvedArchiveDirectory = archiveDirectory ?? install.archivedModsDirectoryURL
+        var results: [RestoredModResult] = []
+        var completedOperations: [CompletedRestoreOperation] = []
+
+        do {
+            for archivedMod in archivedMods {
+                guard fileManager.directoryExists(at: archivedMod.url) else {
+                    throw ModLibraryError.modFolderMissing(archivedMod.url)
+                }
+
+                let currentLocations = installedModLocations(
+                    in: install.modDirectoryURL,
+                    fileManager: fileManager
+                )
+                let destinationToken = archivedMod.enabledFolderName.normalizedFolderToken
+                let matchingLocation = matchingInstalledMod(
+                    for: archivedMod,
+                    destinationToken: destinationToken,
+                    installedMods: currentLocations
+                )
+                let destinationURL = matchingLocation?.url
+                    ?? install.modDirectoryURL.appendingPathComponent(archivedMod.folderName)
+
+                if fileManager.fileExists(atPath: destinationURL.path),
+                   matchingLocation == nil,
+                   !fileManager.directoryExists(at: destinationURL) {
+                    throw ModLibraryError.destinationExists(destinationURL)
+                }
+
+                let archivedCurrentURL: URL?
+                if let matchingLocation {
+                    archivedCurrentURL = try ModArchive.archive(
+                        matchingLocation.url,
+                        in: resolvedArchiveDirectory,
+                        reason: .updated,
+                        fileManager: fileManager
+                    )
+                } else if fileManager.directoryExists(at: destinationURL) {
+                    archivedCurrentURL = try ModArchive.archive(
+                        destinationURL,
+                        in: resolvedArchiveDirectory,
+                        reason: .updated,
+                        fileManager: fileManager
+                    )
+                } else {
+                    archivedCurrentURL = nil
+                }
+
+                do {
+                    try fileManager.moveItem(at: archivedMod.url, to: destinationURL)
+                    removeEmptyArchiveContainerIfNeeded(
+                        archivedMod.containerURL,
+                        archiveDirectory: resolvedArchiveDirectory,
+                        fileManager: fileManager
+                    )
+                } catch {
+                    if let archivedCurrentURL {
+                        try? fileManager.moveItem(at: archivedCurrentURL, to: destinationURL)
+                    }
+                    throw error
+                }
+
+                results.append(
+                    RestoredModResult(
+                        sourceURL: archivedMod.url,
+                        destinationURL: destinationURL,
+                        archivedCurrentURL: archivedCurrentURL,
+                        displayName: archivedMod.displayName,
+                        version: archivedMod.manifest?.version?.trimmedNonEmpty
+                    )
+                )
+                completedOperations.append(
+                    .restored(
+                        sourceURL: archivedMod.url,
+                        sourceContainerURL: archivedMod.containerURL,
+                        destinationURL: destinationURL,
+                        archivedCurrentURL: archivedCurrentURL
+                    )
+                )
+            }
+        } catch {
+            for operation in completedOperations.reversed() {
+                try? fileManager.createDirectory(
+                    at: operation.sourceContainerURL,
+                    withIntermediateDirectories: true
+                )
+                try? fileManager.moveItem(at: operation.destinationURL, to: operation.sourceURL)
+                if let archivedCurrentURL = operation.archivedCurrentURL {
+                    try? fileManager.moveItem(at: archivedCurrentURL, to: operation.destinationURL)
+                }
+            }
+            throw error
+        }
+
+        return results
     }
 
     private struct InstallSource {
@@ -373,12 +599,33 @@ enum ModLibrary {
 
     private enum PendingInstallOperation {
         case install(candidate: InstallCandidate, destinationURL: URL)
-        case update(candidate: InstallCandidate, existingMod: InstalledModLocation)
+        case update(candidate: InstallCandidate, existingMod: InstalledModLocation, replacementKind: ModReplacementKind)
     }
 
     private enum CompletedInstallOperation {
         case installed(URL)
         case updated(destinationURL: URL, archivedURL: URL)
+    }
+
+    private struct CompletedRestoreOperation {
+        var sourceURL: URL
+        var sourceContainerURL: URL
+        var destinationURL: URL
+        var archivedCurrentURL: URL?
+
+        static func restored(
+            sourceURL: URL,
+            sourceContainerURL: URL,
+            destinationURL: URL,
+            archivedCurrentURL: URL?
+        ) -> Self {
+            Self(
+                sourceURL: sourceURL,
+                sourceContainerURL: sourceContainerURL,
+                destinationURL: destinationURL,
+                archivedCurrentURL: archivedCurrentURL
+            )
+        }
     }
 
     private static func resolveInstallSource(
@@ -544,6 +791,23 @@ enum ModLibrary {
         }
     }
 
+    private static func matchingInstalledMod(
+        for archivedMod: ArchivedModInfo,
+        destinationToken: String,
+        installedMods: [InstalledModLocation]
+    ) -> InstalledModLocation? {
+        if let archivedUniqueID = archivedMod.manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID,
+           let match = installedMods.first(where: { installedMod in
+               installedMod.normalizedUniqueID == archivedUniqueID
+           }) {
+            return match
+        }
+
+        return installedMods.first { installedMod in
+            installedMod.folderName.normalizedFolderToken == destinationToken
+        }
+    }
+
     private static func installIdentity(for candidate: InstallCandidate) -> ModInstallIdentity? {
         guard let uniqueID = candidate.manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID,
               !uniqueID.isEmpty
@@ -554,10 +818,15 @@ enum ModLibrary {
         return .uniqueID(uniqueID)
     }
 
-    private static func shouldUpdate(
+    private static func shouldReplace(
         candidate: InstallCandidate,
-        existingMod: InstalledModLocation
+        existingMod: InstalledModLocation,
+        policy: ModInstallReplacementPolicy
     ) -> Bool {
+        guard policy == .newerOnly else {
+            return true
+        }
+
         guard let candidateVersion = candidate.manifest?.version?.trimmedNonEmpty,
               let existingVersion = existingMod.version
         else {
@@ -565,6 +834,38 @@ enum ModLibrary {
         }
 
         return ModVersionComparator.compare(candidateVersion, to: existingVersion) == .orderedDescending
+    }
+
+    private static func previewAction(
+        candidate: InstallCandidate,
+        existingMod: InstalledModLocation
+    ) -> ModImportPreviewAction {
+        guard let candidateVersion = candidate.manifest?.version?.trimmedNonEmpty,
+              let existingVersion = existingMod.version
+        else {
+            return .replace
+        }
+
+        switch ModVersionComparator.compare(candidateVersion, to: existingVersion) {
+        case .orderedDescending:
+            return .update
+        case .orderedAscending:
+            return .downgrade
+        case .orderedSame:
+            return .reinstall
+        }
+    }
+
+    private static func replacementKind(
+        candidate: InstallCandidate,
+        existingMod: InstalledModLocation
+    ) -> ModReplacementKind {
+        previewAction(candidate: candidate, existingMod: existingMod).replacementKind ?? .replace
+    }
+
+    private static func sameFileURL(_ lhs: URL, _ rhs: URL) -> Bool {
+        lhs.standardizedFileURL.resolvingSymlinksInPath().path
+            == rhs.standardizedFileURL.resolvingSymlinksInPath().path
     }
 
     private static func skippedResult(
@@ -605,6 +906,36 @@ enum ModLibrary {
         candidate.manifest?.name?.trimmedNonEmpty
             ?? fallback
             ?? candidate.destinationFolderName.trimmingPrefix(Character("."))
+    }
+
+    private static func typeText(for manifest: ModManifest?) -> String {
+        guard let manifest else {
+            return AppStrings.Mods.unknown
+        }
+
+        if manifest.contentPackFor?.uniqueID?.caseInsensitiveCompare("Pathoschild.ContentPatcher") == .orderedSame {
+            return AppStrings.Mods.contentPatcher
+        }
+
+        return AppStrings.Mods.smapi
+    }
+
+    private static func removeEmptyArchiveContainerIfNeeded(
+        _ containerURL: URL,
+        archiveDirectory: URL,
+        fileManager: FileManager
+    ) {
+        guard containerURL.deletingLastPathComponent().standardizedFileURL == archiveDirectory.standardizedFileURL,
+              let children = try? fileManager.contentsOfDirectory(
+                at: containerURL,
+                includingPropertiesForKeys: nil
+              ),
+              children.isEmpty
+        else {
+            return
+        }
+
+        try? fileManager.removeItem(at: containerURL)
     }
 
     private static func installedModLocations(

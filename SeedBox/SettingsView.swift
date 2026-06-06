@@ -7,8 +7,8 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Managed Mods Folder") {
-                LabeledContent("Folder") {
+            Section(AppStrings.Settings.managedModsFolderSection) {
+                LabeledContent(AppStrings.Settings.folder) {
                     Text(viewModel.modFolderName)
                         .foregroundStyle(.secondary)
                 }
@@ -25,9 +25,9 @@ struct SettingsView: View {
                     .foregroundStyle(readiness.canManageMods ? .green : .orange)
                 }
 
-                LabeledContent("Folder Access") {
+                LabeledContent(AppStrings.Settings.folderAccess) {
                     Label(
-                        viewModel.state.hasSavedFolderAccess ? "Saved" : "Not saved",
+                        viewModel.state.hasSavedFolderAccess ? AppStrings.Settings.saved : AppStrings.Settings.notSaved,
                         systemImage: viewModel.state.hasSavedFolderAccess ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
                     )
                     .foregroundStyle(viewModel.state.hasSavedFolderAccess ? .green : .orange)
@@ -37,13 +37,13 @@ struct SettingsView: View {
                     Button {
                         isChoosingModsFolder = true
                     } label: {
-                        Label("Choose Folder", systemImage: "folder")
+                        Label(AppStrings.Setup.chooseFolder, systemImage: "folder")
                     }
 
                     Button {
                         viewModel.revealModsFolder()
                     } label: {
-                        Label("Reveal", systemImage: "magnifyingglass")
+                        Label(AppStrings.Settings.reveal, systemImage: "eye")
                     }
                     .disabled(!readiness.canManageMods)
 
@@ -52,7 +52,7 @@ struct SettingsView: View {
                             await viewModel.createModFolder()
                         }
                     } label: {
-                        Label("Create Folder", systemImage: "folder.badge.plus")
+                        Label(AppStrings.Setup.createFolder, systemImage: "folder.badge.plus")
                     }
                     .disabled(!readiness.canCreateModFolder)
 
@@ -60,16 +60,33 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Adding Mods") {
+            Section(AppStrings.Settings.addingModsSection) {
                 Toggle(
-                    "Move mod files to trash after successfully adding mods",
+                    AppStrings.Settings.moveModFilesToTrashAfterAddingMods,
                     isOn: moveModFilesToTrashBinding
                 )
 
                 Toggle(
-                    "Do not display notification after successfully adding mods",
+                    AppStrings.Settings.suppressAddModsSuccessNotification,
                     isOn: suppressAddModsSuccessNotificationBinding
                 )
+            }
+
+            Section(AppStrings.Settings.archivesSection) {
+                Toggle(
+                    AppStrings.Settings.automaticallyPruneExpiredArchives,
+                    isOn: automaticallyPrunesExpiredArchivesBinding
+                )
+
+                Stepper(
+                    value: archiveRetentionDaysBinding,
+                    in: 1...365
+                ) {
+                    LabeledContent(AppStrings.Settings.keepArchivedMods) {
+                        Text(AppStrings.Settings.days(viewModel.archiveSettings.normalizedRetentionDays))
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
         }
         .formStyle(.grouped)
@@ -112,6 +129,28 @@ struct SettingsView: View {
             },
             set: { isEnabled in
                 viewModel.setSuppressAddModsSuccessNotification(isEnabled)
+            }
+        )
+    }
+
+    private var automaticallyPrunesExpiredArchivesBinding: Binding<Bool> {
+        Binding(
+            get: {
+                viewModel.archiveSettings.automaticallyPrunesExpiredArchives
+            },
+            set: { isEnabled in
+                viewModel.setAutomaticallyPrunesExpiredArchives(isEnabled)
+            }
+        )
+    }
+
+    private var archiveRetentionDaysBinding: Binding<Int> {
+        Binding(
+            get: {
+                viewModel.archiveSettings.normalizedRetentionDays
+            },
+            set: { days in
+                viewModel.setArchiveRetentionDays(days)
             }
         )
     }

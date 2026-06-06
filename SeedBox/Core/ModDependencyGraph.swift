@@ -92,6 +92,30 @@ struct ModDependencyIssue: Equatable, Sendable {
     }
 }
 
+enum ModDependencyStatusState: Equatable, Sendable {
+    case satisfied
+    case missing
+    case disabled
+    case versionTooOld
+}
+
+struct ModDependencyStatus: Identifiable, Equatable, Sendable {
+    var id: String { requirement.normalizedUniqueID }
+    var requirement: ModDependencyRequirement
+    var state: ModDependencyStatusState
+    var displayName: String
+    var matchedModID: String?
+    var matchedModVersion: String?
+
+    var isRequired: Bool {
+        requirement.kind.isRequired
+    }
+
+    var minimumVersionText: String? {
+        requirement.minimumVersion?.trimmedNonEmpty
+    }
+}
+
 struct ModDependencyGraph: Sendable {
     private var mods: [ModInfo]
     private var modsByUniqueID: [String: ModInfo]
@@ -166,6 +190,56 @@ struct ModDependencyGraph: Sendable {
             .sorted { lhs, rhs in
                 lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
             }
+    }
+
+    func dependencyStatuses(for mod: ModInfo) -> [ModDependencyStatus] {
+        let enabledModIDs = Set(mods.filter(\.isEnabled).map(\.id))
+        let ownUniqueID = mod.manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID
+
+        return mod.dependencyRequirements.compactMap { requirement in
+            let normalizedID = requirement.normalizedUniqueID
+            guard !normalizedID.isEmpty, normalizedID != ownUniqueID else {
+                return nil
+            }
+
+            guard let installedMod = modsByUniqueID[normalizedID] else {
+                return ModDependencyStatus(
+                    requirement: requirement,
+                    state: .missing,
+                    displayName: requirement.uniqueID,
+                    matchedModID: nil,
+                    matchedModVersion: nil
+                )
+            }
+
+            let installedVersion = installedMod.manifest?.version?.trimmedNonEmpty
+            let state: ModDependencyStatusState
+            if !ModVersionComparator.version(installedVersion, satisfiesMinimum: requirement.minimumVersion) {
+                state = .versionTooOld
+            } else if !enabledModIDs.contains(installedMod.id) {
+                state = .disabled
+            } else {
+                state = .satisfied
+            }
+
+            return ModDependencyStatus(
+                requirement: requirement,
+                state: state,
+                displayName: installedMod.displayName,
+                matchedModID: installedMod.id,
+                matchedModVersion: installedVersion
+            )
+        }
+        .sorted { lhs, rhs in
+            switch (lhs.isRequired, rhs.isRequired) {
+            case (true, false):
+                return true
+            case (false, true):
+                return false
+            default:
+                return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+            }
+        }
     }
 
     func issues(applying set: ModSet) -> [ModDependencyIssue] {

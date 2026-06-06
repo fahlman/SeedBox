@@ -48,6 +48,12 @@ struct ModList: View {
                         .lineLimit(1)
                 }
                 .width(min: 120, ideal: 150, max: 180)
+
+                TableColumn("Updates", value: \.updateSourceText) { row in
+                    Text(row.updateSourceText)
+                        .lineLimit(1)
+                }
+                .width(min: 110, ideal: 130, max: 170)
             }
             .contextMenu {
                 Button {
@@ -113,6 +119,7 @@ private enum ModListSortColumn: String {
     case mod
     case author
     case type
+    case updates
 
     init?(comparator: KeyPathComparator<ModTableRow>) {
         if comparator.keyPath == \ModTableRow.enabledSortText {
@@ -123,6 +130,8 @@ private enum ModListSortColumn: String {
             self = .author
         } else if comparator.keyPath == \ModTableRow.typeText {
             self = .type
+        } else if comparator.keyPath == \ModTableRow.updateSourceText {
+            self = .updates
         } else {
             return nil
         }
@@ -138,6 +147,8 @@ private enum ModListSortColumn: String {
             return KeyPathComparator(\ModTableRow.authorText, order: direction.sortOrder)
         case .type:
             return KeyPathComparator(\ModTableRow.typeText, order: direction.sortOrder)
+        case .updates:
+            return KeyPathComparator(\ModTableRow.updateSourceText, order: direction.sortOrder)
         }
     }
 }

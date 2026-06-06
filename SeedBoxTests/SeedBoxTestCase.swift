@@ -82,6 +82,7 @@ class SeedBoxTestCase: XCTestCase {
         uniqueID: String? = nil,
         contentPackForUniqueID: String? = nil,
         contentPackForMinimumVersion: String? = nil,
+        updateKeys: [String] = [],
         dependencies: [(uniqueID: String, isRequired: Bool?)] = [],
         dependencyMinimumVersions: [String: String] = [:]
     ) throws {
@@ -92,6 +93,10 @@ class SeedBoxTestCase: XCTestCase {
             "Description": description,
             "UniqueID": uniqueID ?? "Test.\(name.replacingOccurrences(of: " ", with: ""))"
         ]
+
+        if !updateKeys.isEmpty {
+            manifest["UpdateKeys"] = updateKeys
+        }
 
         if let contentPackForUniqueID {
             var contentPackFor: [String: Any] = [

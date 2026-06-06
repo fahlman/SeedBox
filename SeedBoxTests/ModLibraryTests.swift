@@ -48,6 +48,26 @@ final class ModLibraryTests: SeedBoxTestCase {
         XCTAssertEqual(mod.manifestMetadataText, "For Pathoschild.ContentPatcher • 1 required + 1 optional dep")
     }
 
+    func testDisplaysUpdateSourcesFromManifestUpdateKeys() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let modURL = install.modDirectoryURL.appendingPathComponent("FarmTypeManager")
+
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try writeManifest(
+            name: "Farm Type Manager",
+            to: modURL,
+            updateKeys: ["Nexus:3231", "GitHub:Esca-MMC/FarmTypeManager", "ModDrop:598755"]
+        )
+
+        let mod = try XCTUnwrap(
+            ModLibrary.scan(install: install).first(where: { $0.folderName == "FarmTypeManager" })
+        )
+
+        XCTAssertEqual(mod.manifest?.updateKeys, ["Nexus:3231", "GitHub:Esca-MMC/FarmTypeManager", "ModDrop:598755"])
+        XCTAssertEqual(mod.updateSourceText, "Nexus, GitHub, ModDrop")
+    }
+
     func testClassifiesManifestModsAsSMAPI() throws {
         let modsDirectory = try makeModsDirectory()
         let install = StardewInstall(modsDirectory: modsDirectory)
@@ -433,6 +453,7 @@ final class ModLibraryTests: SeedBoxTestCase {
         let modURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
 
         try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Content Patcher", to: modURL)
 
         let mod = try XCTUnwrap(ModLibrary.scan(install: install).first)
         let disabledURL = try ModLibrary.setEnabled(mod, enabled: false)
@@ -443,6 +464,23 @@ final class ModLibraryTests: SeedBoxTestCase {
         let enabledURL = try ModLibrary.setEnabled(disabledMod, enabled: true)
 
         XCTAssertEqual(enabledURL.lastPathComponent, "ContentPatcher")
+    }
+
+    func testScanReportsFoldersWithoutManifestAsInvalid() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let validURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
+        let invalidURL = install.modDirectoryURL.appendingPathComponent("Read Me")
+
+        try FileManager.default.createDirectory(at: validURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: invalidURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Content Patcher", to: validURL)
+
+        let result = try ModLibrary.scanWithDiagnostics(install: install)
+
+        XCTAssertEqual(result.mods.map(\.displayName), ["Content Patcher"])
+        XCTAssertEqual(result.invalidFolders.map(\.folderName), ["Read Me"])
+        XCTAssertEqual(result.invalidFolders.first?.reason, AppStrings.Problems.missingManifest)
     }
 
     func testEnableRejectsExistingEnabledCopy() throws {
@@ -708,6 +746,161 @@ final class ModLibraryTests: SeedBoxTestCase {
         XCTAssertEqual(updatedMod.versionText, "1.10.0")
     }
 
+    func testPreviewImportClassifiesInstallUpdateReinstallDowngradeAndDuplicate() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads")
+        let newSourceURL = downloadsURL.appendingPathComponent("NewMod")
+        let updateSourceURL = downloadsURL.appendingPathComponent("RenamedContentPatcher")
+        let reinstallSourceURL = downloadsURL.appendingPathComponent("LookupAnything")
+        let downgradeSourceURL = downloadsURL.appendingPathComponent("Automate")
+        let duplicateSourceURL = downloadsURL.appendingPathComponent("DuplicateNewMod")
+        let existingContentPatcherURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
+        let existingLookupURL = install.modDirectoryURL.appendingPathComponent("LookupAnything")
+        let existingAutomateURL = install.modDirectoryURL.appendingPathComponent("Automate")
+
+        for url in [
+            newSourceURL,
+            updateSourceURL,
+            reinstallSourceURL,
+            downgradeSourceURL,
+            duplicateSourceURL,
+            existingContentPatcherURL,
+            existingLookupURL,
+            existingAutomateURL
+        ] {
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        }
+
+        try writeManifest(name: "New Mod", to: newSourceURL, version: "1.0.0", uniqueID: "Example.NewMod")
+        try writeManifest(name: "New Mod", to: duplicateSourceURL, version: "1.0.0", uniqueID: "Example.NewMod")
+        try writeManifest(name: "Content Patcher", to: updateSourceURL, version: "2.0.0", uniqueID: "Pathoschild.ContentPatcher")
+        try writeManifest(name: "Content Patcher", to: existingContentPatcherURL, version: "1.0.0", uniqueID: "Pathoschild.ContentPatcher")
+        try writeManifest(name: "Lookup Anything", to: reinstallSourceURL, version: "1.0.0", uniqueID: "Pathoschild.LookupAnything")
+        try writeManifest(name: "Lookup Anything", to: existingLookupURL, version: "1.0.0", uniqueID: "Pathoschild.LookupAnything")
+        try writeManifest(name: "Automate", to: downgradeSourceURL, version: "1.0.0", uniqueID: "Pathoschild.Automate")
+        try writeManifest(name: "Automate", to: existingAutomateURL, version: "2.0.0", uniqueID: "Pathoschild.Automate")
+
+        let preview = try ModLibrary.previewImport(
+            from: [
+                newSourceURL,
+                updateSourceURL,
+                reinstallSourceURL,
+                downgradeSourceURL,
+                duplicateSourceURL
+            ],
+            into: install
+        )
+        let actionsByName = Dictionary(uniqueKeysWithValues: preview.items.map { ($0.sourceURL.lastPathComponent, $0.action) })
+
+        XCTAssertEqual(actionsByName["NewMod"], .install)
+        XCTAssertEqual(actionsByName["RenamedContentPatcher"], .update)
+        XCTAssertEqual(actionsByName["LookupAnything"], .reinstall)
+        XCTAssertEqual(actionsByName["Automate"], .downgrade)
+        XCTAssertEqual(actionsByName["DuplicateNewMod"], .duplicateInSelection)
+        XCTAssertEqual(preview.installableItems.count, 4)
+    }
+
+    func testInstallPreviewUsesStagedZipContents() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads")
+        let packageURL = downloadsURL.appendingPathComponent("Package")
+        let modURL = packageURL.appendingPathComponent("ExampleMod")
+        let zipURL = downloadsURL.appendingPathComponent("ExampleMod.zip")
+
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try writeManifest(
+            name: "Example Mod",
+            to: modURL,
+            version: "1.0.0",
+            uniqueID: "Example.Mod"
+        )
+        try makeZip(from: packageURL, to: zipURL)
+
+        let preview = try ModLibrary.previewImport(from: [zipURL], into: install)
+        defer {
+            ModLibrary.discardImportPreview(preview)
+        }
+        try FileManager.default.removeItem(at: zipURL)
+
+        let installResult = try ModLibrary.installPreview(preview, into: install)
+
+        XCTAssertEqual(installResult.installed.map(\.displayName), ["Example Mod"])
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent("ExampleMod")
+                    .appendingPathComponent("manifest.json")
+                    .path
+            )
+        )
+    }
+
+    func testInstallCanReplaceExistingModWhenRequested() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads")
+        let sourceURL = downloadsURL.appendingPathComponent("ContentPatcher")
+        let existingURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
+
+        try FileManager.default.createDirectory(at: sourceURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: existingURL, withIntermediateDirectories: true)
+        try writeManifest(
+            name: "Content Patcher",
+            to: sourceURL,
+            version: "1.0.0",
+            uniqueID: "Pathoschild.ContentPatcher"
+        )
+        try writeManifest(
+            name: "Content Patcher",
+            to: existingURL,
+            version: "2.0.0",
+            uniqueID: "Pathoschild.ContentPatcher"
+        )
+
+        let installResult = try ModLibrary.installMods(
+            from: [sourceURL],
+            into: install,
+            replacementPolicy: .replaceExisting
+        )
+
+        let replacement = try XCTUnwrap(installResult.updated.first)
+        XCTAssertEqual(replacement.replacementKind, .downgrade)
+        XCTAssertEqual(replacement.previousVersion, "2.0.0")
+        XCTAssertEqual(replacement.installedVersion, "1.0.0")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: replacement.archivedURL.appendingPathComponent("manifest.json").path))
+        XCTAssertEqual(try XCTUnwrap(ModLibrary.scan(install: install).first).versionText, "1.0.0")
+    }
+
+    func testInstallSkipsSelectedFolderThatIsAlreadyInstalled() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let existingURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
+
+        try FileManager.default.createDirectory(at: existingURL, withIntermediateDirectories: true)
+        try writeManifest(
+            name: "Content Patcher",
+            to: existingURL,
+            version: "2.0.0",
+            uniqueID: "Pathoschild.ContentPatcher"
+        )
+
+        let preview = try ModLibrary.previewImport(from: [existingURL], into: install)
+        let installResult = try ModLibrary.installMods(
+            from: [existingURL],
+            into: install,
+            replacementPolicy: .replaceExisting
+        )
+
+        XCTAssertEqual(preview.items.first?.action, .alreadyInstalled)
+        XCTAssertFalse(preview.canInstall)
+        XCTAssertTrue(installResult.installed.isEmpty)
+        XCTAssertTrue(installResult.updated.isEmpty)
+        XCTAssertEqual(installResult.skipped.first?.reason, .alreadyInstalled)
+        XCTAssertEqual(try XCTUnwrap(ModLibrary.scan(install: install).first).versionText, "2.0.0")
+    }
+
     func testInstallSkipsExistingDisabledCopy() throws {
         let modsDirectory = try makeModsDirectory()
         let install = StardewInstall(modsDirectory: modsDirectory)
@@ -803,6 +996,184 @@ final class ModLibraryTests: SeedBoxTestCase {
                     .path
             )
         )
+    }
+
+    func testRestoresDeletedArchivedMod() throws {
+        let install = try makeInstall()
+        let modURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
+
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Content Patcher", to: modURL, version: "1.0.0")
+        let archivedURL = try ModArchive.archive(
+            modURL,
+            in: install.archivedModsDirectoryURL,
+            reason: .deleted
+        )
+        let archivedMod = try XCTUnwrap(ModArchive.archivedMods(in: install.archivedModsDirectoryURL).first)
+
+        let restoreResults = try ModLibrary.restoreArchivedMods([archivedMod], into: install)
+
+        XCTAssertEqual(restoreResults.count, 1)
+        XCTAssertEqual(restoreResults.first?.displayName, "Content Patcher")
+        XCTAssertNil(restoreResults.first?.archivedCurrentURL)
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent("ContentPatcher")
+                    .appendingPathComponent("manifest.json")
+                    .path
+            )
+        )
+        XCTAssertFalse(FileManager.default.fileExists(atPath: archivedURL.path))
+    }
+
+    func testRestoreArchivedModReplacesCurrentCopyAndArchivesCurrentCopy() throws {
+        let install = try makeInstall()
+        let currentURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
+        let archiveContainerURL = install.archivedModsDirectoryURL
+            .appendingPathComponent("2026-06-05T12-00-00Z-updated", isDirectory: true)
+        let archivedURL = archiveContainerURL.appendingPathComponent("ContentPatcher")
+
+        try FileManager.default.createDirectory(at: currentURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: archivedURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Content Patcher", to: currentURL, version: "2.0.0")
+        try writeManifest(name: "Content Patcher", to: archivedURL, version: "1.0.0")
+        let archivedMod = try XCTUnwrap(ModArchive.archivedMods(in: install.archivedModsDirectoryURL).first)
+
+        let restoreResults = try ModLibrary.restoreArchivedMods([archivedMod], into: install)
+
+        let restoreResult = try XCTUnwrap(restoreResults.first)
+        let archivedCurrentURL = try XCTUnwrap(restoreResult.archivedCurrentURL)
+        let restoredManifest = try Data(
+            contentsOf: currentURL.appendingPathComponent("manifest.json")
+        )
+        let archivedCurrentManifest = try Data(
+            contentsOf: archivedCurrentURL.appendingPathComponent("manifest.json")
+        )
+
+        XCTAssertEqual(
+            try JSONDecoder().decode(ModManifest.self, from: restoredManifest).version,
+            "1.0.0"
+        )
+        XCTAssertEqual(
+            try JSONDecoder().decode(ModManifest.self, from: archivedCurrentManifest).version,
+            "2.0.0"
+        )
+        XCTAssertFalse(FileManager.default.fileExists(atPath: archivedURL.path))
+    }
+
+    func testPreviousVersionMatchesSelectedModByUniqueID() throws {
+        let install = try makeInstall()
+        let currentURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
+        let olderArchiveContainerURL = install.archivedModsDirectoryURL
+            .appendingPathComponent("2026-06-04T12-00-00Z-updated", isDirectory: true)
+        let newerArchiveContainerURL = install.archivedModsDirectoryURL
+            .appendingPathComponent("2026-06-05T12-00-00Z-updated", isDirectory: true)
+        let otherArchiveContainerURL = install.archivedModsDirectoryURL
+            .appendingPathComponent("2026-06-06T12-00-00Z-updated", isDirectory: true)
+        let olderArchivedURL = olderArchiveContainerURL.appendingPathComponent("ContentPatcher")
+        let newerArchivedURL = newerArchiveContainerURL.appendingPathComponent("ContentPatcher")
+        let otherArchivedURL = otherArchiveContainerURL.appendingPathComponent("OtherMod")
+
+        try FileManager.default.createDirectory(at: currentURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: olderArchivedURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: newerArchivedURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: otherArchivedURL, withIntermediateDirectories: true)
+        try writeManifest(
+            name: "Content Patcher",
+            to: currentURL,
+            version: "3.0.0",
+            uniqueID: "Pathoschild.ContentPatcher"
+        )
+        try writeManifest(
+            name: "Content Patcher",
+            to: olderArchivedURL,
+            version: "1.0.0",
+            uniqueID: "Pathoschild.ContentPatcher"
+        )
+        try writeManifest(
+            name: "Content Patcher",
+            to: newerArchivedURL,
+            version: "2.0.0",
+            uniqueID: "Pathoschild.ContentPatcher"
+        )
+        try writeManifest(name: "Other Mod", to: otherArchivedURL, version: "9.0.0", uniqueID: "Other.Mod")
+
+        let currentMod = try XCTUnwrap(ModLibrary.scan(install: install).first)
+        let archivedMods = try ModArchive.archivedMods(in: install.archivedModsDirectoryURL)
+        let previousVersion = try XCTUnwrap(ModArchive.previousVersion(for: currentMod, in: archivedMods))
+
+        XCTAssertEqual(previousVersion.versionText, "2.0.0")
+        assertSameFileURL(previousVersion.url, newerArchivedURL)
+    }
+
+    func testInsightsDetectDuplicateInstalledModsByUniqueID() throws {
+        let install = try makeInstall()
+        let firstURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
+        let secondURL = install.modDirectoryURL.appendingPathComponent("ContentPatcherCopy")
+        try FileManager.default.createDirectory(at: firstURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: secondURL, withIntermediateDirectories: true)
+        try writeManifest(
+            name: "Content Patcher",
+            to: firstURL,
+            uniqueID: "Pathoschild.ContentPatcher"
+        )
+        try writeManifest(
+            name: "Content Patcher Copy",
+            to: secondURL,
+            uniqueID: "Pathoschild.ContentPatcher"
+        )
+
+        let duplicateGroups = ModManagerInsights.duplicateGroups(in: try ModLibrary.scan(install: install))
+
+        XCTAssertEqual(duplicateGroups.count, 1)
+        XCTAssertEqual(duplicateGroups.first?.mods.map(\.folderName), ["ContentPatcher", "ContentPatcherCopy"])
+    }
+
+    func testInsightsCompareModSetToCurrentModState() throws {
+        let install = try makeInstall()
+        let enabledURL = install.modDirectoryURL.appendingPathComponent("EnabledMod")
+        let disabledURL = install.modDirectoryURL.appendingPathComponent(".DisabledMod")
+        try FileManager.default.createDirectory(at: enabledURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: disabledURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Enabled Mod", to: enabledURL)
+        try writeManifest(name: "Disabled Mod", to: disabledURL)
+        let mods = try ModLibrary.scan(install: install)
+        let set = ModSet(
+            id: "test",
+            name: "Opposite",
+            disabledFolderNames: ["EnabledMod"],
+            isDefault: false
+        )
+
+        let comparison = ModManagerInsights.comparison(for: set, currentMods: mods)
+
+        XCTAssertEqual(comparison.enableCount, 1)
+        XCTAssertEqual(comparison.disableCount, 1)
+        XCTAssertEqual(comparison.differences.map { $0.mod.displayName }, ["Disabled Mod", "Enabled Mod"])
+        XCTAssertEqual(comparison.differences.map(\.change), [.enable, .disable])
+    }
+
+    func testArchiveSummaryCountsArchivedModsAndSize() throws {
+        let install = try makeInstall()
+        let modURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Content Patcher", to: modURL)
+
+        let archiveDate = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-06-05T12:00:00Z"))
+        _ = try ModArchive.archive(
+            modURL,
+            in: install.archivedModsDirectoryURL,
+            reason: .deleted,
+            date: archiveDate
+        )
+
+        let summary = try ModArchive.summary(in: install.archivedModsDirectoryURL)
+
+        XCTAssertEqual(summary.archivedModCount, 1)
+        XCTAssertGreaterThan(summary.totalByteCount, 0)
+        XCTAssertEqual(summary.oldestArchiveDate, archiveDate)
+        XCTAssertEqual(summary.newestArchiveDate, archiveDate)
     }
 
     private func makeZip(from sourceURL: URL, to zipURL: URL) throws {

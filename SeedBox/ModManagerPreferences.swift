@@ -9,6 +9,8 @@ struct ModManagerPreferences {
         static let modsDirectoryPath = "modsDirectoryPath"
         static let moveModFilesToTrashAfterAddingMods = "moveModFilesToTrashAfterAddingMods"
         static let suppressAddModsSuccessNotification = "suppressAddModsSuccessNotification"
+        static let automaticallyPrunesExpiredArchives = "automaticallyPrunesExpiredArchives"
+        static let archiveRetentionDays = "archiveRetentionDays"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -38,6 +40,13 @@ struct ModManagerPreferences {
         )
     }
 
+    var archiveSettings: ArchiveSettings {
+        ArchiveSettings(
+            automaticallyPrunesExpiredArchives: automaticallyPrunesExpiredArchives,
+            retentionDays: archiveRetentionDays
+        )
+    }
+
     var moveModFilesToTrashAfterAddingMods: Bool {
         get {
             defaults.bool(forKey: Key.moveModFilesToTrashAfterAddingMods)
@@ -53,6 +62,31 @@ struct ModManagerPreferences {
         }
         nonmutating set {
             defaults.set(newValue, forKey: Key.suppressAddModsSuccessNotification)
+        }
+    }
+
+    var automaticallyPrunesExpiredArchives: Bool {
+        get {
+            if defaults.object(forKey: Key.automaticallyPrunesExpiredArchives) == nil {
+                return true
+            }
+            return defaults.bool(forKey: Key.automaticallyPrunesExpiredArchives)
+        }
+        nonmutating set {
+            defaults.set(newValue, forKey: Key.automaticallyPrunesExpiredArchives)
+        }
+    }
+
+    var archiveRetentionDays: Int {
+        get {
+            let storedValue = defaults.integer(forKey: Key.archiveRetentionDays)
+            guard storedValue > 0 else {
+                return ArchiveSettings.defaultRetentionDays
+            }
+            return storedValue
+        }
+        nonmutating set {
+            defaults.set(max(1, newValue), forKey: Key.archiveRetentionDays)
         }
     }
 

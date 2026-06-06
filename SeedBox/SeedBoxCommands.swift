@@ -40,6 +40,36 @@ struct SeedBoxCommands: Commands {
         CommandGroup(replacing: .help) {}
 
         CommandMenu("Mods") {
+            Button(AppStrings.Toolbar.problems) {
+                context?.showProblems()
+            }
+            .keyboardShortcut("0", modifiers: [.command, .shift])
+            .disabled(context == nil || !canShowProblems)
+
+            Button(AppStrings.Toolbar.activity) {
+                context?.showActivity()
+            }
+            .keyboardShortcut("l", modifiers: [.command, .option])
+            .disabled(context == nil || !canShowActivity)
+
+            Divider()
+
+            Button("Show Mod Details") {
+                context?.showModInspector()
+            }
+            .keyboardShortcut("i", modifiers: [.command])
+            .disabled(!canManageMods || context?.selectedMod == nil)
+
+            Divider()
+
+            Button("Restore Previous Version") {
+                context?.restorePreviousVersion()
+            }
+            .keyboardShortcut("r", modifiers: [.command, .option])
+            .disabled(!canManageMods || !canRestorePreviousVersion || context == nil)
+
+            Divider()
+
             Button("Reveal Selected Mod in Finder") {
                 context?.revealSelectedMod()
             }
@@ -55,6 +85,11 @@ struct SeedBoxCommands: Commands {
             }
             .disabled(context == nil)
 
+            Button("Prune Expired Archives") {
+                context?.pruneExpiredArchives()
+            }
+            .disabled(context == nil || !canPruneExpiredArchives)
+
             Divider()
 
             Button("Delete Selected Mod", role: .destructive) {
@@ -65,6 +100,14 @@ struct SeedBoxCommands: Commands {
         }
 
         CommandMenu("Mod Set") {
+            Button("Compare Mod Set") {
+                context?.compareSelectedModSet()
+            }
+            .keyboardShortcut("c", modifiers: [.command, .shift])
+            .disabled(!canManageMods || !canCompareSelectedModSet || context == nil)
+
+            Divider()
+
             Button("Duplicate Mod Set") {
                 context?.duplicateSelectedModSet()
             }
@@ -87,6 +130,26 @@ struct SeedBoxCommands: Commands {
 
     private var canManageMods: Bool {
         context?.canManageMods ?? false
+    }
+
+    private var canRestorePreviousVersion: Bool {
+        context?.canRestorePreviousVersion ?? false
+    }
+
+    private var canCompareSelectedModSet: Bool {
+        context?.canCompareSelectedModSet ?? false
+    }
+
+    private var canPruneExpiredArchives: Bool {
+        context?.canPruneExpiredArchives ?? false
+    }
+
+    private var canShowProblems: Bool {
+        context?.canShowProblems ?? false
+    }
+
+    private var canShowActivity: Bool {
+        context?.canShowActivity ?? false
     }
 
     private var selection: ModSetSelectionState {

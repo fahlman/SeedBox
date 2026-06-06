@@ -159,10 +159,54 @@ final class ModManagerViewModel: ObservableObject {
         ignoreObservedFolderChangesBriefly()
     }
 
-    func addMods(from selectedURLs: [URL]) async {
+    func prepareImportPreview(from selectedURLs: [URL]) -> ModImportPreview? {
+        guard guardCanRevealMods() else {
+            return nil
+        }
+
+        guard !selectedURLs.isEmpty else {
+            record(AppStrings.Status.chooseModFoldersOrZipArchives)
+            return nil
+        }
+
+        let sourceTokens = selectedURLs.map(SecurityScopedAccessToken.init(url:))
+        defer {
+            sourceTokens.forEach { $0.stop() }
+        }
+
+        do {
+            return try performWithFolderAccess {
+                try ModLibrary.previewImport(
+                    from: selectedURLs,
+                    into: install
+                )
+            }
+        } catch is SecurityScopedFolderAccessError {
+            return nil
+        } catch {
+            record(AppStrings.Status.couldNotPreviewMods(error.localizedDescription))
+            return nil
+        }
+    }
+
+    func addMods(
+        from selectedURLs: [URL],
+        replacementPolicy: ModInstallReplacementPolicy = .newerOnly
+    ) async {
         ignoreObservedFolderChangesBriefly()
         commitState(await service.addMods(
             from: selectedURLs,
+            sourceCleanupSettings: preferences.sourceCleanupSettings,
+            replacementPolicy: replacementPolicy,
+            in: state
+        ))
+        ignoreObservedFolderChangesBriefly()
+    }
+
+    func addPreviewedMods(_ preview: ModImportPreview) async {
+        ignoreObservedFolderChangesBriefly()
+        commitState(await service.addPreviewedMods(
+            preview,
             sourceCleanupSettings: preferences.sourceCleanupSettings,
             in: state
         ))
@@ -206,6 +250,10 @@ final class ModManagerViewModel: ObservableObject {
         preferences.sourceCleanupSettings
     }
 
+    var archiveSettings: ArchiveSettings {
+        preferences.archiveSettings
+    }
+
     func setMoveModFilesToTrashAfterAddingMods(_ isEnabled: Bool) {
         preferences.moveModFilesToTrashAfterAddingMods = isEnabled
         objectWillChange.send()
@@ -214,6 +262,20 @@ final class ModManagerViewModel: ObservableObject {
     func setSuppressAddModsSuccessNotification(_ isEnabled: Bool) {
         preferences.suppressAddModsSuccessNotification = isEnabled
         objectWillChange.send()
+    }
+
+    func setAutomaticallyPrunesExpiredArchives(_ isEnabled: Bool) {
+        preferences.automaticallyPrunesExpiredArchives = isEnabled
+        var nextState = state
+        nextState.archiveSettings = preferences.archiveSettings
+        commitState(nextState, broadcastsChange: false)
+    }
+
+    func setArchiveRetentionDays(_ days: Int) {
+        preferences.archiveRetentionDays = days
+        var nextState = state
+        nextState.archiveSettings = preferences.archiveSettings
+        commitState(nextState, broadcastsChange: false)
     }
 
     func setMod(_ mod: ModInfo, enabled: Bool) async {
@@ -240,6 +302,33 @@ final class ModManagerViewModel: ObservableObject {
         ignoreObservedFolderChangesBriefly()
         commitState(await service.deleteMod(mod, in: state))
         ignoreObservedFolderChangesBriefly()
+    }
+
+    func restoreArchivedMods(_ archivedMods: [ArchivedModInfo]) async {
+        ignoreObservedFolderChangesBriefly()
+        commitState(await service.restoreArchivedMods(archivedMods, in: state))
+        ignoreObservedFolderChangesBriefly()
+    }
+
+    func previousArchivedVersion(for mod: ModInfo?) -> ArchivedModInfo? {
+        guard let mod else {
+            return nil
+        }
+
+        return ModArchive.previousVersion(for: mod, in: state.archivedMods)
+    }
+
+    func restorePreviousVersion(of mod: ModInfo) async {
+        guard let archivedMod = previousArchivedVersion(for: mod) else {
+            record(AppStrings.Status.noPreviousVersionAvailable(mod.displayName))
+            return
+        }
+
+        await restoreArchivedMods([archivedMod])
+    }
+
+    func pruneExpiredArchives() async {
+        commitState(await service.pruneExpiredArchives(in: state))
     }
 
     func createModSet(named name: String, from sourceSet: ModSet? = nil) async {
@@ -401,6 +490,10 @@ final class ModManagerViewModel: ObservableObject {
             status: install.status(),
             hasSavedFolderAccess: folderAccess.hasBookmark,
             mods: [],
+            invalidModFolders: [],
+            archivedMods: [],
+            archiveSummary: ModArchiveSummary(),
+            archiveSettings: preferences.archiveSettings,
             hasLoadedMods: false,
             modSets: [],
             selectedModSetID: selectedModSetID,

@@ -9,6 +9,11 @@ struct ModManagerView: View {
     @State private var modPendingDeletion: ModInfo?
     @State private var modSetPendingDeletion: ModSet?
     @State private var dependencyConfirmation: DependencyConfirmation?
+    @State private var importPreview: ModImportPreview?
+    @State private var modSetComparison: ModSetComparison?
+    @State private var isShowingProblems = false
+    @State private var isShowingActivity = false
+    @State private var isShowingModInspector = false
     @State private var isAddingMods = false
     @State private var isChoosingModsFolder = false
     @State private var modDropIsTargeted = false
@@ -22,22 +27,12 @@ struct ModManagerView: View {
         return contentTypes
     }
 
-    private var filteredMods: [ModInfo] {
-        let query = ModSearchQuery(searchText)
-        let graph = dependencyGraph
-        return viewModel.state.mods.filter { query.matches($0, in: graph) }
-    }
-
-    private var dependencyGraph: ModDependencyGraph {
-        ModDependencyGraph(mods: viewModel.state.mods)
-    }
-
-    private var selectedMod: ModInfo? {
-        guard selectedModIDs.count == 1, let selectedModID = selectedModIDs.first else {
-            return nil
-        }
-
-        return filteredMods.first { $0.id == selectedModID }
+    private var presentationState: ModManagerPresentationState {
+        ModManagerPresentationState(
+            state: viewModel.state,
+            searchText: searchText,
+            selectedModIDs: selectedModIDs
+        )
     }
 
     var body: some View {
@@ -57,7 +52,7 @@ struct ModManagerView: View {
             .searchable(
                 text: $searchText,
                 placement: .toolbar,
-                prompt: "Search Mods"
+                prompt: AppStrings.Search.prompt
             )
             .fileImporter(
                 isPresented: $isAddingMods,
@@ -66,7 +61,7 @@ struct ModManagerView: View {
             ) { result in
                 switch result {
                 case .success(let urls):
-                    installMods(from: urls)
+                    previewMods(from: urls)
                 case .failure(let error):
                     viewModel.recordAddModsSelectionError(error)
                 }
@@ -97,6 +92,41 @@ struct ModManagerView: View {
                     }
                 )
             }
+            .sheet(item: $importPreview) { preview in
+                ModImportPreviewSheet(
+                    preview: preview,
+                    cancel: {
+                        ModLibrary.discardImportPreview(preview)
+                        importPreview = nil
+                    },
+                    install: {
+                        installPreviewedMods(preview)
+                    }
+                )
+            }
+            .sheet(isPresented: $isShowingProblems) {
+                ProblemsSheet(
+                    dependencyIssues: presentationState.state.dependencyIssues,
+                    invalidFolders: presentationState.state.invalidModFolders,
+                    duplicateGroups: presentationState.state.duplicateGroups,
+                    close: {
+                        isShowingProblems = false
+                    }
+                )
+            }
+            .sheet(isPresented: $isShowingActivity) {
+                ActivitySheet(
+                    auditTrail: viewModel.state.auditTrail,
+                    close: {
+                        isShowingActivity = false
+                    }
+                )
+            }
+            .sheet(item: $modSetComparison) { comparison in
+                ModSetComparisonSheet(comparison: comparison) {
+                    modSetComparison = nil
+                }
+            }
             .alert(
                 "Delete Mod?",
                 isPresented: modDeletionAlertIsPresented,
@@ -116,7 +146,7 @@ struct ModManagerView: View {
             } message: { mod in
                 Text(AppStrings.Alerts.deleteModMessage(
                     mod.displayName,
-                    retentionDays: Int(ModArchive.retentionInterval / 86_400)
+                    retentionDays: viewModel.state.archiveSettings.normalizedRetentionDays
                 ))
             }
             .alert(
@@ -190,17 +220,8 @@ struct ModManagerView: View {
 
     private var content: some View {
         VStack(spacing: 0) {
-            if viewModel.state.readiness.canManageMods {
-                ModList(
-                    mods: filteredMods,
-                    viewModel: viewModel,
-                    selectedModIDs: $selectedModIDs,
-                    selectedMod: selectedMod,
-                    addMods: addMods,
-                    requestSetModEnabled: requestSetModEnabled,
-                    revealSelectedMod: revealSelectedMod,
-                    requestDeleteSelectedMod: requestDeleteSelectedMod
-                )
+            if presentationState.canManageMods {
+                managedContent
             } else {
                 SetupEmptyState(
                     viewModel: viewModel,
@@ -221,9 +242,41 @@ struct ModManagerView: View {
         }
     }
 
+    private var managedContent: some View {
+        HStack(spacing: 0) {
+            ModList(
+                mods: presentationState.filteredMods,
+                viewModel: viewModel,
+                selectedModIDs: $selectedModIDs,
+                selectedMod: presentationState.selection.mod,
+                addMods: addMods,
+                requestSetModEnabled: requestSetModEnabled,
+                revealSelectedMod: revealSelectedMod,
+                requestDeleteSelectedMod: requestDeleteSelectedMod
+            )
+
+            if isShowingModInspector, let selectedMod = presentationState.selection.mod {
+                Divider()
+                ModDetailInspector(
+                    mod: selectedMod,
+                    dependencyStatuses: presentationState.selection.dependencyStatuses,
+                    dependents: presentationState.selection.dependents,
+                    previousArchivedVersion: presentationState.selection.previousArchivedVersion,
+                    archivedVersions: presentationState.selection.archivedVersions,
+                    duplicateGroups: presentationState.selection.duplicateGroups,
+                    archiveSummary: viewModel.state.archiveSummary,
+                    restorePreviousVersion: restorePreviousVersion,
+                    revealSelectedMod: revealSelectedMod,
+                    pruneExpiredArchives: pruneExpiredArchives
+                )
+                .frame(minWidth: 280, idealWidth: 340, maxWidth: 420)
+            }
+        }
+    }
+
     @ViewBuilder
     private var dropOverlay: some View {
-        if modDropIsTargeted && viewModel.state.readiness.canManageMods {
+        if modDropIsTargeted && presentationState.canManageMods {
             Rectangle()
                 .fill(Color.accentColor.opacity(0.08))
                 .overlay {
@@ -237,14 +290,24 @@ struct ModManagerView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ModManagerToolbar(
-            viewModel: viewModel,
-            selectedMod: selectedMod,
+            presentationState: presentationState,
+            isShowingModInspector: isShowingModInspector,
             selectModSet: requestSelectModSet,
+            showProblems: {
+                isShowingProblems = true
+            },
+            showActivity: {
+                isShowingActivity = true
+            },
+            showModInspector: showModInspector,
             createModSet: createModSet,
             duplicateSelectedModSet: duplicateSelectedModSet,
             renameSelectedModSet: renameSelectedModSet,
             deleteSelectedModSet: requestDeleteSelectedModSet,
+            compareSelectedModSet: compareSelectedModSet,
             addMods: addMods,
+            pruneExpiredArchives: pruneExpiredArchives,
+            restorePreviousVersion: restorePreviousVersion,
             revealSelectedMod: revealSelectedMod,
             deleteSelectedMod: requestDeleteSelectedMod
         )
@@ -252,8 +315,7 @@ struct ModManagerView: View {
 
     private var commandContext: ModManagerCommandContext {
         ModManagerCommandContext(
-            state: viewModel.state,
-            selectedMod: selectedMod,
+            presentationState: presentationState,
             chooseModsFolder: chooseModsFolder,
             addMods: addMods,
             refresh: {
@@ -261,12 +323,22 @@ struct ModManagerView: View {
                     await viewModel.refresh()
                 }
             },
+            showProblems: {
+                isShowingProblems = true
+            },
+            showActivity: {
+                isShowingActivity = true
+            },
+            showModInspector: showModInspector,
             createModSet: createModSet,
             duplicateSelectedModSet: duplicateSelectedModSet,
             renameSelectedModSet: renameSelectedModSet,
             deleteSelectedModSet: requestDeleteSelectedModSet,
+            compareSelectedModSet: compareSelectedModSet,
             revealModsFolder: viewModel.revealModsFolder,
             revealArchivedModsFolder: viewModel.revealArchivedModsFolder,
+            pruneExpiredArchives: pruneExpiredArchives,
+            restorePreviousVersion: restorePreviousVersion,
             revealSelectedMod: revealSelectedMod,
             deleteSelectedMod: requestDeleteSelectedMod
         )
@@ -280,19 +352,43 @@ struct ModManagerView: View {
         isAddingMods = true
     }
 
+    private func showModInspector() {
+        guard presentationState.selection.hasSelectedMod else {
+            return
+        }
+
+        isShowingModInspector.toggle()
+    }
+
+    private func restorePreviousVersion() {
+        guard let selectedMod = presentationState.selection.mod else {
+            return
+        }
+
+        Task {
+            await viewModel.restorePreviousVersion(of: selectedMod)
+        }
+    }
+
+    private func pruneExpiredArchives() {
+        Task {
+            await viewModel.pruneExpiredArchives()
+        }
+    }
+
     private func requestSelectModSet(id: String) {
-        guard id != viewModel.state.selectedModSetID
-                || viewModel.state.appliedModSetID != id
+        guard id != presentationState.state.selectedModSetID
+                || presentationState.state.appliedModSetID != id
         else {
             return
         }
 
-        guard let set = viewModel.state.modSets.first(where: { $0.id == id }) else {
+        guard let set = presentationState.state.modSets.first(where: { $0.id == id }) else {
             selectModSet(id: id)
             return
         }
 
-        let issues = dependencyGraph.issues(applying: set)
+        let issues = presentationState.dependencyGraph.issues(applying: set)
         guard !issues.isEmpty else {
             selectModSet(id: id)
             return
@@ -313,14 +409,23 @@ struct ModManagerView: View {
         }
     }
 
-    private func installMods(from urls: [URL]) {
+    private func previewMods(from urls: [URL]) {
+        guard let preview = viewModel.prepareImportPreview(from: urls) else {
+            return
+        }
+
+        importPreview = preview
+    }
+
+    private func installPreviewedMods(_ preview: ModImportPreview) {
+        importPreview = nil
         Task {
-            await viewModel.addMods(from: urls)
+            await viewModel.addPreviewedMods(preview)
         }
     }
 
     private func installDroppedMods(from urls: [URL]) -> Bool {
-        guard viewModel.state.readiness.canManageMods else {
+        guard presentationState.canManageMods else {
             return false
         }
 
@@ -329,7 +434,7 @@ struct ModManagerView: View {
             return false
         }
 
-        installMods(from: installableURLs)
+        previewMods(from: installableURLs)
         return true
     }
 
@@ -344,7 +449,7 @@ struct ModManagerView: View {
     }
 
     private func duplicateSelectedModSet() {
-        guard let selectedSet = viewModel.state.modSetSelection.selectedSet else {
+        guard let selectedSet = presentationState.state.modSetSelection.selectedSet else {
             return
         }
 
@@ -352,7 +457,7 @@ struct ModManagerView: View {
     }
 
     private func renameSelectedModSet() {
-        guard let selectedSet = viewModel.state.modSetSelection.selectedRenamableSet else {
+        guard let selectedSet = presentationState.state.modSetSelection.selectedRenamableSet else {
             return
         }
 
@@ -360,11 +465,19 @@ struct ModManagerView: View {
     }
 
     private func requestDeleteSelectedModSet() {
-        modSetPendingDeletion = viewModel.state.modSetSelection.selectedDeletableSet
+        modSetPendingDeletion = presentationState.state.modSetSelection.selectedDeletableSet
+    }
+
+    private func compareSelectedModSet() {
+        guard let comparison = presentationState.selectedModSetComparison else {
+            return
+        }
+
+        modSetComparison = comparison
     }
 
     private func revealSelectedMod() {
-        guard let selectedMod else {
+        guard let selectedMod = presentationState.selection.mod else {
             return
         }
 
@@ -372,7 +485,7 @@ struct ModManagerView: View {
     }
 
     private func requestDeleteSelectedMod() {
-        modPendingDeletion = selectedMod
+        modPendingDeletion = presentationState.selection.mod
     }
 
     private func requestSetModEnabled(_ mod: ModInfo, enabled: Bool) {
@@ -381,9 +494,9 @@ struct ModManagerView: View {
         }
 
         if enabled {
-            let issues = dependencyGraph.requiredIssuesIfEnabled(mod)
+            let issues = presentationState.dependencyGraph.requiredIssuesIfEnabled(mod)
             guard issues.isEmpty else {
-                let repairMods = dependencyGraph.disabledModsSatisfying(issues)
+                let repairMods = presentationState.dependencyGraph.disabledModsSatisfying(issues)
                 let canRepairAllIssues = repairMods.count == issues.count
                 dependencyConfirmation = DependencyConfirmation(
                     title: AppStrings.Alerts.missingRequiredDependencies,
@@ -398,7 +511,7 @@ struct ModManagerView: View {
                 return
             }
         } else {
-            let dependents = dependencyGraph.enabledDependentsIfDisabled(mod)
+            let dependents = presentationState.dependencyGraph.enabledDependentsIfDisabled(mod)
             guard dependents.isEmpty else {
                 dependencyConfirmation = DependencyConfirmation(
                     title: AppStrings.Alerts.requiredByEnabledMods,
@@ -545,68 +658,6 @@ struct ModManagerView: View {
                 }
             }
         )
-    }
-}
-
-private struct SourceCleanupOfferSheet: View {
-    var offer: SourceCleanupOffer
-    @Binding var remembersChoice: Bool
-    var keepFiles: () -> Void
-    var moveToTrash: () -> Void
-    var dismissNotice: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text(title)
-                .font(.title3)
-                .fontWeight(.semibold)
-
-            Text(message)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if !offer.isNotificationOnly {
-                Toggle(AppStrings.SourceCleanup.rememberChoice, isOn: $remembersChoice)
-            }
-
-            HStack {
-                Spacer()
-
-                if offer.isNotificationOnly {
-                    Button(AppStrings.SourceCleanup.ok) {
-                        dismissNotice()
-                    }
-                    .keyboardShortcut(.defaultAction)
-                } else {
-                    Button(AppStrings.SourceCleanup.keepFiles, role: .cancel) {
-                        keepFiles()
-                    }
-
-                    Button(AppStrings.SourceCleanup.moveToTrash, role: .destructive) {
-                        moveToTrash()
-                    }
-                    .keyboardShortcut(.defaultAction)
-                }
-            }
-        }
-        .padding(24)
-        .frame(width: 430)
-    }
-
-    private var title: String {
-        offer.isNotificationOnly
-            ? AppStrings.SourceCleanup.modsAddedTitle
-            : AppStrings.SourceCleanup.moveOriginalFilesToTrashTitle
-    }
-
-    private var message: String {
-        if offer.isNotificationOnly {
-            return [offer.importSummary, offer.cleanupSummary]
-                .compactMap { $0?.trimmedNonEmpty }
-                .joined(separator: "\n\n")
-        }
-
-        return "\(offer.importSummary)\n\n\(AppStrings.SourceCleanup.moveSelectedItemsQuestion(count: offer.sourceCount))"
     }
 }
 

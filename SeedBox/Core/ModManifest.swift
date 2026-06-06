@@ -28,6 +28,9 @@ struct ModManifest: Codable, Equatable, Sendable {
     var version: String?
     var description: String?
     var uniqueID: String?
+    var entryDll: String?
+    var minimumApiVersion: String?
+    var updateKeys: [String]?
     var contentPackFor: ContentPackFor?
     var dependencies: [Dependency]?
 
@@ -37,6 +40,9 @@ struct ModManifest: Codable, Equatable, Sendable {
         case version = "Version"
         case description = "Description"
         case uniqueID = "UniqueID"
+        case entryDll = "EntryDll"
+        case minimumApiVersion = "MinimumApiVersion"
+        case updateKeys = "UpdateKeys"
         case contentPackFor = "ContentPackFor"
         case dependencies = "Dependencies"
     }

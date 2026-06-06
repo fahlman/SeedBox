@@ -1,0 +1,145 @@
+import Foundation
+
+struct ModManagerPresentationState {
+    var state: ModManagerState
+    var searchText: String
+    var selectedModIDs: Set<String>
+    var dependencyGraph: ModDependencyGraph
+    var filteredMods: [ModInfo]
+    var selection: ModSelectionState
+
+    init(
+        state: ModManagerState,
+        searchText: String,
+        selectedModIDs: Set<String>
+    ) {
+        let dependencyGraph = ModDependencyGraph(mods: state.mods)
+        let query = ModSearchQuery(searchText)
+        let filteredMods = state.mods.filter { query.matches($0, in: dependencyGraph) }
+        let selectedMod = Self.selectedMod(in: filteredMods, selectedModIDs: selectedModIDs)
+
+        self.state = state
+        self.searchText = searchText
+        self.selectedModIDs = selectedModIDs
+        self.dependencyGraph = dependencyGraph
+        self.filteredMods = filteredMods
+        selection = ModSelectionState(
+            selectedModIDs: selectedModIDs,
+            selectedMod: selectedMod,
+            state: state,
+            dependencyGraph: dependencyGraph
+        )
+    }
+
+    var readiness: ModManagerReadiness {
+        state.readiness
+    }
+
+    var modSetSelection: ModSetSelectionState {
+        state.modSetSelection
+    }
+
+    var canManageMods: Bool {
+        readiness.canManageMods
+    }
+
+    var canShowProblems: Bool {
+        state.hasProblems
+    }
+
+    var canShowActivity: Bool {
+        !state.auditTrail.recentEntries.isEmpty
+    }
+
+    var canCompareSelectedModSet: Bool {
+        state.modSetSelection.selectedSet != nil && canManageMods
+    }
+
+    var canPruneExpiredArchives: Bool {
+        state.archiveSummary.archivedModCount > 0
+    }
+
+    var canRestorePreviousVersion: Bool {
+        canManageMods && selection.canRestorePreviousVersion
+    }
+
+    var canRevealSelectedMod: Bool {
+        canManageMods && selection.hasSelectedMod
+    }
+
+    var canDeleteSelectedMod: Bool {
+        canManageMods && selection.hasSelectedMod
+    }
+
+    var canShowModInspector: Bool {
+        canManageMods && selection.hasSelectedMod
+    }
+
+    var selectedModSetComparison: ModSetComparison? {
+        guard let selectedSet = state.modSetSelection.selectedSet else {
+            return nil
+        }
+
+        return ModManagerInsights.comparison(
+            for: selectedSet,
+            currentMods: state.mods
+        )
+    }
+
+    private static func selectedMod(
+        in filteredMods: [ModInfo],
+        selectedModIDs: Set<String>
+    ) -> ModInfo? {
+        guard selectedModIDs.count == 1,
+              let selectedModID = selectedModIDs.first
+        else {
+            return nil
+        }
+
+        return filteredMods.first { $0.id == selectedModID }
+    }
+}
+
+struct ModSelectionState {
+    var selectedModIDs: Set<String>
+    var mod: ModInfo?
+    var dependencyStatuses: [ModDependencyStatus]
+    var dependents: [ModInfo]
+    var previousArchivedVersion: ArchivedModInfo?
+    var archivedVersions: [ArchivedModInfo]
+    var duplicateGroups: [ModDuplicateGroup]
+
+    init(
+        selectedModIDs: Set<String>,
+        selectedMod: ModInfo?,
+        state: ModManagerState,
+        dependencyGraph: ModDependencyGraph
+    ) {
+        self.selectedModIDs = selectedModIDs
+        mod = selectedMod
+
+        if let selectedMod {
+            dependencyStatuses = dependencyGraph.dependencyStatuses(for: selectedMod)
+            dependents = dependencyGraph.dependents(of: selectedMod)
+            previousArchivedVersion = ModArchive.previousVersion(for: selectedMod, in: state.archivedMods)
+            archivedVersions = ModArchive.archivedVersions(for: selectedMod, in: state.archivedMods)
+            duplicateGroups = state.duplicateGroups.filter { group in
+                group.mods.contains { $0.id == selectedMod.id }
+            }
+        } else {
+            dependencyStatuses = []
+            dependents = []
+            previousArchivedVersion = nil
+            archivedVersions = []
+            duplicateGroups = []
+        }
+    }
+
+    var hasSelectedMod: Bool {
+        mod != nil
+    }
+
+    var canRestorePreviousVersion: Bool {
+        previousArchivedVersion != nil
+    }
+}

@@ -54,6 +54,42 @@ enum AppStrings {
         static let renameTitle = String(localized: "Rename Mod Set")
     }
 
+    enum Search {
+        static let prompt = String(localized: "Search Mods")
+    }
+
+    enum Toolbar {
+        static let activity = String(localized: "Activity")
+        static let addMods = String(localized: "Add Mods")
+        static let deleteMod = String(localized: "Delete Mod")
+        static let hideDetails = String(localized: "Hide Details")
+        static let problems = String(localized: "Problems")
+        static let pruneExpiredArchives = String(localized: "Prune Expired Archives")
+        static let restorePreviousVersion = String(localized: "Restore Previous Version")
+        static let revealInFinder = String(localized: "Reveal in Finder")
+        static let settings = String(localized: "Settings")
+        static let showDetails = String(localized: "Show Details")
+    }
+
+    enum Settings {
+        static let addingModsSection = String(localized: "Adding Mods")
+        static let archivesSection = String(localized: "Archives")
+        static let automaticallyPruneExpiredArchives = String(localized: "Automatically prune expired archives")
+        static let folder = String(localized: "Folder")
+        static let folderAccess = String(localized: "Folder Access")
+        static let keepArchivedMods = String(localized: "Keep archived mods")
+        static let managedModsFolderSection = String(localized: "Managed Mods Folder")
+        static let moveModFilesToTrashAfterAddingMods = String(localized: "Move mod files to trash after successfully adding mods")
+        static let notSaved = String(localized: "Not saved")
+        static let reveal = String(localized: "Reveal")
+        static let saved = String(localized: "Saved")
+        static let suppressAddModsSuccessNotification = String(localized: "Do not display notification after successfully adding mods")
+
+        static func days(_ count: Int) -> String {
+            String(localized: "\(count) days")
+        }
+    }
+
     enum Alerts {
         static let dependencyWarning = String(localized: "Dependency Warning")
         static let disableAnyway = String(localized: "Disable Anyway")
@@ -128,8 +164,14 @@ enum AppStrings {
 
     enum Mods {
         static let contentPatcher = String(localized: "Content Patcher")
+        static let curseForge = String(localized: "CurseForge")
         static let disabled = String(localized: "Disabled")
         static let enabled = String(localized: "Enabled")
+        static let github = String(localized: "GitHub")
+        static let modDrop = String(localized: "ModDrop")
+        static let nexus = String(localized: "Nexus")
+        static let notLinked = String(localized: "Not linked")
+        static let notInstalled = String(localized: "Not installed")
         static let smapi = String(localized: "SMAPI")
         static let unknown = String(localized: "Unknown")
         static let unknownAuthor = String(localized: "Unknown author")
@@ -173,6 +215,7 @@ enum AppStrings {
         static let chooseModFoldersOrZipArchives = String(localized: "Choose one or more mod folders or ZIP archives.")
         static let chooseModsFolderBeforeCreating = String(localized: "Choose the Mods folder before creating it.")
         static let chooseModsFolderBeforeManaging = String(localized: "Choose the Mods folder before managing mods.")
+        static let chooseArchivedModsToRestore = String(localized: "Choose one or more archived mods to restore.")
         static let includedModSetNamesCannotBeChanged = String(localized: "Included mod set names cannot be changed.")
         static let modsFolderChangedRefreshed = String(localized: "Mods folder changed. Refreshed mod list.")
         static let modsFolderMissingChooseAgain = String(localized: "The Mods folder is missing. Choose it again from Settings.")
@@ -219,6 +262,10 @@ enum AppStrings {
             String(localized: "Could not choose Mods folder: \(errorDescription)")
         }
 
+        static func couldNotPreviewMods(_ errorDescription: String) -> String {
+            String(localized: "Could not preview mods: \(errorDescription)")
+        }
+
         static func couldNotCreateModFolder(_ errorDescription: String) -> String {
             String(localized: "Could not create mod folder: \(errorDescription)")
         }
@@ -243,6 +290,10 @@ enum AppStrings {
             String(localized: "Could not read mod sets: \(errorDescription)")
         }
 
+        static func couldNotReadArchivedMods(_ errorDescription: String) -> String {
+            String(localized: "Could not read archived mods: \(errorDescription)")
+        }
+
         static func couldNotReadMods(_ errorDescription: String) -> String {
             String(localized: "Could not read mods: \(errorDescription)")
         }
@@ -257,6 +308,10 @@ enum AppStrings {
 
         static func couldNotRenameModSet(_ errorDescription: String) -> String {
             String(localized: "Could not rename mod set: \(errorDescription)")
+        }
+
+        static func couldNotRestoreArchivedMods(_ errorDescription: String) -> String {
+            String(localized: "Could not restore archived mods: \(errorDescription)")
         }
 
         static func couldNotRestoreSavedFolderAccess(_ errorDescription: String) -> String {
@@ -292,6 +347,9 @@ enum AppStrings {
         }
 
         static let couldNotApplySetSelectionMissing = String(localized: "Could not apply set: selection is missing.")
+        static func prunedExpiredArchives(count: Int) -> String {
+            String(localized: "Pruned \(count) expired archive folders.")
+        }
 
         static func createdModFolder(_ path: String) -> String {
             String(localized: "Created \(path).")
@@ -337,6 +395,22 @@ enum AppStrings {
             String(localized: "Renamed set to \(setName).")
         }
 
+        static func restoredArchivedMods(count: Int) -> String {
+            String(localized: "Restored \(count) archived mods.")
+        }
+
+        static func restoredMod(_ modName: String) -> String {
+            String(localized: "Restored \(modName).")
+        }
+
+        static func restoredModArchivedCurrent(_ modName: String) -> String {
+            String(localized: "Restored \(modName). Archived current copy.")
+        }
+
+        static func noPreviousVersionAvailable(_ modName: String) -> String {
+            String(localized: "No previous version of \(modName) is available.")
+        }
+
         static func selectedFolder(_ path: String) -> String {
             String(localized: "Selected \(path).")
         }
@@ -349,14 +423,38 @@ enum AppStrings {
             String(localized: "Skipped \(count) duplicated selected mods.")
         }
 
-        static func updatedMod(_ displayName: String, previousVersion: String?, installedVersion: String?) -> String {
-            switch (previousVersion, installedVersion) {
-            case (.some(let previousVersion), .some(let installedVersion)):
-                return String(localized: "Updated \(displayName) from \(previousVersion) to \(installedVersion). Archived previous copy.")
-            case (.none, .some(let installedVersion)):
-                return String(localized: "Updated \(displayName) to \(installedVersion). Archived previous copy.")
-            default:
-                return String(localized: "Updated \(displayName). Archived previous copy.")
+        static func replacedMod(
+            _ displayName: String,
+            previousVersion: String?,
+            installedVersion: String?,
+            replacementKind: ModReplacementKind
+        ) -> String {
+            switch replacementKind {
+            case .update:
+                switch (previousVersion, installedVersion) {
+                case (.some(let previousVersion), .some(let installedVersion)):
+                    return String(localized: "Updated \(displayName) from \(previousVersion) to \(installedVersion). Archived previous copy.")
+                case (.none, .some(let installedVersion)):
+                    return String(localized: "Updated \(displayName) to \(installedVersion). Archived previous copy.")
+                default:
+                    return String(localized: "Updated \(displayName). Archived previous copy.")
+                }
+            case .reinstall:
+                if let installedVersion {
+                    return String(localized: "Reinstalled \(displayName) \(installedVersion). Archived previous copy.")
+                }
+                return String(localized: "Reinstalled \(displayName). Archived previous copy.")
+            case .downgrade:
+                switch (previousVersion, installedVersion) {
+                case (.some(let previousVersion), .some(let installedVersion)):
+                    return String(localized: "Downgraded \(displayName) from \(previousVersion) to \(installedVersion). Archived previous copy.")
+                case (.none, .some(let installedVersion)):
+                    return String(localized: "Downgraded \(displayName) to \(installedVersion). Archived previous copy.")
+                default:
+                    return String(localized: "Downgraded \(displayName). Archived previous copy.")
+                }
+            case .replace:
+                return String(localized: "Replaced \(displayName). Archived previous copy.")
             }
         }
 
@@ -370,6 +468,115 @@ enum AppStrings {
 
         static func updatedModSet(after changeMessage: String, setName: String) -> String {
             String(localized: "\(changeMessage) Updated \(setName).")
+        }
+    }
+
+    enum ImportPreview {
+        static let actionColumn = String(localized: "Action")
+        static let detailsColumn = String(localized: "Details")
+        static let cancel = String(localized: "Cancel")
+        static let downgrade = String(localized: "Downgrade")
+        static let duplicate = String(localized: "Duplicate")
+        static let duplicateSelection = String(localized: "Another selected item already installs this mod.")
+        static let install = String(localized: "Install")
+        static let installAction = String(localized: "Install")
+        static let installedVersionColumn = String(localized: "Installed")
+        static let modColumn = String(localized: "Mod")
+        static let reinstall = String(localized: "Reinstall")
+        static let replace = String(localized: "Replace")
+        static let restoreNote = String(localized: "Existing mods will be archived first, so you can restore the previous version if needed.")
+        static let selectedVersionColumn = String(localized: "Selected")
+        static let skip = String(localized: "Skip")
+        static let title = String(localized: "Review Mods")
+        static let typeColumn = String(localized: "Type")
+        static let update = String(localized: "Update")
+
+        static func summary(itemCount: Int, installableCount: Int) -> String {
+            String(localized: "\(itemCount) mods found. \(installableCount) will be installed or replaced.")
+        }
+
+        static func alreadyInstalled(_ folderName: String) -> String {
+            String(localized: "Already installed as \(folderName).")
+        }
+
+        static func willDowngrade(_ folderName: String) -> String {
+            String(localized: "Will archive and downgrade \(folderName).")
+        }
+
+        static func willInstall(_ folderName: String) -> String {
+            String(localized: "Will install as \(folderName).")
+        }
+
+        static func willReinstall(_ folderName: String) -> String {
+            String(localized: "Will archive and reinstall \(folderName).")
+        }
+
+        static func willReplace(_ folderName: String) -> String {
+            String(localized: "Will archive and replace \(folderName).")
+        }
+
+        static func willUpdate(_ folderName: String) -> String {
+            String(localized: "Will archive and update \(folderName).")
+        }
+    }
+
+    enum ModInspector {
+        static let archived = String(localized: "Archived")
+        static let archiveSection = String(localized: "Archive")
+        static let archivedMods = String(localized: "Archived Mods")
+        static let archiveSize = String(localized: "Archive Size")
+        static let author = String(localized: "Author")
+        static let dependenciesSection = String(localized: "Dependencies")
+        static let detailsSection = String(localized: "Details")
+        static let disabled = String(localized: "Disabled")
+        static let duplicatesSection = String(localized: "Duplicates")
+        static let entryDll = String(localized: "Entry DLL")
+        static let folder = String(localized: "Folder")
+        static let minimumApiVersion = String(localized: "Minimum SMAPI")
+        static let missing = String(localized: "Missing")
+        static let noDependencies = String(localized: "No dependencies.")
+        static let noDependents = String(localized: "No enabled mods require this mod.")
+        static let noPreviousVersion = String(localized: "No previous version is archived.")
+        static let optionalDependency = String(localized: "Optional")
+        static let previousVersion = String(localized: "Previous Version")
+        static let pruneExpiredArchives = String(localized: "Prune Expired Archives")
+        static let requiredBySection = String(localized: "Required By")
+        static let requiredDependency = String(localized: "Required")
+        static let restorePreviousVersion = String(localized: "Restore Previous Version")
+        static let reveal = String(localized: "Reveal")
+        static let satisfied = String(localized: "Satisfied")
+        static let state = String(localized: "State")
+        static let type = String(localized: "Type")
+        static let uniqueID = String(localized: "Unique ID")
+        static let updateKeys = String(localized: "Update Keys")
+        static let updateSource = String(localized: "Update Source")
+        static let versionTooOld = String(localized: "Version too old")
+
+        static func installedVersion(_ version: String) -> String {
+            String(localized: "Installed \(version)")
+        }
+
+        static func minimumVersion(_ version: String) -> String {
+            String(localized: "Requires \(version)+")
+        }
+    }
+
+    enum ModSetComparison {
+        static let changeColumn = String(localized: "Change")
+        static let close = String(localized: "Close")
+        static let disable = String(localized: "Disable")
+        static let enable = String(localized: "Enable")
+        static let modColumn = String(localized: "Mod")
+        static let noChanges = String(localized: "No changes")
+        static let typeColumn = String(localized: "Type")
+        static let versionColumn = String(localized: "Version")
+
+        static func summary(enableCount: Int, disableCount: Int) -> String {
+            String(localized: "\(enableCount) mods will be enabled. \(disableCount) mods will be disabled.")
+        }
+
+        static func title(_ setName: String) -> String {
+            String(localized: "Compare \(setName)")
         }
     }
 
@@ -410,6 +617,41 @@ enum AppStrings {
                 return String(localized: "Moved \(movedCount) original files to the Trash. Could not move \(failedCount) original files.")
             }
         }
+    }
+
+    enum Problems {
+        static let dependenciesSection = String(localized: "Dependencies")
+        static let duplicatesSection = String(localized: "Duplicates")
+        static let invalidFoldersSection = String(localized: "Invalid Folders")
+        static let missingManifest = String(localized: "No manifest.json was found in this folder.")
+        static let noProblems = String(localized: "No problems")
+        static let title = String(localized: "Problems")
+    }
+
+    enum Activity {
+        static let actionColumn = String(localized: "Action")
+        static let summaryColumn = String(localized: "Summary")
+        static let timeColumn = String(localized: "Time")
+        static let title = String(localized: "Activity")
+    }
+
+    enum AuditActions {
+        static let archivesPruned = String(localized: "Archives Pruned")
+        static let modDeleted = String(localized: "Mod Deleted")
+        static let modDisabled = String(localized: "Mod Disabled")
+        static let modEnabled = String(localized: "Mod Enabled")
+        static let modMovedToTrash = String(localized: "Mod Moved to Trash")
+        static let modRestored = String(localized: "Mod Restored")
+        static let modSetApplied = String(localized: "Mod Set Applied")
+        static let modSetCreated = String(localized: "Mod Set Created")
+        static let modSetDeleted = String(localized: "Mod Set Deleted")
+        static let modSetRenamed = String(localized: "Mod Set Renamed")
+        static let modsAdded = String(localized: "Mods Added")
+        static let modsFolderCreated = String(localized: "Mods Folder Created")
+        static let modsFolderSelected = String(localized: "Mods Folder Selected")
+        static let modsInstallSkipped = String(localized: "Mods Install Skipped")
+        static let modsUpdated = String(localized: "Mods Updated")
+        static let sourceFilesMovedToTrash = String(localized: "Source Files Moved to Trash")
     }
 
     enum Errors {

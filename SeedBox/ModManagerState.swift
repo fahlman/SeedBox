@@ -5,6 +5,10 @@ struct ModManagerState: Equatable, Sendable {
     var status: InstallationStatus
     var hasSavedFolderAccess: Bool
     var mods: [ModInfo]
+    var invalidModFolders: [InvalidModFolder]
+    var archivedMods: [ArchivedModInfo]
+    var archiveSummary: ModArchiveSummary
+    var archiveSettings: ArchiveSettings
     var hasLoadedMods: Bool
     var modSets: [ModSet]
     var selectedModSetID: String
@@ -39,6 +43,20 @@ struct ModManagerState: Equatable, Sendable {
         }
 
         return auditTrail.recentEntries.last?.summary ?? ""
+    }
+
+    var duplicateGroups: [ModDuplicateGroup] {
+        ModManagerInsights.duplicateGroups(in: mods)
+    }
+
+    var dependencyIssues: [ModInfo] {
+        mods.filter { mod in
+            mod.hasMissingRequiredDependencies || mod.hasMissingOptionalDependencies
+        }
+    }
+
+    var hasProblems: Bool {
+        !dependencyIssues.isEmpty || !invalidModFolders.isEmpty || !duplicateGroups.isEmpty
     }
 }
 
