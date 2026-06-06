@@ -5,32 +5,36 @@ struct SettingsView: View {
     @ObservedObject var viewModel: ModManagerViewModel
     @State private var isChoosingModsFolder = false
 
+    private var presentationState: ModManagerSettingsPresentationState {
+        ModManagerSettingsPresentationState(viewModel: viewModel)
+    }
+
     var body: some View {
         Form {
             Section(AppStrings.Settings.managedModsFolderSection) {
                 LabeledContent(AppStrings.Settings.folder) {
-                    Text(viewModel.modFolderName)
+                    Text(presentationState.modFolderName)
                         .foregroundStyle(.secondary)
                 }
 
-                NativePathControl(url: viewModel.install.modDirectoryURL)
+                NativePathControl(url: presentationState.install.modDirectoryURL)
                     .frame(height: 28)
-                    .help(viewModel.state.modsDirectoryPath)
+                    .help(presentationState.modsDirectoryPath)
 
-                LabeledContent(viewModel.modFolderName) {
+                LabeledContent(presentationState.modFolderName) {
                     Label(
-                        readiness.modsFolderStatusText,
-                        systemImage: readiness.canManageMods ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                        presentationState.readiness.modsFolderStatusText,
+                        systemImage: presentationState.readiness.canManageMods ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
                     )
-                    .foregroundStyle(readiness.canManageMods ? .green : .orange)
+                    .foregroundStyle(presentationState.readiness.canManageMods ? .green : .orange)
                 }
 
                 LabeledContent(AppStrings.Settings.folderAccess) {
                     Label(
-                        viewModel.state.hasSavedFolderAccess ? AppStrings.Settings.saved : AppStrings.Settings.notSaved,
-                        systemImage: viewModel.state.hasSavedFolderAccess ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                        presentationState.hasSavedFolderAccess ? AppStrings.Settings.saved : AppStrings.Settings.notSaved,
+                        systemImage: presentationState.hasSavedFolderAccess ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
                     )
-                    .foregroundStyle(viewModel.state.hasSavedFolderAccess ? .green : .orange)
+                    .foregroundStyle(presentationState.hasSavedFolderAccess ? .green : .orange)
                 }
 
                 HStack {
@@ -45,7 +49,7 @@ struct SettingsView: View {
                     } label: {
                         Label(AppStrings.Settings.reveal, systemImage: "eye")
                     }
-                    .disabled(!readiness.canManageMods)
+                    .disabled(!presentationState.readiness.canManageMods)
 
                     Button {
                         Task {
@@ -54,7 +58,7 @@ struct SettingsView: View {
                     } label: {
                         Label(AppStrings.Setup.createFolder, systemImage: "folder.badge.plus")
                     }
-                    .disabled(!readiness.canCreateModFolder)
+                    .disabled(!presentationState.readiness.canCreateModFolder)
 
                     Spacer()
                 }
@@ -83,7 +87,7 @@ struct SettingsView: View {
                     in: 1...365
                 ) {
                     LabeledContent(AppStrings.Settings.keepArchivedMods) {
-                        Text(AppStrings.Settings.days(viewModel.archiveSettings.normalizedRetentionDays))
+                        Text(AppStrings.Settings.days(presentationState.archiveSettings.normalizedRetentionDays))
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -107,14 +111,10 @@ struct SettingsView: View {
         }
     }
 
-    private var readiness: ModManagerReadiness {
-        viewModel.state.readiness
-    }
-
     private var moveModFilesToTrashBinding: Binding<Bool> {
         Binding(
             get: {
-                viewModel.sourceCleanupSettings.moveModFilesToTrashAfterAddingMods
+                presentationState.sourceCleanupSettings.moveModFilesToTrashAfterAddingMods
             },
             set: { isEnabled in
                 viewModel.setMoveModFilesToTrashAfterAddingMods(isEnabled)
@@ -125,7 +125,7 @@ struct SettingsView: View {
     private var suppressAddModsSuccessNotificationBinding: Binding<Bool> {
         Binding(
             get: {
-                viewModel.sourceCleanupSettings.suppressAddModsSuccessNotification
+                presentationState.sourceCleanupSettings.suppressAddModsSuccessNotification
             },
             set: { isEnabled in
                 viewModel.setSuppressAddModsSuccessNotification(isEnabled)
@@ -136,7 +136,7 @@ struct SettingsView: View {
     private var automaticallyPrunesExpiredArchivesBinding: Binding<Bool> {
         Binding(
             get: {
-                viewModel.archiveSettings.automaticallyPrunesExpiredArchives
+                presentationState.archiveSettings.automaticallyPrunesExpiredArchives
             },
             set: { isEnabled in
                 viewModel.setAutomaticallyPrunesExpiredArchives(isEnabled)
@@ -147,7 +147,7 @@ struct SettingsView: View {
     private var archiveRetentionDaysBinding: Binding<Int> {
         Binding(
             get: {
-                viewModel.archiveSettings.normalizedRetentionDays
+                presentationState.archiveSettings.normalizedRetentionDays
             },
             set: { days in
                 viewModel.setArchiveRetentionDays(days)

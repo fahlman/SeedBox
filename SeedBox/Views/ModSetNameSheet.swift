@@ -81,7 +81,7 @@ struct ModSetNameSheet: View {
             HStack {
                 Spacer()
 
-                Button("Cancel", role: .cancel) {
+                Button(AppStrings.Common.cancel, role: .cancel) {
                     onCancel()
                 }
                 .keyboardShortcut(.cancelAction)

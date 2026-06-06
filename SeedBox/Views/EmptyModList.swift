@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct EmptyModList: View {
-    @ObservedObject var viewModel: ModManagerViewModel
+    var canManageMods: Bool
+    var modFolderName: String
     var addMods: () -> Void
 
     var body: some View {
@@ -10,7 +11,7 @@ struct EmptyModList: View {
                 .font(.system(size: 38))
                 .foregroundStyle(.secondary)
 
-            Text(AppStrings.EmptyState.noMods(in: viewModel.modFolderName))
+            Text(AppStrings.EmptyState.noMods(in: modFolderName))
                 .font(.title3.weight(.semibold))
 
             Text(AppStrings.EmptyState.addModsPrompt)
@@ -20,10 +21,10 @@ struct EmptyModList: View {
             Button {
                 addMods()
             } label: {
-                Label("Add Mods", systemImage: "square.and.arrow.down")
+                Label(AppStrings.Toolbar.addMods, systemImage: "square.and.arrow.down")
             }
             .buttonStyle(.borderedProminent)
-            .disabled(!viewModel.state.readiness.canManageMods)
+            .disabled(!canManageMods)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(32)

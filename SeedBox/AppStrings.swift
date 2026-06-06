@@ -58,13 +58,52 @@ enum AppStrings {
         static let prompt = String(localized: "Search Mods")
     }
 
+    enum Common {
+        static let cancel = String(localized: "Cancel")
+        static let delete = String(localized: "Delete")
+    }
+
+    enum Commands {
+        static let addMods = String(localized: "Add Mods...")
+        static let chooseModsFolder = String(localized: "Choose Mods Folder...")
+        static let compareModSet = String(localized: "Compare Mod Set")
+        static let deleteModSet = String(localized: "Delete Mod Set")
+        static let deleteSelectedMod = String(localized: "Delete Selected Mod")
+        static let duplicateModSet = String(localized: "Duplicate Mod Set")
+        static let modSetMenu = String(localized: "Mod Set")
+        static let modsMenu = String(localized: "Mods")
+        static let newModSet = String(localized: "New Mod Set")
+        static let pruneExpiredArchives = String(localized: "Prune Expired Archives")
+        static let refreshModsFolder = String(localized: "Refresh Mods Folder")
+        static let renameModSet = String(localized: "Rename Mod Set")
+        static let restorePreviousVersion = String(localized: "Restore Previous Version")
+        static let revealArchivedModsInFinder = String(localized: "Reveal Archived Mods in Finder")
+        static let revealModsFolderInFinder = String(localized: "Reveal Mods Folder in Finder")
+        static let revealSelectedModInFinder = String(localized: "Reveal Selected Mod in Finder")
+        static let showModDetails = String(localized: "Show Mod Details")
+    }
+
+    enum Table {
+        static let author = String(localized: "Author")
+        static let mod = String(localized: "Mod")
+        static let state = String(localized: "State")
+        static let type = String(localized: "Type")
+        static let updates = String(localized: "Updates")
+    }
+
     enum Toolbar {
         static let activity = String(localized: "Activity")
         static let addMods = String(localized: "Add Mods")
+        static let compareModSet = String(localized: "Compare Mod Set")
         static let deleteMod = String(localized: "Delete Mod")
+        static let deleteSet = String(localized: "Delete Set")
+        static let duplicateSet = String(localized: "Duplicate Set")
         static let hideDetails = String(localized: "Hide Details")
+        static let modSet = String(localized: "Mod Set")
+        static let newModSet = String(localized: "New Mod Set")
         static let problems = String(localized: "Problems")
         static let pruneExpiredArchives = String(localized: "Prune Expired Archives")
+        static let renameSet = String(localized: "Rename Set")
         static let restorePreviousVersion = String(localized: "Restore Previous Version")
         static let revealInFinder = String(localized: "Reveal in Finder")
         static let settings = String(localized: "Settings")
@@ -91,6 +130,8 @@ enum AppStrings {
     }
 
     enum Alerts {
+        static let deleteModTitle = String(localized: "Delete Mod?")
+        static let deleteModSetTitle = String(localized: "Delete Mod Set?")
         static let dependencyWarning = String(localized: "Dependency Warning")
         static let disableAnyway = String(localized: "Disable Anyway")
         static let disableDependentMods = String(localized: "Disable Dependent Mods")

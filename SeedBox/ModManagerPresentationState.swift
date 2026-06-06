@@ -39,6 +39,46 @@ struct ModManagerPresentationState {
         state.modSetSelection
     }
 
+    var statusLineMessage: String {
+        state.statusLineMessage
+    }
+
+    var archiveSummary: ModArchiveSummary {
+        state.archiveSummary
+    }
+
+    var archiveRetentionDays: Int {
+        state.archiveSettings.normalizedRetentionDays
+    }
+
+    var auditTrail: AuditTrailState {
+        state.auditTrail
+    }
+
+    var pendingSourceCleanupOffer: SourceCleanupOffer? {
+        state.pendingSourceCleanupOffer
+    }
+
+    var problemSummary: ModProblemSummary {
+        ModProblemSummary(
+            dependencyIssues: state.dependencyIssues,
+            invalidFolders: state.invalidModFolders,
+            duplicateGroups: state.duplicateGroups
+        )
+    }
+
+    var selectedSet: ModSet? {
+        modSetSelection.selectedSet
+    }
+
+    var selectedRenamableSet: ModSet? {
+        modSetSelection.selectedRenamableSet
+    }
+
+    var selectedDeletableSet: ModSet? {
+        modSetSelection.selectedDeletableSet
+    }
+
     var canManageMods: Bool {
         readiness.canManageMods
     }
@@ -76,7 +116,7 @@ struct ModManagerPresentationState {
     }
 
     var selectedModSetComparison: ModSetComparison? {
-        guard let selectedSet = state.modSetSelection.selectedSet else {
+        guard let selectedSet else {
             return nil
         }
 
@@ -84,6 +124,14 @@ struct ModManagerPresentationState {
             for: selectedSet,
             currentMods: state.mods
         )
+    }
+
+    func modSet(withID id: String) -> ModSet? {
+        state.modSets.first { $0.id == id }
+    }
+
+    func modSetIsAlreadyApplied(_ id: String) -> Bool {
+        state.selectedModSetID == id && state.appliedModSetID == id
     }
 
     private static func selectedMod(
@@ -98,6 +146,12 @@ struct ModManagerPresentationState {
 
         return filteredMods.first { $0.id == selectedModID }
     }
+}
+
+struct ModProblemSummary {
+    var dependencyIssues: [ModInfo]
+    var invalidFolders: [InvalidModFolder]
+    var duplicateGroups: [ModDuplicateGroup]
 }
 
 struct ModSelectionState {

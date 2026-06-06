@@ -5,21 +5,9 @@ struct ModManagerView: View {
     @ObservedObject var viewModel: ModManagerViewModel
     @Binding var searchText: String
     @Binding var selectedModIDs: Set<String>
-    @State private var modSetEditorMode: ModSetEditorMode?
-    @State private var modPendingDeletion: ModInfo?
-    @State private var modSetPendingDeletion: ModSet?
-    @State private var dependencyConfirmation: DependencyConfirmation?
-    @State private var importPreview: ModImportPreview?
-    @State private var modSetComparison: ModSetComparison?
-    @State private var isShowingProblems = false
-    @State private var isShowingActivity = false
-    @State private var isShowingModInspector = false
-    @State private var isAddingMods = false
-    @State private var isChoosingModsFolder = false
-    @State private var modDropIsTargeted = false
-    @State private var remembersSourceCleanupChoice = false
+    @State var presentation = ModManagerViewPresentation()
 
-    private static var addableModContentTypes: [UTType] {
+    static var addableModContentTypes: [UTType] {
         var contentTypes: [UTType] = [.folder]
         if let zipType = UTType(filenameExtension: "zip") {
             contentTypes.append(zipType)
@@ -27,7 +15,7 @@ struct ModManagerView: View {
         return contentTypes
     }
 
-    private var presentationState: ModManagerPresentationState {
+    var presentationState: ModManagerPresentationState {
         ModManagerPresentationState(
             state: viewModel.state,
             searchText: searchText,
@@ -44,7 +32,7 @@ struct ModManagerView: View {
             .dropDestination(for: URL.self) { urls, _ in
                 installDroppedMods(from: urls)
             } isTargeted: { isTargeted in
-                modDropIsTargeted = isTargeted
+                presentation.isDropTargeted = isTargeted
             }
             .toolbar {
                 toolbarContent
@@ -55,7 +43,7 @@ struct ModManagerView: View {
                 prompt: AppStrings.Search.prompt
             )
             .fileImporter(
-                isPresented: $isAddingMods,
+                isPresented: $presentation.isAddingMods,
                 allowedContentTypes: Self.addableModContentTypes,
                 allowsMultipleSelection: true
             ) { result in
@@ -67,7 +55,7 @@ struct ModManagerView: View {
                 }
             }
             .fileImporter(
-                isPresented: $isChoosingModsFolder,
+                isPresented: $presentation.isChoosingModsFolder,
                 allowedContentTypes: [.folder]
             ) { result in
                 switch result {
@@ -79,143 +67,169 @@ struct ModManagerView: View {
                     viewModel.recordModsFolderSelectionError(error)
                 }
             }
-            .sheet(item: $modSetEditorMode) { mode in
-                ModSetNameSheet(
-                    mode: mode,
-                    onCancel: {
-                        modSetEditorMode = nil
-                    },
-                    onCommit: { name in
-                        Task {
-                            await commitModSetEditor(mode: mode, name: name)
-                        }
-                    }
-                )
-            }
-            .sheet(item: $importPreview) { preview in
-                ModImportPreviewSheet(
-                    preview: preview,
-                    cancel: {
-                        ModLibrary.discardImportPreview(preview)
-                        importPreview = nil
-                    },
-                    install: {
-                        installPreviewedMods(preview)
-                    }
-                )
-            }
-            .sheet(isPresented: $isShowingProblems) {
-                ProblemsSheet(
-                    dependencyIssues: presentationState.state.dependencyIssues,
-                    invalidFolders: presentationState.state.invalidModFolders,
-                    duplicateGroups: presentationState.state.duplicateGroups,
-                    close: {
-                        isShowingProblems = false
-                    }
-                )
-            }
-            .sheet(isPresented: $isShowingActivity) {
-                ActivitySheet(
-                    auditTrail: viewModel.state.auditTrail,
-                    close: {
-                        isShowingActivity = false
-                    }
-                )
-            }
-            .sheet(item: $modSetComparison) { comparison in
-                ModSetComparisonSheet(comparison: comparison) {
-                    modSetComparison = nil
-                }
-            }
+            .sheet(item: activeSheet, content: sheetContent)
             .alert(
-                "Delete Mod?",
-                isPresented: modDeletionAlertIsPresented,
-                presenting: modPendingDeletion
-            ) { mod in
-                Button("Delete", role: .destructive) {
-                    Task {
-                        await viewModel.deleteMod(mod)
-                        removeSelectedModID(mod.id)
-                        modPendingDeletion = nil
-                    }
-                }
-
-                Button("Cancel", role: .cancel) {
-                    modPendingDeletion = nil
-                }
-            } message: { mod in
-                Text(AppStrings.Alerts.deleteModMessage(
-                    mod.displayName,
-                    retentionDays: viewModel.state.archiveSettings.normalizedRetentionDays
-                ))
+                presentation.alert?.title ?? AppStrings.Alerts.dependencyWarning,
+                isPresented: alertIsPresented,
+                presenting: presentation.alert,
+                actions: alertActions,
+                message: alertMessage
+            )
+            .onChange(of: presentationState.pendingSourceCleanupOffer?.id) {
+                syncSourceCleanupOffer()
             }
-            .alert(
-                "Delete Mod Set?",
-                isPresented: modSetDeletionAlertIsPresented,
-                presenting: modSetPendingDeletion
-            ) { set in
-                Button("Delete", role: .destructive) {
-                    Task {
-                        await viewModel.deleteModSet(set)
-                        modSetPendingDeletion = nil
-                    }
-                }
-
-                Button("Cancel", role: .cancel) {
-                    modSetPendingDeletion = nil
-                }
-            } message: { set in
-                Text(AppStrings.Alerts.deleteModSetMessage(set.name))
-            }
-            .alert(
-                dependencyConfirmation?.title ?? AppStrings.Alerts.dependencyWarning,
-                isPresented: dependencyConfirmationAlertIsPresented,
-                presenting: dependencyConfirmation
-            ) { confirmation in
-                Button("Cancel", role: .cancel) {
-                    dependencyConfirmation = nil
-                }
-
-                if let repairTitle = confirmation.repairTitle,
-                   let repairAction = confirmation.repairAction {
-                    Button(repairTitle, role: confirmation.repairRole) {
-                        performDependencyAction(repairAction)
-                    }
-                }
-
-                Button(confirmation.confirmTitle, role: confirmation.confirmRole) {
-                    performDependencyAction(confirmation.action)
-                }
-            } message: { confirmation in
-                Text(confirmation.message)
-            }
-            .sheet(item: sourceCleanupSheetItem) { offer in
-                SourceCleanupOfferSheet(
-                    offer: offer,
-                    remembersChoice: $remembersSourceCleanupChoice,
-                    keepFiles: {
-                        viewModel.keepSourceFiles(
-                            for: offer,
-                            remembersChoice: remembersSourceCleanupChoice
-                        )
-                    },
-                    moveToTrash: {
-                        Task {
-                            await viewModel.moveSourceFilesToTrash(
-                                for: offer,
-                                remembersChoice: remembersSourceCleanupChoice
-                            )
-                        }
-                    },
-                    dismissNotice: {
-                        viewModel.dismissSourceCleanupOffer()
-                    }
-                )
-            }
-            .onChange(of: viewModel.state.pendingSourceCleanupOffer?.id) {
-                remembersSourceCleanupChoice = false
+            .onAppear {
+                syncSourceCleanupOffer()
             }
             .focusedValue(\.modManagerCommandContext, commandContext)
+    }
+
+    @ViewBuilder
+    private func sheetContent(for sheet: ModManagerSheet) -> some View {
+        switch sheet {
+        case .modSetEditor(let mode):
+            ModSetNameSheet(
+                mode: mode,
+                onCancel: {
+                    presentation.dismissSheet()
+                },
+                onCommit: { name in
+                    Task {
+                        await commitModSetEditor(mode: mode, name: name)
+                    }
+                }
+            )
+        case .importPreview(let preview):
+            ModImportPreviewSheet(
+                preview: preview,
+                cancel: {
+                    ModLibrary.discardImportPreview(preview)
+                    presentation.dismissSheet()
+                },
+                install: {
+                    installPreviewedMods(preview)
+                }
+            )
+        case .sourceCleanup(let offer):
+            SourceCleanupOfferSheet(
+                offer: offer,
+                remembersChoice: $presentation.remembersSourceCleanupChoice,
+                keepFiles: {
+                    viewModel.keepSourceFiles(
+                        for: offer,
+                        remembersChoice: presentation.remembersSourceCleanupChoice
+                    )
+                    presentation.dismissSheet()
+                },
+                moveToTrash: {
+                    Task {
+                        await viewModel.moveSourceFilesToTrash(
+                            for: offer,
+                            remembersChoice: presentation.remembersSourceCleanupChoice
+                        )
+                        presentation.dismissSheet()
+                    }
+                },
+                dismissNotice: {
+                    viewModel.dismissSourceCleanupOffer()
+                    presentation.dismissSheet()
+                }
+            )
+        case .problems:
+            ProblemsSheet(
+                dependencyIssues: presentationState.problemSummary.dependencyIssues,
+                invalidFolders: presentationState.problemSummary.invalidFolders,
+                duplicateGroups: presentationState.problemSummary.duplicateGroups,
+                close: {
+                    presentation.dismissSheet()
+                }
+            )
+        case .activity:
+            ActivitySheet(
+                auditTrail: presentationState.auditTrail,
+                close: {
+                    presentation.dismissSheet()
+                }
+            )
+        case .modSetComparison(let comparison):
+            ModSetComparisonSheet(comparison: comparison) {
+                presentation.dismissSheet()
+            }
+        }
+    }
+
+    private var activeSheet: Binding<ModManagerSheet?> {
+        Binding(
+            get: {
+                presentation.sheet
+            },
+            set: { sheet in
+                if sheet == nil,
+                   case .sourceCleanup = presentation.sheet {
+                    viewModel.dismissSourceCleanupOffer()
+                }
+                presentation.sheet = sheet
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func alertActions(for alert: ModManagerAlert) -> some View {
+        switch alert {
+        case .deleteMod(let mod):
+            Button(AppStrings.Common.delete, role: .destructive) {
+                Task {
+                    await viewModel.deleteMod(mod)
+                    removeSelectedModID(mod.id)
+                    presentation.dismissAlert()
+                }
+            }
+
+            Button(AppStrings.Common.cancel, role: .cancel) {
+                presentation.dismissAlert()
+            }
+        case .deleteModSet(let set):
+            Button(AppStrings.Common.delete, role: .destructive) {
+                Task {
+                    await viewModel.deleteModSet(set)
+                    presentation.dismissAlert()
+                }
+            }
+
+            Button(AppStrings.Common.cancel, role: .cancel) {
+                presentation.dismissAlert()
+            }
+        case .dependency(let confirmation):
+            Button(AppStrings.Common.cancel, role: .cancel) {
+                presentation.dismissAlert()
+            }
+
+            if let repairTitle = confirmation.repairTitle,
+               let repairAction = confirmation.repairAction {
+                Button(repairTitle, role: confirmation.repairRole) {
+                    performDependencyAction(repairAction)
+                }
+            }
+
+            Button(confirmation.confirmTitle, role: confirmation.confirmRole) {
+                performDependencyAction(confirmation.action)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func alertMessage(for alert: ModManagerAlert) -> some View {
+        switch alert {
+        case .deleteMod(let mod):
+            Text(AppStrings.Alerts.deleteModMessage(
+                mod.displayName,
+                retentionDays: presentationState.archiveRetentionDays
+            ))
+        case .deleteModSet(let set):
+            Text(AppStrings.Alerts.deleteModSetMessage(set.name))
+        case .dependency(let confirmation):
+            Text(confirmation.message)
+        }
     }
 
     private var content: some View {
@@ -224,14 +238,16 @@ struct ModManagerView: View {
                 managedContent
             } else {
                 SetupEmptyState(
-                    viewModel: viewModel,
-                    chooseModsFolder: chooseModsFolder
+                    readiness: presentationState.readiness,
+                    modFolderName: viewModel.modFolderName,
+                    chooseModsFolder: chooseModsFolder,
+                    createModFolder: createModFolder
                 )
             }
 
-            if !viewModel.state.statusLineMessage.isEmpty {
+            if !presentationState.statusLineMessage.isEmpty {
                 Divider()
-                Text(viewModel.state.statusLineMessage)
+                Text(presentationState.statusLineMessage)
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -246,7 +262,8 @@ struct ModManagerView: View {
         HStack(spacing: 0) {
             ModList(
                 mods: presentationState.filteredMods,
-                viewModel: viewModel,
+                canManageMods: presentationState.canManageMods,
+                modFolderName: viewModel.modFolderName,
                 selectedModIDs: $selectedModIDs,
                 selectedMod: presentationState.selection.mod,
                 addMods: addMods,
@@ -255,7 +272,7 @@ struct ModManagerView: View {
                 requestDeleteSelectedMod: requestDeleteSelectedMod
             )
 
-            if isShowingModInspector, let selectedMod = presentationState.selection.mod {
+            if presentation.isShowingModInspector, let selectedMod = presentationState.selection.mod {
                 Divider()
                 ModDetailInspector(
                     mod: selectedMod,
@@ -264,7 +281,7 @@ struct ModManagerView: View {
                     previousArchivedVersion: presentationState.selection.previousArchivedVersion,
                     archivedVersions: presentationState.selection.archivedVersions,
                     duplicateGroups: presentationState.selection.duplicateGroups,
-                    archiveSummary: viewModel.state.archiveSummary,
+                    archiveSummary: presentationState.archiveSummary,
                     restorePreviousVersion: restorePreviousVersion,
                     revealSelectedMod: revealSelectedMod,
                     pruneExpiredArchives: pruneExpiredArchives
@@ -276,7 +293,7 @@ struct ModManagerView: View {
 
     @ViewBuilder
     private var dropOverlay: some View {
-        if modDropIsTargeted && presentationState.canManageMods {
+        if presentation.isDropTargeted && presentationState.canManageMods {
             Rectangle()
                 .fill(Color.accentColor.opacity(0.08))
                 .overlay {
@@ -287,393 +304,14 @@ struct ModManagerView: View {
         }
     }
 
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ModManagerToolbar(
-            presentationState: presentationState,
-            isShowingModInspector: isShowingModInspector,
-            selectModSet: requestSelectModSet,
-            showProblems: {
-                isShowingProblems = true
-            },
-            showActivity: {
-                isShowingActivity = true
-            },
-            showModInspector: showModInspector,
-            createModSet: createModSet,
-            duplicateSelectedModSet: duplicateSelectedModSet,
-            renameSelectedModSet: renameSelectedModSet,
-            deleteSelectedModSet: requestDeleteSelectedModSet,
-            compareSelectedModSet: compareSelectedModSet,
-            addMods: addMods,
-            pruneExpiredArchives: pruneExpiredArchives,
-            restorePreviousVersion: restorePreviousVersion,
-            revealSelectedMod: revealSelectedMod,
-            deleteSelectedMod: requestDeleteSelectedMod
-        )
-    }
-
-    private var commandContext: ModManagerCommandContext {
-        ModManagerCommandContext(
-            presentationState: presentationState,
-            chooseModsFolder: chooseModsFolder,
-            addMods: addMods,
-            refresh: {
-                Task {
-                    await viewModel.refresh()
-                }
-            },
-            showProblems: {
-                isShowingProblems = true
-            },
-            showActivity: {
-                isShowingActivity = true
-            },
-            showModInspector: showModInspector,
-            createModSet: createModSet,
-            duplicateSelectedModSet: duplicateSelectedModSet,
-            renameSelectedModSet: renameSelectedModSet,
-            deleteSelectedModSet: requestDeleteSelectedModSet,
-            compareSelectedModSet: compareSelectedModSet,
-            revealModsFolder: viewModel.revealModsFolder,
-            revealArchivedModsFolder: viewModel.revealArchivedModsFolder,
-            pruneExpiredArchives: pruneExpiredArchives,
-            restorePreviousVersion: restorePreviousVersion,
-            revealSelectedMod: revealSelectedMod,
-            deleteSelectedMod: requestDeleteSelectedMod
-        )
-    }
-
-    private func chooseModsFolder() {
-        isChoosingModsFolder = true
-    }
-
-    private func addMods() {
-        isAddingMods = true
-    }
-
-    private func showModInspector() {
-        guard presentationState.selection.hasSelectedMod else {
-            return
-        }
-
-        isShowingModInspector.toggle()
-    }
-
-    private func restorePreviousVersion() {
-        guard let selectedMod = presentationState.selection.mod else {
-            return
-        }
-
-        Task {
-            await viewModel.restorePreviousVersion(of: selectedMod)
-        }
-    }
-
-    private func pruneExpiredArchives() {
-        Task {
-            await viewModel.pruneExpiredArchives()
-        }
-    }
-
-    private func requestSelectModSet(id: String) {
-        guard id != presentationState.state.selectedModSetID
-                || presentationState.state.appliedModSetID != id
-        else {
-            return
-        }
-
-        guard let set = presentationState.state.modSets.first(where: { $0.id == id }) else {
-            selectModSet(id: id)
-            return
-        }
-
-        let issues = presentationState.dependencyGraph.issues(applying: set)
-        guard !issues.isEmpty else {
-            selectModSet(id: id)
-            return
-        }
-
-        dependencyConfirmation = DependencyConfirmation(
-            title: AppStrings.Alerts.unresolvedRequiredDependencies,
-            message: modSetDependencyWarningMessage(set: set, issues: issues),
-            confirmTitle: AppStrings.Alerts.applyAnyway,
-            confirmRole: nil,
-            action: .selectModSet(id)
-        )
-    }
-
-    private func selectModSet(id: String) {
-        Task {
-            await viewModel.selectModSet(id: id)
-        }
-    }
-
-    private func previewMods(from urls: [URL]) {
-        guard let preview = viewModel.prepareImportPreview(from: urls) else {
-            return
-        }
-
-        importPreview = preview
-    }
-
-    private func installPreviewedMods(_ preview: ModImportPreview) {
-        importPreview = nil
-        Task {
-            await viewModel.addPreviewedMods(preview)
-        }
-    }
-
-    private func installDroppedMods(from urls: [URL]) -> Bool {
-        guard presentationState.canManageMods else {
-            return false
-        }
-
-        let installableURLs = urls.filter(Self.canDropAsModSource)
-        guard !installableURLs.isEmpty else {
-            return false
-        }
-
-        previewMods(from: installableURLs)
-        return true
-    }
-
-    private static func canDropAsModSource(_ url: URL) -> Bool {
-        url.pathExtension.lowercased() == "zip"
-            || url.hasDirectoryPath
-            || FileManager.default.directoryExists(at: url)
-    }
-
-    private func createModSet() {
-        modSetEditorMode = .create
-    }
-
-    private func duplicateSelectedModSet() {
-        guard let selectedSet = presentationState.state.modSetSelection.selectedSet else {
-            return
-        }
-
-        modSetEditorMode = .duplicate(selectedSet)
-    }
-
-    private func renameSelectedModSet() {
-        guard let selectedSet = presentationState.state.modSetSelection.selectedRenamableSet else {
-            return
-        }
-
-        modSetEditorMode = .rename(selectedSet)
-    }
-
-    private func requestDeleteSelectedModSet() {
-        modSetPendingDeletion = presentationState.state.modSetSelection.selectedDeletableSet
-    }
-
-    private func compareSelectedModSet() {
-        guard let comparison = presentationState.selectedModSetComparison else {
-            return
-        }
-
-        modSetComparison = comparison
-    }
-
-    private func revealSelectedMod() {
-        guard let selectedMod = presentationState.selection.mod else {
-            return
-        }
-
-        viewModel.revealMod(selectedMod)
-    }
-
-    private func requestDeleteSelectedMod() {
-        modPendingDeletion = presentationState.selection.mod
-    }
-
-    private func requestSetModEnabled(_ mod: ModInfo, enabled: Bool) {
-        guard mod.isEnabled != enabled else {
-            return
-        }
-
-        if enabled {
-            let issues = presentationState.dependencyGraph.requiredIssuesIfEnabled(mod)
-            guard issues.isEmpty else {
-                let repairMods = presentationState.dependencyGraph.disabledModsSatisfying(issues)
-                let canRepairAllIssues = repairMods.count == issues.count
-                dependencyConfirmation = DependencyConfirmation(
-                    title: AppStrings.Alerts.missingRequiredDependencies,
-                    message: enableDependencyWarningMessage(mod: mod, issues: issues),
-                    confirmTitle: AppStrings.Alerts.enableAnyway,
-                    confirmRole: nil,
-                    action: .setMod(mod, enabled: true),
-                    repairTitle: canRepairAllIssues ? AppStrings.Alerts.enableRequiredDependencies : nil,
-                    repairRole: nil,
-                    repairAction: canRepairAllIssues ? .setMods(repairMods + [mod], enabled: true) : nil
-                )
-                return
-            }
-        } else {
-            let dependents = presentationState.dependencyGraph.enabledDependentsIfDisabled(mod)
-            guard dependents.isEmpty else {
-                dependencyConfirmation = DependencyConfirmation(
-                    title: AppStrings.Alerts.requiredByEnabledMods,
-                    message: disableDependencyWarningMessage(mod: mod, dependents: dependents),
-                    confirmTitle: AppStrings.Alerts.disableAnyway,
-                    confirmRole: .destructive,
-                    action: .setMod(mod, enabled: false),
-                    repairTitle: AppStrings.Alerts.disableDependentMods,
-                    repairRole: .destructive,
-                    repairAction: .setMods(dependents + [mod], enabled: false)
-                )
-                return
-            }
-        }
-
-        setMod(mod, enabled: enabled)
-    }
-
-    private func setMod(_ mod: ModInfo, enabled: Bool) {
-        Task {
-            await viewModel.setMod(mod, enabled: enabled)
-        }
-    }
-
-    private func setMods(_ mods: [ModInfo], enabled: Bool) {
-        Task {
-            await viewModel.setMods(mods, enabled: enabled)
-        }
-    }
-
-    private func performDependencyAction(_ action: DependencyConfirmationAction) {
-        dependencyConfirmation = nil
-
-        switch action {
-        case .setMod(let mod, let enabled):
-            setMod(mod, enabled: enabled)
-        case .setMods(let mods, let enabled):
-            setMods(mods, enabled: enabled)
-        case .selectModSet(let id):
-            selectModSet(id: id)
-        }
-    }
-
-    private func enableDependencyWarningMessage(
-        mod: ModInfo,
-        issues: [ModDependencyResolution]
-    ) -> String {
-        AppStrings.Dependency.enableWarning(
-            modName: mod.displayName,
-            dependencySummary: AppStrings.Dependency.formattedList(issues.map(\.summaryText)),
-            dependencyCount: issues.count
-        )
-    }
-
-    private func disableDependencyWarningMessage(mod: ModInfo, dependents: [ModInfo]) -> String {
-        AppStrings.Dependency.disableWarning(
-            modName: mod.displayName,
-            dependentSummary: AppStrings.Dependency.formattedList(dependents.map(\.displayName)),
-            dependentCount: dependents.count
-        )
-    }
-
-    private func modSetDependencyWarningMessage(
-        set: ModSet,
-        issues: [ModDependencyIssue]
-    ) -> String {
-        if let issue = issues.first, issues.count == 1 {
-            return AppStrings.Dependency.singleModSetIssue(
-                setName: set.name,
-                modName: issue.modName,
-                dependencySummary: issue.dependencySummaryText
-            )
-        }
-
-        let examples = issues
-            .prefix(3)
-            .map { issue in
-                "\(issue.modName): \(issue.dependencySummaryText)"
-            }
-            .joined(separator: "\n")
-
-        return AppStrings.Dependency.multipleModSetIssues(
-            setName: set.name,
-            issueCount: issues.count,
-            examples: examples
-        )
-    }
-
-    private func commitModSetEditor(mode: ModSetEditorMode, name: String) async {
-        switch mode {
-        case .create:
-            await viewModel.createModSet(named: name)
-        case .duplicate:
-            await viewModel.duplicateSelectedModSet(named: name)
-        case .rename:
-            await viewModel.renameSelectedModSet(to: name)
-        }
-        modSetEditorMode = nil
-    }
-
-    private func removeSelectedModID(_ id: String) {
-        selectedModIDs.remove(id)
-    }
-
-    private var modDeletionAlertIsPresented: Binding<Bool> {
+    private var alertIsPresented: Binding<Bool> {
         Binding(
-            get: { modPendingDeletion != nil },
+            get: { presentation.alert != nil },
             set: { isPresented in
                 if !isPresented {
-                    modPendingDeletion = nil
+                    presentation.dismissAlert()
                 }
             }
         )
     }
-
-    private var modSetDeletionAlertIsPresented: Binding<Bool> {
-        Binding(
-            get: { modSetPendingDeletion != nil },
-            set: { isPresented in
-                if !isPresented {
-                    modSetPendingDeletion = nil
-                }
-            }
-        )
-    }
-
-    private var dependencyConfirmationAlertIsPresented: Binding<Bool> {
-        Binding(
-            get: { dependencyConfirmation != nil },
-            set: { isPresented in
-                if !isPresented {
-                    dependencyConfirmation = nil
-                }
-            }
-        )
-    }
-
-    private var sourceCleanupSheetItem: Binding<SourceCleanupOffer?> {
-        Binding(
-            get: { viewModel.state.pendingSourceCleanupOffer },
-            set: { offer in
-                if offer == nil {
-                    viewModel.dismissSourceCleanupOffer()
-                }
-            }
-        )
-    }
-}
-
-private struct DependencyConfirmation {
-    var title: String
-    var message: String
-    var confirmTitle: String
-    var confirmRole: ButtonRole?
-    var action: DependencyConfirmationAction
-    var repairTitle: String? = nil
-    var repairRole: ButtonRole? = nil
-    var repairAction: DependencyConfirmationAction? = nil
-}
-
-private enum DependencyConfirmationAction {
-    case setMod(ModInfo, enabled: Bool)
-    case setMods([ModInfo], enabled: Bool)
-    case selectModSet(String)
 }

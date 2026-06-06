@@ -1,24 +1,16 @@
-import AppKit
 import Foundation
-
-private let modManagerNotificationSenderIDKey = "senderID"
 
 @MainActor
 final class ModManagerViewModel: ObservableObject {
-    static let didChangeSharedStateNotification = Notification.Name("ModManagerViewModelDidChangeSharedState")
-
     @Published private(set) var state: ModManagerState
 
-    private let folderAccess: SecurityScopedFolderAccess
-    private let folderChangeNotifier: ModFolderChangeNotifying
-    private let instanceID = UUID()
+    private let importPreviewCoordinator: ModImportPreviewCoordinator
     private let modSetDirectory: URL
-    private let modsFolderMonitor: ModsFolderMonitoring
-    private let preferences: ModManagerPreferences
     private let service: ModManagerService
-    private var ignoredFolderChangeDeadline = Date.distantPast
-    private var lastFolderAccessError: String?
-    private var sharedStateObservation: NotificationObservation?
+    private let workspacePresenter: ModManagerWorkspacePresenter
+    private var folderObservation: ModManagerFolderObservation?
+    private var stateStore: ModManagerStateStore
+    private var sharedStateSync: ModManagerSharedStateSync?
 
     init(
         defaults: UserDefaults = .standard,
@@ -29,44 +21,38 @@ final class ModManagerViewModel: ObservableObject {
     ) {
         let folderAccess = SecurityScopedFolderAccess(defaults: defaults)
         let preferences = ModManagerPreferences(defaults: defaults)
-        self.folderAccess = folderAccess
-        self.folderChangeNotifier = folderChangeNotifier
+        let stateStore = ModManagerStateStore(
+            folderAccess: folderAccess,
+            modSetDirectory: modSetDirectory,
+            preferences: preferences
+        )
+        importPreviewCoordinator = ModImportPreviewCoordinator(folderAccess: folderAccess)
         self.modSetDirectory = modSetDirectory
-        self.modsFolderMonitor = modsFolderMonitor
-        self.preferences = preferences
+        self.stateStore = stateStore
         service = ModManagerService(
             folderAccess: folderAccess,
             modSetDirectory: modSetDirectory
         )
-        state = Self.initialState(
-            preferences: preferences,
+        workspacePresenter = ModManagerWorkspacePresenter(folderAccess: folderAccess)
+        state = stateStore.initialState(selectedModSetID: selectedModSetID)
+        folderObservation = ModManagerFolderObservation(
             folderAccess: folderAccess,
-            modSetDirectory: modSetDirectory,
-            selectedModSetID: selectedModSetID
-        )
-        self.modsFolderMonitor.onChange = { [weak self] in
-            Task {
-                await self?.refreshAfterObservedModsFolderChange()
+            monitor: modsFolderMonitor,
+            notifier: folderChangeNotifier
+        ) { [weak self] in
+            guard let self else {
+                return
             }
+
+            await self.refreshAfterObservedModsFolderChange()
         }
-        sharedStateObservation = NotificationObservation(token: NotificationCenter.default.addObserver(
-            forName: Self.didChangeSharedStateNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            let senderID = notification.userInfo?[modManagerNotificationSenderIDKey] as? UUID
-            Task { @MainActor [weak self, senderID] in
-                guard let self else {
-                    return
-                }
-
-                guard senderID != self.instanceID else {
-                    return
-                }
-
-                await self.refreshAfterSharedStateChange()
+        sharedStateSync = ModManagerSharedStateSync { [weak self] in
+            guard let self else {
+                return
             }
-        })
+
+            await self.refreshAfterSharedStateChange()
+        }
         updateModsFolderMonitor()
     }
 
@@ -81,21 +67,13 @@ final class ModManagerViewModel: ObservableObject {
         StardewInstall.modFolderName
     }
 
-    var mods: [ModInfo] {
-        state.mods
-    }
-
-    var selectedModSetID: String {
-        state.selectedModSetID
-    }
-
     func refresh() async {
-        var nextState = stateByRestoringSavedFolder(from: state)
-        if preferences.hasLastKnownModFolderTokens {
+        var nextState = stateStore.stateByRestoringSavedFolder(from: state)
+        if stateStore.hasLastKnownModFolderTokens {
             nextState = await service.reconcileStartupModsFolderChange(
                 from: nextState,
-                previousModFolderTokens: preferences.lastKnownModFolderTokens,
-                appliedModSetID: preferences.lastAppliedModSetID
+                previousModFolderTokens: stateStore.lastKnownModFolderTokens,
+                appliedModSetID: stateStore.lastAppliedModSetID
             )
         } else {
             nextState = await service.refreshedState(from: nextState)
@@ -112,79 +90,43 @@ final class ModManagerViewModel: ObservableObject {
     }
 
     func revealModsFolder() {
-        guard guardCanRevealMods() else {
-            return
-        }
-
-        do {
-            try performWithFolderAccess {
-                NSWorkspace.shared.activateFileViewerSelecting([install.modDirectoryURL])
-            }
-        } catch is SecurityScopedFolderAccessError {
-        } catch {
-            record(AppStrings.Status.couldNotRevealModsFolder(error.localizedDescription))
-        }
+        commitState(
+            workspacePresenter.revealModsFolder(in: state, install: install),
+            broadcastsChange: false
+        )
     }
 
     func revealArchivedModsFolder() {
-        do {
-            try FileManager.default.createDirectory(
-                at: install.archivedModsDirectoryURL,
-                withIntermediateDirectories: true
-            )
-            NSWorkspace.shared.activateFileViewerSelecting([install.archivedModsDirectoryURL])
-        } catch {
-            record(AppStrings.Status.couldNotRevealArchivedMods(error.localizedDescription))
-        }
+        commitState(
+            workspacePresenter.revealArchivedModsFolder(in: state, install: install),
+            broadcastsChange: false
+        )
     }
 
     func revealMod(_ mod: ModInfo) {
-        guard guardCanRevealMods() else {
-            return
-        }
-
-        do {
-            try performWithFolderAccess {
-                NSWorkspace.shared.activateFileViewerSelecting([mod.url])
-            }
-        } catch is SecurityScopedFolderAccessError {
-        } catch {
-            record(AppStrings.Status.couldNotRevealMod(mod.displayName, errorDescription: error.localizedDescription))
-        }
+        commitState(
+            workspacePresenter.revealMod(mod, in: state),
+            broadcastsChange: false
+        )
     }
 
     func createModFolder() async {
-        ignoreObservedFolderChangesBriefly()
-        commitState(await service.createModFolder(from: state))
-        ignoreObservedFolderChangesBriefly()
+        await commitFolderMutation {
+            await service.createModFolder(from: state)
+        }
     }
 
     func prepareImportPreview(from selectedURLs: [URL]) -> ModImportPreview? {
-        guard guardCanRevealMods() else {
-            return nil
-        }
-
-        guard !selectedURLs.isEmpty else {
-            record(AppStrings.Status.chooseModFoldersOrZipArchives)
-            return nil
-        }
-
-        let sourceTokens = selectedURLs.map(SecurityScopedAccessToken.init(url:))
-        defer {
-            sourceTokens.forEach { $0.stop() }
-        }
-
-        do {
-            return try performWithFolderAccess {
-                try ModLibrary.previewImport(
-                    from: selectedURLs,
-                    into: install
-                )
-            }
-        } catch is SecurityScopedFolderAccessError {
-            return nil
-        } catch {
-            record(AppStrings.Status.couldNotPreviewMods(error.localizedDescription))
+        switch importPreviewCoordinator.prepareImportPreview(
+            from: selectedURLs,
+            install: install,
+            state: state
+        ) {
+        case .success(let preview, let nextState):
+            commitState(nextState, broadcastsChange: false)
+            return preview
+        case .failure(let nextState):
+            commitState(nextState, broadcastsChange: false)
             return nil
         }
     }
@@ -193,24 +135,24 @@ final class ModManagerViewModel: ObservableObject {
         from selectedURLs: [URL],
         replacementPolicy: ModInstallReplacementPolicy = .newerOnly
     ) async {
-        ignoreObservedFolderChangesBriefly()
-        commitState(await service.addMods(
-            from: selectedURLs,
-            sourceCleanupSettings: preferences.sourceCleanupSettings,
-            replacementPolicy: replacementPolicy,
-            in: state
-        ))
-        ignoreObservedFolderChangesBriefly()
+        await commitFolderMutation {
+                await service.addMods(
+                    from: selectedURLs,
+                    sourceCleanupSettings: stateStore.sourceCleanupSettings,
+                    replacementPolicy: replacementPolicy,
+                    in: state
+                )
+        }
     }
 
     func addPreviewedMods(_ preview: ModImportPreview) async {
-        ignoreObservedFolderChangesBriefly()
-        commitState(await service.addPreviewedMods(
-            preview,
-            sourceCleanupSettings: preferences.sourceCleanupSettings,
-            in: state
-        ))
-        ignoreObservedFolderChangesBriefly()
+        await commitFolderMutation {
+            await service.addPreviewedMods(
+                preview,
+                sourceCleanupSettings: stateStore.sourceCleanupSettings,
+                in: state
+            )
+        }
     }
 
     func recordAddModsSelectionError(_ error: Error) {
@@ -219,8 +161,8 @@ final class ModManagerViewModel: ObservableObject {
 
     func keepSourceFiles(for offer: SourceCleanupOffer, remembersChoice: Bool) {
         if remembersChoice {
-            preferences.moveModFilesToTrashAfterAddingMods = false
-            preferences.suppressAddModsSuccessNotification = true
+            stateStore.moveModFilesToTrashAfterAddingMods = false
+            stateStore.suppressAddModsSuccessNotification = true
         }
         dismissSourceCleanupOffer()
     }
@@ -240,86 +182,70 @@ final class ModManagerViewModel: ObservableObject {
         remembersChoice: Bool = false
     ) async {
         if remembersChoice {
-            preferences.moveModFilesToTrashAfterAddingMods = true
-            preferences.suppressAddModsSuccessNotification = true
+            stateStore.moveModFilesToTrashAfterAddingMods = true
+            stateStore.suppressAddModsSuccessNotification = true
         }
         commitState(await service.moveSourceFilesToTrash(for: offer, in: state))
     }
 
     var sourceCleanupSettings: SourceCleanupSettings {
-        preferences.sourceCleanupSettings
+        stateStore.sourceCleanupSettings
     }
 
     var archiveSettings: ArchiveSettings {
-        preferences.archiveSettings
+        stateStore.archiveSettings
     }
 
     func setMoveModFilesToTrashAfterAddingMods(_ isEnabled: Bool) {
-        preferences.moveModFilesToTrashAfterAddingMods = isEnabled
+        stateStore.moveModFilesToTrashAfterAddingMods = isEnabled
         objectWillChange.send()
     }
 
     func setSuppressAddModsSuccessNotification(_ isEnabled: Bool) {
-        preferences.suppressAddModsSuccessNotification = isEnabled
+        stateStore.suppressAddModsSuccessNotification = isEnabled
         objectWillChange.send()
     }
 
     func setAutomaticallyPrunesExpiredArchives(_ isEnabled: Bool) {
-        preferences.automaticallyPrunesExpiredArchives = isEnabled
+        stateStore.automaticallyPrunesExpiredArchives = isEnabled
         var nextState = state
-        nextState.archiveSettings = preferences.archiveSettings
+        nextState.archiveSettings = stateStore.archiveSettings
         commitState(nextState, broadcastsChange: false)
     }
 
     func setArchiveRetentionDays(_ days: Int) {
-        preferences.archiveRetentionDays = days
+        stateStore.archiveRetentionDays = days
         var nextState = state
-        nextState.archiveSettings = preferences.archiveSettings
+        nextState.archiveSettings = stateStore.archiveSettings
         commitState(nextState, broadcastsChange: false)
     }
 
     func setMod(_ mod: ModInfo, enabled: Bool) async {
-        ignoreObservedFolderChangesBriefly()
-        commitState(await service.setMod(mod, enabled: enabled, in: state))
-        ignoreObservedFolderChangesBriefly()
+        await commitFolderMutation {
+            await service.setMod(mod, enabled: enabled, in: state)
+        }
     }
 
     func setMods(_ mods: [ModInfo], enabled: Bool) async {
-        guard !mods.isEmpty else {
-            return
+        await commitFolderMutation {
+            await service.setMods(mods, enabled: enabled, in: state)
         }
-
-        ignoreObservedFolderChangesBriefly()
-        var nextState = state
-        for mod in mods {
-            nextState = await service.setMod(mod, enabled: enabled, in: nextState)
-        }
-        commitState(nextState)
-        ignoreObservedFolderChangesBriefly()
     }
 
     func deleteMod(_ mod: ModInfo) async {
-        ignoreObservedFolderChangesBriefly()
-        commitState(await service.deleteMod(mod, in: state))
-        ignoreObservedFolderChangesBriefly()
+        await commitFolderMutation {
+            await service.deleteMod(mod, in: state)
+        }
     }
 
     func restoreArchivedMods(_ archivedMods: [ArchivedModInfo]) async {
-        ignoreObservedFolderChangesBriefly()
-        commitState(await service.restoreArchivedMods(archivedMods, in: state))
-        ignoreObservedFolderChangesBriefly()
-    }
-
-    func previousArchivedVersion(for mod: ModInfo?) -> ArchivedModInfo? {
-        guard let mod else {
-            return nil
+        await commitFolderMutation {
+            await service.restoreArchivedMods(archivedMods, in: state)
         }
-
-        return ModArchive.previousVersion(for: mod, in: state.archivedMods)
     }
 
     func restorePreviousVersion(of mod: ModInfo) async {
-        guard let archivedMod = previousArchivedVersion(for: mod) else {
+        guard let archivedMod = ModArchive.previousVersion(for: mod, in: state.archivedMods) else {
             record(AppStrings.Status.noPreviousVersionAvailable(mod.displayName))
             return
         }
@@ -344,9 +270,9 @@ final class ModManagerViewModel: ObservableObject {
     }
 
     func selectModSet(id: String) async {
-        ignoreObservedFolderChangesBriefly()
-        commitState(await service.selectModSet(id: id, in: state))
-        ignoreObservedFolderChangesBriefly()
+        await commitFolderMutation {
+            await service.selectModSet(id: id, in: state)
+        }
     }
 
     func restoreSelectedModSet(id: String) {
@@ -360,43 +286,8 @@ final class ModManagerViewModel: ObservableObject {
     }
 
     func deleteModSet(_ set: ModSet) async {
-        ignoreObservedFolderChangesBriefly()
-        commitState(await service.deleteModSet(set, in: state))
-        ignoreObservedFolderChangesBriefly()
-    }
-
-    private func guardCanRevealMods() -> Bool {
-        switch state.readiness {
-        case .needsFolderAccess:
-            record(AppStrings.Status.chooseModsFolderBeforeManaging)
-            return false
-        case .missingModsFolder:
-            record(AppStrings.Status.modsFolderMissingChooseAgain)
-            return false
-        case .ready:
-            return true
-        }
-    }
-
-    private func performWithFolderAccess<T>(_ operation: () throws -> T) throws -> T {
-        do {
-            let result = try folderAccess.withAccess(operation)
-            lastFolderAccessError = nil
-            return result
-        } catch let error as SecurityScopedFolderAccessError {
-            recordFolderAccessProblem(error)
-            throw error
-        }
-    }
-
-    private func recordFolderAccessProblem(_ error: SecurityScopedFolderAccessError) {
-        folderAccess.clearBookmark()
-        state.hasSavedFolderAccess = false
-
-        let message = AppStrings.Status.chooseModsFolderAgain(error.localizedDescription)
-        if lastFolderAccessError != message {
-            record(message)
-            lastFolderAccessError = message
+        await commitFolderMutation {
+            await service.deleteModSet(set, in: state)
         }
     }
 
@@ -410,16 +301,15 @@ final class ModManagerViewModel: ObservableObject {
         updateModsFolderMonitor()
 
         if broadcastsChange {
-            NotificationCenter.default.post(
-                name: Self.didChangeSharedStateNotification,
-                object: nil,
-                userInfo: [modManagerNotificationSenderIDKey: instanceID]
-            )
+            sharedStateSync?.broadcastChange()
         }
     }
 
-    private func ignoreObservedFolderChangesBriefly() {
-        ignoredFolderChangeDeadline = Date().addingTimeInterval(2)
+    private func commitFolderMutation(_ mutation: () async -> ModManagerState) async {
+        folderObservation?.ignoreChangesBriefly()
+        let nextState = await mutation()
+        commitState(nextState)
+        folderObservation?.ignoreChangesBriefly()
     }
 
     private func refreshAfterObservedModsFolderChange() async {
@@ -428,112 +318,28 @@ final class ModManagerViewModel: ObservableObject {
             return
         }
 
-        guard Date() >= ignoredFolderChangeDeadline else {
+        guard folderObservation?.shouldHandleObservedChange ?? false else {
             return
         }
 
         let reconciledState = await service.reconcileObservedModsFolderChange(from: state)
         commitState(reconciledState)
-        folderChangeNotifier.notifyModsFolderChanged()
+        folderObservation?.notifyObservedChange()
     }
 
     private func refreshAfterSharedStateChange() async {
-        var nextState = stateByRestoringSavedFolder(from: state)
+        var nextState = stateStore.stateByRestoringSavedFolder(from: state)
         nextState = await service.refreshedState(from: nextState)
         commitState(nextState, broadcastsChange: false)
     }
 
     private func updateModsFolderMonitor() {
-        guard state.readiness.canManageMods else {
-            modsFolderMonitor.stopWatching()
-            return
-        }
-
-        let modsDirectoryURL = install.modDirectoryURL.standardizedFileURL.resolvingSymlinksInPath()
-        guard modsFolderMonitor.watchedPath != modsDirectoryURL.path else {
-            return
-        }
-
-        do {
-            let accessToken = try folderAccess.beginAccess()
-            try modsFolderMonitor.startWatching(
-                modsDirectoryURL,
-                securityScopedAccess: accessToken
-            )
-        } catch {
-            modsFolderMonitor.stopWatching()
-            record(AppStrings.Status.couldNotWatchModsFolder(error.localizedDescription))
+        if let message = folderObservation?.synchronizeWatching(for: state, install: install) {
+            record(message)
         }
     }
 
     private func persistPreferences() {
-        preferences.save(state)
-    }
-
-    private static func initialState(
-        preferences: ModManagerPreferences,
-        folderAccess: SecurityScopedFolderAccess,
-        modSetDirectory: URL,
-        selectedModSetID: String
-    ) -> ModManagerState {
-        let defaultModsPath = StardewInstall.defaultModsDirectory().path
-        let bookmarkedDirectoryPath = try? folderAccess.resolveBookmarkURL()?.path
-        let savedDirectoryPath = preferences.modsDirectoryPath
-        let initialDirectoryPath = bookmarkedDirectoryPath ?? savedDirectoryPath ?? defaultModsPath
-        let install = StardewInstall(
-            modsDirectory: URL(fileURLWithPath: initialDirectoryPath, isDirectory: true),
-            modSetDirectory: modSetDirectory
-        )
-
-        return ModManagerState(
-            modsDirectoryPath: initialDirectoryPath,
-            status: install.status(),
-            hasSavedFolderAccess: folderAccess.hasBookmark,
-            mods: [],
-            invalidModFolders: [],
-            archivedMods: [],
-            archiveSummary: ModArchiveSummary(),
-            archiveSettings: preferences.archiveSettings,
-            hasLoadedMods: false,
-            modSets: [],
-            selectedModSetID: selectedModSetID,
-            appliedModSetID: nil,
-            activityMessage: "",
-            auditTrail: AuditTrailState(
-                logPath: StardewInstall.auditLogURL(forModSetDirectory: modSetDirectory).path,
-                recentEntries: [],
-                lastErrorMessage: nil
-            ),
-            pendingSourceCleanupOffer: nil
-        )
-    }
-
-    private func stateByRestoringSavedFolder(from currentState: ModManagerState) -> ModManagerState {
-        let bookmarkedDirectoryPath = try? folderAccess.resolveBookmarkURL()?.path
-        let restoredDirectoryPath = bookmarkedDirectoryPath
-            ?? preferences.modsDirectoryPath
-            ?? currentState.modsDirectoryPath
-        let install = StardewInstall(
-            modsDirectory: URL(fileURLWithPath: restoredDirectoryPath, isDirectory: true),
-            modSetDirectory: modSetDirectory
-        )
-
-        var nextState = currentState
-        nextState.modsDirectoryPath = restoredDirectoryPath
-        nextState.hasSavedFolderAccess = folderAccess.hasBookmark
-        nextState.status = install.status()
-        return nextState
-    }
-}
-
-private final class NotificationObservation: @unchecked Sendable {
-    private let token: any NSObjectProtocol
-
-    init(token: any NSObjectProtocol) {
-        self.token = token
-    }
-
-    deinit {
-        NotificationCenter.default.removeObserver(token)
+        stateStore.save(state)
     }
 }

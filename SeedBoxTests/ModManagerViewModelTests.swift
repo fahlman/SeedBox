@@ -23,41 +23,41 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(viewModel.state.readiness, .ready)
         XCTAssertEqual(viewModel.state.modSetSelection.selectedSetID, ModSetStore.defaultSetID)
         XCTAssertTrue(viewModel.state.modSetSelection.selectedSetIsApplied)
-        XCTAssertEqual(modEnabledStates(in: viewModel.mods), [
+        XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Console Commands": true,
             "Save Backup": true
         ])
 
         await viewModel.createModSet(named: "All Disabled")
-        let allDisabledSetID = viewModel.selectedModSetID
+        let allDisabledSetID = viewModel.state.selectedModSetID
         XCTAssertEqual(viewModel.state.modSetSelection.selectedSet?.name, "All Disabled")
         XCTAssertTrue(viewModel.state.modSetSelection.selectedSetIsApplied)
 
         let consoleCommands = try XCTUnwrap(
-            viewModel.mods.first { $0.displayName == "Console Commands" }
+            viewModel.state.mods.first { $0.displayName == "Console Commands" }
         )
         await viewModel.setMod(consoleCommands, enabled: false)
 
         let saveBackup = try XCTUnwrap(
-            viewModel.mods.first { $0.displayName == "Save Backup" }
+            viewModel.state.mods.first { $0.displayName == "Save Backup" }
         )
         await viewModel.setMod(saveBackup, enabled: false)
 
-        XCTAssertEqual(modEnabledStates(in: viewModel.mods), [
+        XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Console Commands": false,
             "Save Backup": false
         ])
         XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, allDisabledSetID)
 
         await viewModel.selectModSet(id: ModSetStore.defaultSetID)
-        XCTAssertEqual(modEnabledStates(in: viewModel.mods), [
+        XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Console Commands": true,
             "Save Backup": true
         ])
         XCTAssertTrue(viewModel.state.modSetSelection.selectedSetIsApplied)
 
         await viewModel.selectModSet(id: allDisabledSetID)
-        XCTAssertEqual(modEnabledStates(in: viewModel.mods), [
+        XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Console Commands": false,
             "Save Backup": false
         ])
@@ -82,19 +82,19 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeDeleted)
 
         let consoleCommands = try XCTUnwrap(
-            viewModel.mods.first { $0.displayName == "Console Commands" }
+            viewModel.state.mods.first { $0.displayName == "Console Commands" }
         )
         await viewModel.setMod(consoleCommands, enabled: false)
 
         XCTAssertNil(viewModel.state.modSetSelection.appliedSetID)
         XCTAssertFalse(viewModel.state.modSetSelection.selectedSetIsApplied)
-        XCTAssertEqual(modEnabledStates(in: viewModel.mods), [
+        XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Console Commands": false
         ])
 
         let reloadedSets = try ModSetStore.loadSets(
             install: install,
-            currentMods: viewModel.mods
+            currentMods: viewModel.state.mods
         )
         let defaultSet = try XCTUnwrap(reloadedSets.first(where: \.isDefault))
         XCTAssertEqual(defaultSet.disabledFolderNames, [])
@@ -102,7 +102,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         await viewModel.selectModSet(id: ModSetStore.defaultSetID)
         XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, ModSetStore.defaultSetID)
         XCTAssertTrue(viewModel.state.modSetSelection.selectedSetIsApplied)
-        XCTAssertEqual(modEnabledStates(in: viewModel.mods), [
+        XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Console Commands": true
         ])
 
@@ -113,7 +113,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         await restoredViewModel.refresh()
         XCTAssertEqual(restoredViewModel.state.modSetSelection.appliedSetID, ModSetStore.defaultSetID)
         XCTAssertTrue(restoredViewModel.state.modSetSelection.selectedSetIsApplied)
-        XCTAssertEqual(modEnabledStates(in: restoredViewModel.mods), [
+        XCTAssertEqual(modEnabledStates(in: restoredViewModel.state.mods), [
             "Console Commands": true
         ])
     }
@@ -139,7 +139,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, ModSetStore.noneSetID)
         XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeRenamed)
         XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeDeleted)
-        XCTAssertEqual(modEnabledStates(in: viewModel.mods), [
+        XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Console Commands": false,
             "Save Backup": false
         ])
@@ -148,7 +148,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, ModSetStore.allSetID)
         XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeRenamed)
         XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeDeleted)
-        XCTAssertEqual(modEnabledStates(in: viewModel.mods), [
+        XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Console Commands": true,
             "Save Backup": true
         ])
@@ -173,16 +173,16 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         )
         await viewModel.chooseModsFolder(install.modDirectoryURL)
         await viewModel.createModSet(named: "Favorites")
-        let favoritesSetID = viewModel.selectedModSetID
+        let favoritesSetID = viewModel.state.selectedModSetID
 
         let consoleCommands = try XCTUnwrap(
-            viewModel.mods.first { $0.displayName == "Console Commands" }
+            viewModel.state.mods.first { $0.displayName == "Console Commands" }
         )
         await viewModel.setMod(consoleCommands, enabled: false)
         await viewModel.addMods(from: [newModSourceURL])
 
         XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, favoritesSetID)
-        XCTAssertEqual(modEnabledStates(in: viewModel.mods), [
+        XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Console Commands": false,
             "New Mod": true
         ])
@@ -201,7 +201,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
         let reloadedSets = try ModSetStore.loadSets(
             install: install,
-            currentMods: viewModel.mods
+            currentMods: viewModel.state.mods
         )
         let favoritesSet = try XCTUnwrap(reloadedSets.first { $0.id == favoritesSetID })
         XCTAssertEqual(favoritesSet.disabledFolderNames, ["ConsoleCommands"])
@@ -344,7 +344,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         await viewModel.addMods(from: [newModSourceURL])
 
         XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, ModSetStore.noneSetID)
-        XCTAssertEqual(modEnabledStates(in: viewModel.mods), [
+        XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Console Commands": false,
             "New Mod": false
         ])
@@ -398,7 +398,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
         XCTAssertEqual(viewModel.state.statusLineMessage, "Content Patcher is already installed.")
         XCTAssertNil(viewModel.state.pendingSourceCleanupOffer)
-        XCTAssertEqual(modEnabledStates(in: viewModel.mods), [
+        XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Content Patcher": true
         ])
         let skippedEntry = try XCTUnwrap(viewModel.state.auditTrail.recentEntries.last)
@@ -437,7 +437,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         await viewModel.chooseModsFolder(install.modDirectoryURL)
         await viewModel.addMods(from: [sourceURL])
 
-        let updatedMod = try XCTUnwrap(viewModel.mods.first { $0.displayName == "Content Patcher" })
+        let updatedMod = try XCTUnwrap(viewModel.state.mods.first { $0.displayName == "Content Patcher" })
         XCTAssertEqual(updatedMod.versionText, "1.10.0")
         XCTAssertEqual(
             viewModel.state.statusLineMessage,
@@ -468,10 +468,10 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         )
         await viewModel.chooseModsFolder(install.modDirectoryURL)
 
-        let mod = try XCTUnwrap(viewModel.mods.first { $0.displayName == "Content Patcher" })
+        let mod = try XCTUnwrap(viewModel.state.mods.first { $0.displayName == "Content Patcher" })
         await viewModel.deleteMod(mod)
 
-        XCTAssertTrue(viewModel.mods.isEmpty)
+        XCTAssertTrue(viewModel.state.mods.isEmpty)
         XCTAssertFalse(FileManager.default.fileExists(atPath: modURL.path))
         XCTAssertEqual(
             viewModel.state.statusLineMessage,
@@ -498,10 +498,10 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         )
         await viewModel.chooseModsFolder(install.modDirectoryURL)
         await viewModel.createModSet(named: "Favorites")
-        let favoritesSetID = viewModel.selectedModSetID
+        let favoritesSetID = viewModel.state.selectedModSetID
 
         let consoleCommands = try XCTUnwrap(
-            viewModel.mods.first { $0.displayName == "Console Commands" }
+            viewModel.state.mods.first { $0.displayName == "Console Commands" }
         )
         await viewModel.setMod(consoleCommands, enabled: false)
 
@@ -516,7 +516,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         await restoredViewModel.refresh()
 
         XCTAssertEqual(restoredViewModel.state.modSetSelection.appliedSetID, favoritesSetID)
-        XCTAssertEqual(modEnabledStates(in: restoredViewModel.mods), [
+        XCTAssertEqual(modEnabledStates(in: restoredViewModel.state.mods), [
             "Console Commands": false,
             "New Mod": true
         ])
@@ -568,7 +568,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         await restoredViewModel.refresh()
 
         XCTAssertEqual(restoredViewModel.state.modSetSelection.appliedSetID, ModSetStore.noneSetID)
-        XCTAssertEqual(modEnabledStates(in: restoredViewModel.mods), [
+        XCTAssertEqual(modEnabledStates(in: restoredViewModel.state.mods), [
             "Console Commands": false,
             "New Mod": false
         ])
@@ -612,20 +612,20 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         await viewModel.createModSet(named: "All Disabled")
 
         let allDisabledSet = try XCTUnwrap(viewModel.state.modSetSelection.selectedSet)
-        for mod in viewModel.mods {
+        for mod in viewModel.state.mods {
             await viewModel.setMod(mod, enabled: false)
         }
 
-        XCTAssertEqual(modEnabledStates(in: viewModel.mods), [
+        XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Console Commands": false,
             "Save Backup": false
         ])
 
         await viewModel.deleteModSet(allDisabledSet)
 
-        XCTAssertEqual(viewModel.selectedModSetID, ModSetStore.defaultSetID)
+        XCTAssertEqual(viewModel.state.selectedModSetID, ModSetStore.defaultSetID)
         XCTAssertFalse(viewModel.state.modSets.contains { $0.id == allDisabledSet.id })
-        XCTAssertEqual(modEnabledStates(in: viewModel.mods), [
+        XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Console Commands": true,
             "Save Backup": true
         ])
@@ -647,7 +647,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         await viewModel.chooseModsFolder(install.modDirectoryURL)
         await viewModel.createModSet(named: "Custom")
 
-        let selectedSetID = viewModel.selectedModSetID
+        let selectedSetID = viewModel.state.selectedModSetID
         let preferences = ModManagerPreferences(defaults: defaults)
         XCTAssertEqual(preferences.modsDirectoryPath, install.modDirectoryURL.path)
 
@@ -658,13 +658,13 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         )
 
         XCTAssertEqual(restoredViewModel.state.modsDirectoryPath, install.modDirectoryURL.path)
-        XCTAssertEqual(restoredViewModel.selectedModSetID, selectedSetID)
+        XCTAssertEqual(restoredViewModel.state.selectedModSetID, selectedSetID)
 
         let freshViewModel = ModManagerViewModel(
             defaults: defaults,
             modSetDirectory: install.modSetDirectoryURL
         )
-        XCTAssertEqual(freshViewModel.selectedModSetID, ModSetStore.defaultSetID)
+        XCTAssertEqual(freshViewModel.state.selectedModSetID, ModSetStore.defaultSetID)
     }
 
     func testAuditTrailRecordsModAndModSetActions() async throws {
@@ -689,7 +689,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         await viewModel.renameSelectedModSet(to: "Keepers")
         await viewModel.addMods(from: [newModSourceURL])
 
-        let newMod = try XCTUnwrap(viewModel.mods.first { $0.displayName == "New Mod" })
+        let newMod = try XCTUnwrap(viewModel.state.mods.first { $0.displayName == "New Mod" })
         await viewModel.setMod(newMod, enabled: false)
 
         let keepersSet = try XCTUnwrap(viewModel.state.modSetSelection.selectedSet)
@@ -771,7 +771,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         await viewModel.chooseModsFolder(install.modDirectoryURL)
 
         XCTAssertEqual(monitor.watchedPath, install.modDirectoryURL.standardizedFileURL.resolvingSymlinksInPath().path)
-        XCTAssertEqual(modEnabledStates(in: viewModel.mods), [
+        XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Console Commands": true
         ])
 
@@ -780,10 +780,10 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
         monitor.simulateChange()
         try await waitUntil {
-            viewModel.mods.contains { $0.displayName == "Save Backup" }
+            viewModel.state.mods.contains { $0.displayName == "Save Backup" }
         }
 
-        XCTAssertEqual(modEnabledStates(in: viewModel.mods), [
+        XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Console Commands": true,
             "Save Backup": true
         ])
@@ -812,10 +812,10 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         )
         await viewModel.chooseModsFolder(install.modDirectoryURL)
         await viewModel.createModSet(named: "Favorites")
-        let favoritesSetID = viewModel.selectedModSetID
+        let favoritesSetID = viewModel.state.selectedModSetID
 
         let consoleCommands = try XCTUnwrap(
-            viewModel.mods.first { $0.displayName == "Console Commands" }
+            viewModel.state.mods.first { $0.displayName == "Console Commands" }
         )
         await viewModel.setMod(consoleCommands, enabled: false)
 
@@ -920,7 +920,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         await viewModel.chooseModsFolder(install.modDirectoryURL)
 
         let consoleCommands = try XCTUnwrap(
-            viewModel.mods.first { $0.displayName == "Console Commands" }
+            viewModel.state.mods.first { $0.displayName == "Console Commands" }
         )
         await viewModel.setMod(consoleCommands, enabled: false)
 

@@ -5,22 +5,22 @@ struct SeedBoxCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
-            Button("New Mod Set") {
-                context?.createModSet()
+            Button(AppStrings.Commands.newModSet) {
+                context?.actions.createModSet()
             }
             .keyboardShortcut("n", modifiers: [.command])
             .disabled(!canManageMods || context == nil)
         }
 
         CommandGroup(replacing: .importExport) {
-            Button("Add Mods...") {
-                context?.addMods()
+            Button(AppStrings.Commands.addMods) {
+                context?.actions.addMods()
             }
             .keyboardShortcut("o", modifiers: [.command])
             .disabled(!canManageMods || context == nil)
 
-            Button("Choose Mods Folder...") {
-                context?.chooseModsFolder()
+            Button(AppStrings.Commands.chooseModsFolder) {
+                context?.actions.chooseModsFolder()
             }
             .keyboardShortcut("o", modifiers: [.command, .option])
             .disabled(context == nil)
@@ -29,8 +29,8 @@ struct SeedBoxCommands: Commands {
         CommandGroup(replacing: .printItem) {}
 
         CommandGroup(replacing: .sidebar) {
-            Button("Refresh Mods Folder") {
-                context?.refresh()
+            Button(AppStrings.Commands.refreshModsFolder) {
+                context?.actions.refresh()
             }
             .keyboardShortcut("r", modifiers: [.command])
             .disabled(!canManageMods || context == nil)
@@ -39,90 +39,90 @@ struct SeedBoxCommands: Commands {
         CommandGroup(replacing: .toolbar) {}
         CommandGroup(replacing: .help) {}
 
-        CommandMenu("Mods") {
+        CommandMenu(AppStrings.Commands.modsMenu) {
             Button(AppStrings.Toolbar.problems) {
-                context?.showProblems()
+                context?.actions.showProblems()
             }
             .keyboardShortcut("0", modifiers: [.command, .shift])
             .disabled(context == nil || !canShowProblems)
 
             Button(AppStrings.Toolbar.activity) {
-                context?.showActivity()
+                context?.actions.showActivity()
             }
             .keyboardShortcut("l", modifiers: [.command, .option])
             .disabled(context == nil || !canShowActivity)
 
             Divider()
 
-            Button("Show Mod Details") {
-                context?.showModInspector()
+            Button(AppStrings.Commands.showModDetails) {
+                context?.actions.showModInspector()
             }
             .keyboardShortcut("i", modifiers: [.command])
-            .disabled(!canManageMods || context?.selectedMod == nil)
+            .disabled(context == nil || !canShowModInspector)
 
             Divider()
 
-            Button("Restore Previous Version") {
-                context?.restorePreviousVersion()
+            Button(AppStrings.Commands.restorePreviousVersion) {
+                context?.actions.restorePreviousVersion()
             }
             .keyboardShortcut("r", modifiers: [.command, .option])
             .disabled(!canManageMods || !canRestorePreviousVersion || context == nil)
 
             Divider()
 
-            Button("Reveal Selected Mod in Finder") {
-                context?.revealSelectedMod()
+            Button(AppStrings.Commands.revealSelectedModInFinder) {
+                context?.actions.revealSelectedMod()
             }
-            .disabled(!canManageMods || context?.selectedMod == nil)
+            .disabled(context == nil || !canRevealSelectedMod)
 
-            Button("Reveal Mods Folder in Finder") {
-                context?.revealModsFolder()
+            Button(AppStrings.Commands.revealModsFolderInFinder) {
+                context?.actions.revealModsFolder()
             }
             .disabled(!canManageMods)
 
-            Button("Reveal Archived Mods in Finder") {
-                context?.revealArchivedModsFolder()
+            Button(AppStrings.Commands.revealArchivedModsInFinder) {
+                context?.actions.revealArchivedModsFolder()
             }
             .disabled(context == nil)
 
-            Button("Prune Expired Archives") {
-                context?.pruneExpiredArchives()
+            Button(AppStrings.Commands.pruneExpiredArchives) {
+                context?.actions.pruneExpiredArchives()
             }
             .disabled(context == nil || !canPruneExpiredArchives)
 
             Divider()
 
-            Button("Delete Selected Mod", role: .destructive) {
-                context?.deleteSelectedMod()
+            Button(AppStrings.Commands.deleteSelectedMod, role: .destructive) {
+                context?.actions.deleteSelectedMod()
             }
             .keyboardShortcut(.delete, modifiers: [.command])
-            .disabled(!canManageMods || context?.selectedMod == nil)
+            .disabled(context == nil || !canDeleteSelectedMod)
         }
 
-        CommandMenu("Mod Set") {
-            Button("Compare Mod Set") {
-                context?.compareSelectedModSet()
+        CommandMenu(AppStrings.Commands.modSetMenu) {
+            Button(AppStrings.Commands.compareModSet) {
+                context?.actions.compareSelectedModSet()
             }
             .keyboardShortcut("c", modifiers: [.command, .shift])
             .disabled(!canManageMods || !canCompareSelectedModSet || context == nil)
 
             Divider()
 
-            Button("Duplicate Mod Set") {
-                context?.duplicateSelectedModSet()
+            Button(AppStrings.Commands.duplicateModSet) {
+                context?.actions.duplicateSelectedModSet()
             }
             .keyboardShortcut("d", modifiers: [.command, .shift])
             .disabled(!canManageMods || selection.selectedSet == nil || context == nil)
 
-            Button("Rename Mod Set") {
-                context?.renameSelectedModSet()
+            Button(AppStrings.Commands.renameModSet) {
+                context?.actions.renameSelectedModSet()
             }
             .disabled(!canManageMods || !selection.selectedSetCanBeRenamed || context == nil)
 
             Divider()
 
-            Button("Delete Mod Set", role: .destructive) {
-                context?.deleteSelectedModSet()
+            Button(AppStrings.Commands.deleteModSet, role: .destructive) {
+                context?.actions.deleteSelectedModSet()
             }
             .disabled(!canManageMods || !selection.selectedSetCanBeDeleted || context == nil)
         }
@@ -150,6 +150,18 @@ struct SeedBoxCommands: Commands {
 
     private var canShowActivity: Bool {
         context?.canShowActivity ?? false
+    }
+
+    private var canShowModInspector: Bool {
+        context?.canShowModInspector ?? false
+    }
+
+    private var canRevealSelectedMod: Bool {
+        context?.canRevealSelectedMod ?? false
+    }
+
+    private var canDeleteSelectedMod: Bool {
+        context?.canDeleteSelectedMod ?? false
     }
 
     private var selection: ModSetSelectionState {

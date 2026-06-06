@@ -4,23 +4,11 @@ struct ModManagerToolbar: ToolbarContent {
     var presentationState: ModManagerPresentationState
     var isShowingModInspector: Bool
     var selectModSet: (String) -> Void
-    var showProblems: () -> Void
-    var showActivity: () -> Void
-    var showModInspector: () -> Void
-    var createModSet: () -> Void
-    var duplicateSelectedModSet: () -> Void
-    var renameSelectedModSet: () -> Void
-    var deleteSelectedModSet: () -> Void
-    var compareSelectedModSet: () -> Void
-    var addMods: () -> Void
-    var pruneExpiredArchives: () -> Void
-    var restorePreviousVersion: () -> Void
-    var revealSelectedMod: () -> Void
-    var deleteSelectedMod: () -> Void
+    var actions: ModManagerActions
 
     var body: some ToolbarContent {
         ToolbarItemGroup {
-            Picker("Mod Set", selection: Binding(
+            Picker(AppStrings.Toolbar.modSet, selection: Binding(
                 get: { selection.selectedSetID },
                 set: { selectedID in
                     selectModSet(selectedID)
@@ -32,58 +20,58 @@ struct ModManagerToolbar: ToolbarContent {
                 }
             }
             .pickerStyle(.menu)
-            .help("Mod Set")
+            .help(AppStrings.Toolbar.modSet)
             .disabled(selection.sets.isEmpty || !presentationState.canManageMods)
 
             Button {
-                createModSet()
+                actions.createModSet()
             } label: {
-                Label("New Mod Set", systemImage: "folder.badge.plus")
+                Label(AppStrings.Toolbar.newModSet, systemImage: "folder.badge.plus")
             }
             .labelStyle(.iconOnly)
-            .help("New Mod Set")
+            .help(AppStrings.Toolbar.newModSet)
             .disabled(!presentationState.canManageMods)
 
             Button {
-                duplicateSelectedModSet()
+                actions.duplicateSelectedModSet()
             } label: {
-                Label("Duplicate Set", systemImage: "doc.on.doc")
+                Label(AppStrings.Toolbar.duplicateSet, systemImage: "doc.on.doc")
             }
             .labelStyle(.iconOnly)
-            .help("Duplicate Set")
+            .help(AppStrings.Toolbar.duplicateSet)
             .disabled(selection.selectedSet == nil || !presentationState.canManageMods)
 
             Button {
-                renameSelectedModSet()
+                actions.renameSelectedModSet()
             } label: {
-                Label("Rename Set", systemImage: "pencil")
+                Label(AppStrings.Toolbar.renameSet, systemImage: "pencil")
             }
             .labelStyle(.iconOnly)
-            .help("Rename Set")
+            .help(AppStrings.Toolbar.renameSet)
             .disabled(!selection.selectedSetCanBeRenamed || !presentationState.canManageMods)
 
             Button(role: .destructive) {
-                deleteSelectedModSet()
+                actions.deleteSelectedModSet()
             } label: {
-                Label("Delete Set", systemImage: "folder.badge.minus")
+                Label(AppStrings.Toolbar.deleteSet, systemImage: "folder.badge.minus")
             }
             .labelStyle(.iconOnly)
-            .help("Delete Set")
+            .help(AppStrings.Toolbar.deleteSet)
             .disabled(!selection.selectedSetCanBeDeleted || !presentationState.canManageMods)
 
             Button {
-                compareSelectedModSet()
+                actions.compareSelectedModSet()
             } label: {
-                Label("Compare Mod Set", systemImage: "rectangle.split.2x1")
+                Label(AppStrings.Toolbar.compareModSet, systemImage: "rectangle.split.2x1")
             }
             .labelStyle(.iconOnly)
-            .help("Compare Mod Set")
+            .help(AppStrings.Toolbar.compareModSet)
             .disabled(!presentationState.canCompareSelectedModSet)
         }
 
         ToolbarItemGroup {
             Button {
-                showProblems()
+                actions.showProblems()
             } label: {
                 Label(AppStrings.Toolbar.problems, systemImage: "exclamationmark.triangle")
             }
@@ -92,7 +80,7 @@ struct ModManagerToolbar: ToolbarContent {
             .disabled(!presentationState.canShowProblems)
 
             Button {
-                showActivity()
+                actions.showActivity()
             } label: {
                 Label(AppStrings.Toolbar.activity, systemImage: "clock")
             }
@@ -101,14 +89,14 @@ struct ModManagerToolbar: ToolbarContent {
             .disabled(!presentationState.canShowActivity)
 
             Button {
-                addMods()
+                actions.addMods()
             } label: {
                 Label(AppStrings.Toolbar.addMods, systemImage: "square.and.arrow.down")
             }
             .disabled(!presentationState.canManageMods)
 
             Button {
-                restorePreviousVersion()
+                actions.restorePreviousVersion()
             } label: {
                 Label(AppStrings.Toolbar.restorePreviousVersion, systemImage: "arrow.uturn.backward")
             }
@@ -117,7 +105,7 @@ struct ModManagerToolbar: ToolbarContent {
             .disabled(!presentationState.canRestorePreviousVersion)
 
             Button {
-                showModInspector()
+                actions.showModInspector()
             } label: {
                 Label(isShowingModInspector ? AppStrings.Toolbar.hideDetails : AppStrings.Toolbar.showDetails, systemImage: "info.circle")
             }
@@ -126,21 +114,21 @@ struct ModManagerToolbar: ToolbarContent {
             .disabled(!presentationState.canShowModInspector)
 
             Button {
-                revealSelectedMod()
+                actions.revealSelectedMod()
             } label: {
                 Label(AppStrings.Toolbar.revealInFinder, systemImage: "eye")
             }
             .disabled(!presentationState.canRevealSelectedMod)
 
             Button(role: .destructive) {
-                deleteSelectedMod()
+                actions.deleteSelectedMod()
             } label: {
                 Label(AppStrings.Toolbar.deleteMod, systemImage: "trash")
             }
             .disabled(!presentationState.canDeleteSelectedMod)
 
             Button {
-                pruneExpiredArchives()
+                actions.pruneExpiredArchives()
             } label: {
                 Label(AppStrings.Toolbar.pruneExpiredArchives, systemImage: "archivebox")
             }

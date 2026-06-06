@@ -2,7 +2,8 @@ import SwiftUI
 
 struct ModList: View {
     var mods: [ModInfo]
-    @ObservedObject var viewModel: ModManagerViewModel
+    var canManageMods: Bool
+    var modFolderName: String
     @Binding var selectedModIDs: Set<String>
     var selectedMod: ModInfo?
     var addMods: () -> Void
@@ -18,10 +19,14 @@ struct ModList: View {
 
     var body: some View {
         if mods.isEmpty {
-            EmptyModList(viewModel: viewModel, addMods: addMods)
+            EmptyModList(
+                canManageMods: canManageMods,
+                modFolderName: modFolderName,
+                addMods: addMods
+            )
         } else {
             Table(rows, selection: $selectedModIDs, sortOrder: sortOrderBinding) {
-                TableColumn("State", value: \.enabledSortText) { row in
+                TableColumn(AppStrings.Table.state, value: \.enabledSortText) { row in
                     Toggle(row.enabledText, isOn: Binding(
                         get: { row.mod.isEnabled },
                         set: { enabled in
@@ -33,23 +38,23 @@ struct ModList: View {
                 }
                 .width(min: 76, ideal: 92, max: 110)
 
-                TableColumn("Mod", value: \.nameSortText) { row in
+                TableColumn(AppStrings.Table.mod, value: \.nameSortText) { row in
                     ModNameCell(mod: row.mod)
                 }
 
-                TableColumn("Author", value: \.authorText) { row in
+                TableColumn(AppStrings.Table.author, value: \.authorText) { row in
                     Text(row.authorText)
                         .lineLimit(1)
                 }
                 .width(min: 130, ideal: 170, max: 240)
 
-                TableColumn("Type", value: \.typeText) { row in
+                TableColumn(AppStrings.Table.type, value: \.typeText) { row in
                     Text(row.typeText)
                         .lineLimit(1)
                 }
                 .width(min: 120, ideal: 150, max: 180)
 
-                TableColumn("Updates", value: \.updateSourceText) { row in
+                TableColumn(AppStrings.Table.updates, value: \.updateSourceText) { row in
                     Text(row.updateSourceText)
                         .lineLimit(1)
                 }
@@ -59,22 +64,18 @@ struct ModList: View {
                 Button {
                     revealSelectedMod()
                 } label: {
-                    Label("Reveal in Finder", systemImage: "eye")
+                    Label(AppStrings.Toolbar.revealInFinder, systemImage: "eye")
                 }
                 .disabled(selectedMod == nil || !canManageMods)
 
                 Button(role: .destructive) {
                     requestDeleteSelectedMod()
                 } label: {
-                    Label("Delete Mod", systemImage: "trash")
+                    Label(AppStrings.Toolbar.deleteMod, systemImage: "trash")
                 }
                 .disabled(selectedMod == nil || !canManageMods)
             }
         }
-    }
-
-    private var canManageMods: Bool {
-        viewModel.state.readiness.canManageMods
     }
 
     private var sortOrderBinding: Binding<[KeyPathComparator<ModTableRow>]> {

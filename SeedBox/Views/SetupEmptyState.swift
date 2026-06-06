@@ -1,8 +1,10 @@
 import SwiftUI
 
 struct SetupEmptyState: View {
-    @ObservedObject var viewModel: ModManagerViewModel
+    var readiness: ModManagerReadiness
+    var modFolderName: String
     var chooseModsFolder: () -> Void
+    var createModFolder: () -> Void
 
     var body: some View {
         VStack(spacing: 12) {
@@ -27,7 +29,7 @@ struct SetupEmptyState: View {
                 .disabled(readiness != .needsFolderAccess && !readiness.canCreateModFolder)
 
                 SettingsLink {
-                    Label("Settings", systemImage: "gearshape")
+                    Label(AppStrings.Toolbar.settings, systemImage: "gearshape")
                 }
             }
         }
@@ -36,11 +38,11 @@ struct SetupEmptyState: View {
     }
 
     private var setupTitle: String {
-        readiness.setupTitle(modFolderName: viewModel.modFolderName)
+        readiness.setupTitle(modFolderName: modFolderName)
     }
 
     private var setupDetail: String {
-        readiness.setupDetail(modFolderName: viewModel.modFolderName)
+        readiness.setupDetail(modFolderName: modFolderName)
     }
 
     private var primaryButtonTitle: String {
@@ -55,13 +57,7 @@ struct SetupEmptyState: View {
         if readiness == .needsFolderAccess {
             chooseModsFolder()
         } else {
-            Task {
-                await viewModel.createModFolder()
-            }
+            createModFolder()
         }
-    }
-
-    private var readiness: ModManagerReadiness {
-        viewModel.state.readiness
     }
 }
