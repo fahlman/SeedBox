@@ -22,6 +22,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		94174AFB2FD45E4A00CC009E /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
+		94174AFD2FD45E5800CC009E /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		F00300000000000000000001 /* Seed Box.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Seed Box.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F00300000000000000000002 /* SeedBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SeedBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -71,6 +73,8 @@
 		G00000000000000000000001 = {
 			isa = PBXGroup;
 			children = (
+				94174AFD2FD45E5800CC009E /* README.md */,
+				94174AFB2FD45E4A00CC009E /* LICENSE */,
 				G00100000000000000000001 /* SeedBox */,
 				G00200000000000000000001 /* SeedBoxTests */,
 				G00300000000000000000001 /* Products */,
@@ -320,11 +324,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = SeedBox/Sandbox.entitlements;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = PUT2KYMV2W;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -341,6 +346,7 @@
 				EXECUTABLE_NAME = SeedBox;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SeedBox/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -348,6 +354,7 @@
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.fahlsing.SeedBox;
 				PRODUCT_NAME = "Seed Box";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_MODULE_NAME = SeedBox;
 			};
 			name = Debug;
@@ -356,12 +363,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = SeedBox/Sandbox.entitlements;
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = PUT2KYMV2W;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -378,6 +386,7 @@
 				EXECUTABLE_NAME = SeedBox;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SeedBox/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -385,6 +394,7 @@
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.fahlsing.SeedBox;
 				PRODUCT_NAME = "Seed Box";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_MODULE_NAME = SeedBox;
 			};
 			name = Release;
