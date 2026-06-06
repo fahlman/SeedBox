@@ -4,6 +4,7 @@ struct ModManagerActions {
     var refresh: () -> Void
     var showProblems: () -> Void
     var showActivity: () -> Void
+    var showRestoreHistory: () -> Void
     var showModInspector: () -> Void
     var createModSet: () -> Void
     var duplicateSelectedModSet: () -> Void

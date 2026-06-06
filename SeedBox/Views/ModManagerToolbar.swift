@@ -89,6 +89,15 @@ struct ModManagerToolbar: ToolbarContent {
             .disabled(!presentationState.canShowActivity)
 
             Button {
+                actions.showRestoreHistory()
+            } label: {
+                Label(AppStrings.Toolbar.restoreHistory, systemImage: "clock.arrow.circlepath")
+            }
+            .labelStyle(.iconOnly)
+            .help(AppStrings.Toolbar.restoreHistory)
+            .disabled(!presentationState.canShowRestoreHistory)
+
+            Button {
                 actions.addMods()
             } label: {
                 Label(AppStrings.Toolbar.addMods, systemImage: "square.and.arrow.down")

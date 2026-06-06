@@ -99,6 +99,10 @@ struct ModManagerPresentationState {
         state.archiveSummary.archivedModCount > 0
     }
 
+    var canShowRestoreHistory: Bool {
+        state.archiveSummary.archivedModCount > 0
+    }
+
     var canRestorePreviousVersion: Bool {
         canManageMods && selection.canRestorePreviousVersion
     }

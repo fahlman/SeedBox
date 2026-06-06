@@ -90,10 +90,15 @@ mods there.
 
 ## Requirements
 
+Runtime:
+
 - macOS 15.6 or newer
-- Xcode 16 or newer
-- Swift 6
 - Stardew Valley for macOS
+
+Development:
+
+- Xcode 26 or newer
+- Swift 6
 
 ## Build And Test
 

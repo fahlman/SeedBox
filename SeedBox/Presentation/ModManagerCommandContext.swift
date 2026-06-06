@@ -36,6 +36,10 @@ struct ModManagerCommandContext {
         presentationState.canShowActivity
     }
 
+    var canShowRestoreHistory: Bool {
+        presentationState.canShowRestoreHistory
+    }
+
     var canShowModInspector: Bool {
         presentationState.canShowModInspector
     }

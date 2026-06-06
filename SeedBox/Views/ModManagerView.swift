@@ -151,6 +151,18 @@ struct ModManagerView: View {
                     presentation.dismissSheet()
                 }
             )
+        case .restoreHistory:
+            RestoreHistorySheet(
+                archivedMods: presentationState.state.archivedMods,
+                currentMods: presentationState.state.mods,
+                archiveSummary: presentationState.archiveSummary,
+                restore: restoreArchivedMods,
+                revealInFinder: viewModel.revealArchivedModsFolder,
+                pruneExpiredArchives: pruneExpiredArchives,
+                close: {
+                    presentation.dismissSheet()
+                }
+            )
         case .modSetComparison(let comparison):
             ModSetComparisonSheet(comparison: comparison) {
                 presentation.dismissSheet()
@@ -283,6 +295,9 @@ struct ModManagerView: View {
                     duplicateGroups: presentationState.selection.duplicateGroups,
                     archiveSummary: presentationState.archiveSummary,
                     restorePreviousVersion: restorePreviousVersion,
+                    showRestoreHistory: {
+                        presentation.sheet = .restoreHistory
+                    },
                     revealSelectedMod: revealSelectedMod,
                     pruneExpiredArchives: pruneExpiredArchives
                 )

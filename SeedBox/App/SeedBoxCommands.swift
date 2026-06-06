@@ -52,6 +52,12 @@ struct SeedBoxCommands: Commands {
             .keyboardShortcut("l", modifiers: [.command, .option])
             .disabled(context == nil || !canShowActivity)
 
+            Button(AppStrings.Commands.restoreHistory) {
+                context?.actions.showRestoreHistory()
+            }
+            .keyboardShortcut("r", modifiers: [.command, .shift])
+            .disabled(context == nil || !canShowRestoreHistory)
+
             Divider()
 
             Button(AppStrings.Commands.showModDetails) {
@@ -150,6 +156,10 @@ struct SeedBoxCommands: Commands {
 
     private var canShowActivity: Bool {
         context?.canShowActivity ?? false
+    }
+
+    private var canShowRestoreHistory: Bool {
+        context?.canShowRestoreHistory ?? false
     }
 
     private var canShowModInspector: Bool {

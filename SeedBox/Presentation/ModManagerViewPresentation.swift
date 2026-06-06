@@ -28,6 +28,7 @@ enum ModManagerSheet: Identifiable {
     case sourceCleanup(SourceCleanupOffer)
     case problems
     case activity
+    case restoreHistory
     case modSetComparison(ModSetComparison)
 
     var id: String {
@@ -42,6 +43,8 @@ enum ModManagerSheet: Identifiable {
             return "problems"
         case .activity:
             return "activity"
+        case .restoreHistory:
+            return "restore-history"
         case .modSetComparison(let comparison):
             return "mod-set-comparison-\(comparison.id)"
         }

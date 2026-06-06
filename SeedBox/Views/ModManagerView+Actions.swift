@@ -34,6 +34,9 @@ extension ModManagerView {
             showActivity: {
                 presentation.sheet = .activity
             },
+            showRestoreHistory: {
+                presentation.sheet = .restoreHistory
+            },
             showModInspector: showModInspector,
             createModSet: createModSet,
             duplicateSelectedModSet: duplicateSelectedModSet,
@@ -78,6 +81,17 @@ extension ModManagerView {
 
         Task {
             await viewModel.restorePreviousVersion(of: selectedMod)
+        }
+    }
+
+    func restoreArchivedMods(_ archivedMods: [ArchivedModInfo]) {
+        guard !archivedMods.isEmpty else {
+            return
+        }
+
+        presentation.dismissSheet()
+        Task {
+            await viewModel.restoreArchivedMods(archivedMods)
         }
     }
 

@@ -9,6 +9,7 @@ struct ModDetailInspector: View {
     var duplicateGroups: [ModDuplicateGroup]
     var archiveSummary: ModArchiveSummary
     var restorePreviousVersion: () -> Void
+    var showRestoreHistory: () -> Void
     var revealSelectedMod: () -> Void
     var pruneExpiredArchives: () -> Void
 
@@ -146,10 +147,18 @@ struct ModDetailInspector: View {
             if let previousArchivedVersion {
                 detailRow(AppStrings.ModInspector.previousVersion, previousArchivedVersion.versionText)
 
-                Button {
-                    restorePreviousVersion()
-                } label: {
-                    Label(AppStrings.ModInspector.restorePreviousVersion, systemImage: "arrow.uturn.backward")
+                HStack {
+                    Button {
+                        restorePreviousVersion()
+                    } label: {
+                        Label(AppStrings.ModInspector.restorePreviousVersion, systemImage: "arrow.uturn.backward")
+                    }
+
+                    Button {
+                        showRestoreHistory()
+                    } label: {
+                        Label(AppStrings.RestoreHistory.title, systemImage: "clock.arrow.circlepath")
+                    }
                 }
             } else {
                 Text(AppStrings.ModInspector.noPreviousVersion)

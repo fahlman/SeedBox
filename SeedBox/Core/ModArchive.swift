@@ -177,6 +177,15 @@ enum ModArchive {
         }
     }
 
+    static func currentMod(
+        for archivedMod: ArchivedModInfo,
+        in mods: [ModInfo]
+    ) -> ModInfo? {
+        mods.first { mod in
+            archivedMod.matches(mod)
+        }
+    }
+
     private static func containerName(reason: ModArchiveReason, date: Date) -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [

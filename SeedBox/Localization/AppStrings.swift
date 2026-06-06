@@ -76,6 +76,7 @@ enum AppStrings {
         static let pruneExpiredArchives = String(localized: "Prune Expired Archives")
         static let refreshModsFolder = String(localized: "Refresh Mods Folder")
         static let renameModSet = String(localized: "Rename Mod Set")
+        static let restoreHistory = String(localized: "Restore History")
         static let restorePreviousVersion = String(localized: "Restore Previous Version")
         static let revealArchivedModsInFinder = String(localized: "Reveal Archived Mods in Finder")
         static let revealModsFolderInFinder = String(localized: "Reveal Mods Folder in Finder")
@@ -104,6 +105,7 @@ enum AppStrings {
         static let problems = String(localized: "Problems")
         static let pruneExpiredArchives = String(localized: "Prune Expired Archives")
         static let renameSet = String(localized: "Rename Set")
+        static let restoreHistory = String(localized: "Restore History")
         static let restorePreviousVersion = String(localized: "Restore Previous Version")
         static let revealInFinder = String(localized: "Reveal in Finder")
         static let settings = String(localized: "Settings")
@@ -674,6 +676,34 @@ enum AppStrings {
         static let summaryColumn = String(localized: "Summary")
         static let timeColumn = String(localized: "Time")
         static let title = String(localized: "Activity")
+    }
+
+    enum RestoreHistory {
+        static let archivedColumn = String(localized: "Archived")
+        static let deleted = String(localized: "Deleted")
+        static let folderColumn = String(localized: "Folder")
+        static let modColumn = String(localized: "Mod")
+        static let noArchivedMods = String(localized: "No archived mods")
+        static let pruneExpiredArchives = String(localized: "Prune Expired Archives")
+        static let reasonColumn = String(localized: "Reason")
+        static let restore = String(localized: "Restore")
+        static let revealInFinder = String(localized: "Reveal in Finder")
+        static let title = String(localized: "Restore History")
+        static let unknownDate = String(localized: "Unknown date")
+        static let versionColumn = String(localized: "Version")
+
+        static func summary(count: Int, size: String) -> String {
+            if count == 1 {
+                return String(localized: "1 archived mod, \(size)")
+            }
+
+            return String(localized: "\(count) archived mods, \(size)")
+        }
+
+        static func currentlyInstalled(_ version: String) -> String {
+            String(localized: "Currently installed: \(version)")
+        }
+
     }
 
     enum AuditActions {

@@ -483,6 +483,48 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: archivedPath))
     }
 
+    func testRestoringDeletedModFromHistoryRestoresFolderAndAudits() async throws {
+        let install = try makeInstall()
+        let modURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
+        let defaults = try makeIsolatedUserDefaults()
+
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Content Patcher", to: modURL, version: "1.0.0")
+        let archivedURL = try ModArchive.archive(
+            modURL,
+            in: install.archivedModsDirectoryURL,
+            reason: .deleted
+        )
+
+        let viewModel = ModManagerViewModel(
+            defaults: defaults,
+            modSetDirectory: install.modSetDirectoryURL
+        )
+        await viewModel.chooseModsFolder(install.modDirectoryURL)
+
+        XCTAssertTrue(viewModel.state.mods.isEmpty)
+        XCTAssertEqual(viewModel.state.archiveSummary.archivedModCount, 1)
+
+        let archivedMod = try XCTUnwrap(viewModel.state.archivedMods.first)
+        await viewModel.restoreArchivedMods([archivedMod])
+
+        XCTAssertEqual(viewModel.state.mods.map(\.displayName), ["Content Patcher"])
+        XCTAssertEqual(viewModel.state.archiveSummary.archivedModCount, 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: archivedURL.path))
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent("ContentPatcher")
+                    .appendingPathComponent("manifest.json")
+                    .path
+            )
+        )
+
+        let restoredEntry = try XCTUnwrap(viewModel.state.auditTrail.recentEntries.last)
+        XCTAssertEqual(restoredEntry.action, .modRestored)
+        XCTAssertEqual(restoredEntry.details["restored_count"], "1")
+    }
+
     func testStartupScanAddsClosedAppModToLastAppliedCustomSet() async throws {
         let install = try makeInstall()
         let consoleCommandsURL = install.modDirectoryURL.appendingPathComponent("ConsoleCommands")
