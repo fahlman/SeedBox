@@ -116,6 +116,14 @@ enum AppStrings {
         static let addingModsSection = String(localized: "Adding Mods")
         static let archivesSection = String(localized: "Archives")
         static let automaticallyPruneExpiredArchives = String(localized: "Automatically prune expired archives")
+        static let smapiLogSection = String(localized: "SMAPI Log")
+        static let logFolder = String(localized: "Log Folder")
+        static let chooseLogFolder = String(localized: "Choose Log Folder…")
+        static let smapiLogFooter = String(localized: "Seed Box reads SMAPI's log to show what happened in your last game session. The usual location is ~/.config/StardewValley/ErrorLogs.")
+        static let modUpdatesSection = String(localized: "Mod Updates")
+        static let checkForModUpdatesToggle = String(localized: "Check for mod updates over the network")
+        static let modUpdatesPrivacyFooter = String(localized: "Checks send each mod's unique ID, version, and update keys to smapi.io.")
+        static let checkForUpdatesNow = String(localized: "Check Now")
         static let folder = String(localized: "Folder")
         static let folderAccess = String(localized: "Folder Access")
         static let keepArchivedMods = String(localized: "Keep archived mods")
@@ -143,6 +151,17 @@ enum AppStrings {
         static let requiredByEnabledMods = String(localized: "Required by Enabled Mods")
         static let unresolvedRequiredDependencies = String(localized: "Unresolved Required Dependencies")
         static let applyAnyway = String(localized: "Apply Anyway")
+        static let lastSessionNoticeTitle = String(localized: "Problems in Your Last Game Session")
+        static let reviewProblems = String(localized: "Review Problems")
+        static let notNow = String(localized: "Not Now")
+
+        static func lastSessionSkippedMods(count: Int) -> String {
+            String(localized: "SMAPI couldn't load \(count) mods.")
+        }
+
+        static func lastSessionErroringMods(count: Int) -> String {
+            String(localized: "\(count) mods reported errors.")
+        }
 
         static func deleteModMessage(_ modName: String, retentionDays: Int) -> String {
             String(localized: "Delete \(modName)? A restorable copy will be archived for \(retentionDays) days.")
@@ -434,6 +453,78 @@ enum AppStrings {
             String(localized: "Disabled \(modName).")
         }
 
+        static func enabledMods(count: Int) -> String {
+            String(localized: "Enabled \(count) mods.")
+        }
+
+        static let checkingForModUpdates = String(localized: "Checking for mod updates…")
+
+        static let modsUpToDate = String(localized: "All mods are up to date.")
+
+        static let enableModUpdateChecksFirst = String(localized: "Turn on update checks in Settings to check for mod updates.")
+
+        static let noModsToCheckForUpdates = String(localized: "No installed mods declare a unique ID to check for updates.")
+
+        static func modUpdatesAvailable(count: Int) -> String {
+            String(localized: "Updates are available for \(count) mods.")
+        }
+
+        static func couldNotCheckForModUpdates(_ errorDescription: String) -> String {
+            String(localized: "Couldn't check for mod updates: \(errorDescription)")
+        }
+
+        static func smapiUpdateAvailable(_ version: String) -> String {
+            String(localized: "SMAPI \(version) is available.")
+        }
+
+        static func keptAndArchivedDuplicates(keptName: String, count: Int) -> String {
+            String(localized: "Kept \(keptName) and archived \(count) duplicate copies.")
+        }
+
+        static func couldNotResolveDuplicates(_ errorDescription: String) -> String {
+            String(localized: "Couldn't archive duplicate copies: \(errorDescription)")
+        }
+
+        static func couldNotPreserveConfigs(_ modNames: String) -> String {
+            String(localized: "Couldn't carry settings forward for \(modNames); the previous settings remain in the archive.")
+        }
+
+        static let bisectionNeedsMoreMods = String(localized: "Enable at least two mods to search for a problem mod.")
+
+        static let noSMAPILogFound = String(localized: "No SMAPI log was found in the chosen folder yet.")
+
+        static func couldNotChooseLogFolder(_ errorDescription: String) -> String {
+            String(localized: "Couldn't choose the log folder: \(errorDescription)")
+        }
+
+        static func readingSMAPILogs(from path: String) -> String {
+            String(localized: "Reading SMAPI logs from \(path).")
+        }
+
+        static let bisectionCleared = String(localized: "None of the tested mods caused the problem. Your mods were restored.")
+
+        static let bisectionCancelled = String(localized: "Problem search cancelled. Your mods were restored.")
+
+        static func bisectionProgress(step: Int, suspectCount: Int) -> String {
+            String(localized: "Problem search step \(step): \(suspectCount) mods still suspected.")
+        }
+
+        static func bisectionIdentified(_ modName: String) -> String {
+            String(localized: "Identified \(modName) as the likely problem. It was left disabled and your other mods were restored.")
+        }
+
+        static func bisectionNarrowedToGroup(_ modNames: String) -> String {
+            String(localized: "The problem comes from one of: \(modNames). Your mods were restored.")
+        }
+
+        static func couldNotUpdateBisection(_ errorDescription: String) -> String {
+            String(localized: "Couldn't update mods for the problem search: \(errorDescription)")
+        }
+
+        static func disabledMods(count: Int) -> String {
+            String(localized: "Disabled \(count) mods.")
+        }
+
         static func renamedSet(to setName: String) -> String {
             String(localized: "Renamed set to \(setName).")
         }
@@ -583,6 +674,11 @@ enum AppStrings {
         static let optionalDependency = String(localized: "Optional")
         static let previousVersion = String(localized: "Previous Version")
         static let pruneExpiredArchives = String(localized: "Prune Expired Archives")
+        static let viewUpdatePage = String(localized: "View Update Page")
+
+        static func updateAvailable(_ version: String) -> String {
+            String(localized: "Version \(version) is available.")
+        }
         static let requiredBySection = String(localized: "Required By")
         static let requiredDependency = String(localized: "Required")
         static let restorePreviousVersion = String(localized: "Restore Previous Version")
@@ -666,6 +762,33 @@ enum AppStrings {
         static let dependenciesSection = String(localized: "Dependencies")
         static let duplicatesSection = String(localized: "Duplicates")
         static let invalidFoldersSection = String(localized: "Invalid Folders")
+        static func getMod(_ displayName: String) -> String {
+            String(localized: "Get \(displayName)")
+        }
+
+        static let keepNewestCopy = String(localized: "Keep Newest Copy")
+        static let findProblemMod = String(localized: "Find Problem Mod…")
+        static let smapiCompatibilitySection = String(localized: "SMAPI Compatibility")
+        static let lastSessionSection = String(localized: "Last Game Session")
+        static let disable = String(localized: "Disable")
+
+        static func skippedLastSession(_ reason: String) -> String {
+            String(localized: "SMAPI skipped this mod because \(reason)")
+        }
+
+        static func lastSessionErrors(count: Int) -> String {
+            String(localized: "\(count) errors in the last game session.")
+        }
+
+        static func fromGameSession(_ formattedDate: String) -> String {
+            String(localized: "From the game session on \(formattedDate).")
+        }
+
+        static func requiresNewerSMAPI(minimumVersion: String, installedVersion: String) -> String {
+            String(localized: "Requires SMAPI \(minimumVersion) or newer; \(installedVersion) is installed.")
+        }
+
+        static let linkedFolder = String(localized: "This folder is a link to another location, so Seed Box doesn't manage it.")
         static let missingManifest = String(localized: "No manifest.json was found in this folder.")
         static let noProblems = String(localized: "No problems")
         static let title = String(localized: "Problems")
@@ -706,8 +829,24 @@ enum AppStrings {
 
     }
 
+    enum Bisection {
+        static let title = String(localized: "Find Problem Mod")
+        static let instructions = String(localized: "Half of the suspect mods have been disabled. Launch Stardew Valley, check whether the problem still happens, then come back and choose below. Your previous mod states are restored when the search ends.")
+        static let problemStillHappens = String(localized: "Problem Still Happens")
+        static let problemGone = String(localized: "Problem Is Gone")
+        static let cancelSearch = String(localized: "Cancel Search")
+
+        static func stepSummary(step: Int, suspectCount: Int, testingCount: Int) -> String {
+            String(localized: "Step \(step): \(suspectCount) mods suspected, \(testingCount) enabled for this test.")
+        }
+    }
+
     enum AuditActions {
         static let archivesPruned = String(localized: "Archives Pruned")
+        static let duplicatesResolved = String(localized: "Duplicates Resolved")
+        static let problemSearch = String(localized: "Problem Search")
+        static let logFolderSelected = String(localized: "Log Folder Selected")
+        static let modUpdatesChecked = String(localized: "Mod Updates Checked")
         static let modDeleted = String(localized: "Mod Deleted")
         static let modDisabled = String(localized: "Mod Disabled")
         static let modEnabled = String(localized: "Mod Enabled")
@@ -755,6 +894,14 @@ enum AppStrings {
 
         static func modSetNotFound(_ id: String) -> String {
             String(localized: "Mod set \(id) was not found.")
+        }
+
+        static func archiveHasTooManyFiles(_ archiveName: String, limit: Int) -> String {
+            String(localized: "Couldn't extract \(archiveName) because it contains more than \(limit) files.")
+        }
+
+        static func archiveExpandsTooLarge(_ archiveName: String, limitText: String) -> String {
+            String(localized: "Couldn't extract \(archiveName) because it expands to more than \(limitText).")
         }
 
         static func noInstallableMods(at path: String) -> String {
