@@ -1,7 +1,9 @@
+import AppKit
 import SwiftUI
 
 struct SeedBoxCommands: Commands {
     @FocusedValue(\.modManagerCommandContext) private var context
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -37,7 +39,16 @@ struct SeedBoxCommands: Commands {
         }
 
         CommandGroup(replacing: .toolbar) {}
-        CommandGroup(replacing: .help) {}
+        CommandGroup(replacing: .help) {
+            Button(AppStrings.Help.menuItem) {
+                openWindow(id: "help")
+            }
+            .keyboardShortcut("?", modifiers: [.command])
+
+            Button(AppStrings.Help.reportAProblem) {
+                NSWorkspace.shared.open(HelpView.issuesURL)
+            }
+        }
 
         CommandMenu(AppStrings.Commands.modsMenu) {
             Button(AppStrings.Toolbar.problems) {

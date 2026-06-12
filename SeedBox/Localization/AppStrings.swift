@@ -841,6 +841,25 @@ enum AppStrings {
         }
     }
 
+    enum Help {
+        static let menuItem = String(localized: "Seed Box Help")
+        static let reportAProblem = String(localized: "Report a Problem…")
+        static let windowTitle = String(localized: "Seed Box Help")
+        static let gettingStartedTitle = String(localized: "Getting Started")
+        static let gettingStartedBody = String(localized: "Seed Box manages the mods in your Stardew Valley Mods folder. Choose the folder once and Seed Box keeps watch over it — even changes made outside the app are noticed.")
+        static let addingModsTitle = String(localized: "Adding Mods")
+        static let addingModsBody = String(localized: "Drag mod folders or downloaded ZIP archives into the window. Seed Box previews every install before touching anything, archives whatever it replaces, and keeps your settings when a mod is updated.")
+        static let modSetsTitle = String(localized: "Mod Sets")
+        static let modSetsBody = String(localized: "A mod set remembers which mods are enabled. Switch sets to swap loadouts before launching the game; changes made while a custom set is active are saved back into it.")
+        static let updatesTitle = String(localized: "Updates")
+        static let updatesBody = String(localized: "Turn on update checks in Settings to compare your installed mods against smapi.io. Available updates appear in the Updates column and in each mod's details.")
+        static let troubleshootingTitle = String(localized: "When Something Breaks")
+        static let troubleshootingBody = String(localized: "Open Problems in the toolbar to see missing dependencies, duplicates, and what went wrong in your last game session. If the game misbehaves and no mod is named, Find Problem Mod narrows it down automatically. Deleted and replaced mods stay restorable in Restore History.")
+        static let supportTitle = String(localized: "Report a Problem")
+        static let supportBody = String(localized: "Found a bug or need help? Report it on GitHub and describe what you were doing when it happened.")
+        static let openIssues = String(localized: "Open GitHub Issues")
+    }
+
     enum AuditActions {
         static let archivesPruned = String(localized: "Archives Pruned")
         static let duplicatesResolved = String(localized: "Duplicates Resolved")

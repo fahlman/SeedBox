@@ -2619,6 +2619,71 @@
         }
       }
     },
+    "A mod set remembers which mods are enabled. Switch sets to swap loadouts before launching the game; changes made while a custom set is active are saved back into it.": {
+      "comment": "Help window content.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Mod-Set merkt sich, welche Mods aktiviert sind. Wechsle Sets, um vor dem Spielstart die Ausstattung zu tauschen; Änderungen bei aktivem eigenem Set werden darin gespeichert."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A mod set remembers which mods are enabled. Switch sets to swap loadouts before launching the game; changes made while a custom set is active are saved back into it."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un conjunto de mods recuerda qué mods están habilitados. Cambia de conjunto para alternar configuraciones antes de iniciar el juego; los cambios hechos con un conjunto personalizado activo se guardan en él."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un ensemble de mods mémorise quels mods sont activés. Changez d'ensemble pour échanger de configuration avant de lancer le jeu ; les changements faits avec un ensemble personnalisé actif y sont enregistrés."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un set di mod ricorda quali mod sono abilitate. Cambia set per alternare configurazioni prima di avviare il gioco; le modifiche fatte con un set personalizzato attivo vengono salvate al suo interno."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MODセットはどのMODが有効かを記憶します。ゲーム起動前にセットを切り替えて構成を入れ替えられます。カスタムセットが有効な間の変更はそのセットに保存されます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모드 세트는 어떤 모드가 활성화되어 있는지 기억합니다. 게임 시작 전에 세트를 전환해 구성을 바꿔보세요. 사용자 세트가 활성화된 동안의 변경은 해당 세트에 저장됩니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Een modset onthoudt welke mods zijn ingeschakeld. Wissel van set om vóór het starten van het spel van samenstelling te wisselen; wijzigingen met een actieve eigen set worden erin opgeslagen."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Um conjunto de mods lembra quais mods estão ativados. Troque de conjunto para alternar configurações antes de iniciar o jogo; mudanças feitas com um conjunto personalizado ativo são salvas nele."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模组合集会记住哪些模组处于启用状态。启动游戏前切换合集即可更换配置；自定义合集处于活动状态时所做的更改会保存回该合集。"
+          }
+        }
+      }
+    },
     "Action": {
       "comment": "Import preview table column title showing what Seed Box will do.",
       "localizations": {
@@ -10966,6 +11031,71 @@
         }
       }
     },
+    "Drag mod folders or downloaded ZIP archives into the window. Seed Box previews every install before touching anything, archives whatever it replaces, and keeps your settings when a mod is updated.": {
+      "comment": "Help window content.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ziehe Mod-Ordner oder heruntergeladene ZIP-Archive ins Fenster. Seed Box zeigt jede Installation als Vorschau an, bevor etwas verändert wird, archiviert alles, was ersetzt wird, und behält deine Einstellungen bei Mod-Updates."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag mod folders or downloaded ZIP archives into the window. Seed Box previews every install before touching anything, archives whatever it replaces, and keeps your settings when a mod is updated."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrastra carpetas de mods o archivos ZIP descargados a la ventana. Seed Box muestra una vista previa de cada instalación antes de tocar nada, archiva lo que reemplaza y conserva tus ajustes cuando un mod se actualiza."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Glissez des dossiers de mods ou des archives ZIP téléchargées dans la fenêtre. Seed Box prévisualise chaque installation avant de toucher quoi que ce soit, archive ce qu'il remplace et conserve vos réglages lors des mises à jour."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trascina cartelle di mod o archivi ZIP scaricati nella finestra. Seed Box mostra un'anteprima di ogni installazione prima di toccare qualsiasi cosa, archivia ciò che sostituisce e conserva le impostazioni quando una mod viene aggiornata."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MODフォルダやダウンロードしたZIPアーカイブをウインドウにドラッグします。Seed Boxは何かを変更する前に必ずインストール内容をプレビューし、置き換えたものをアーカイブし、MODの更新時には設定を引き継ぎます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모드 폴더나 다운로드한 ZIP 파일을 창으로 드래그하세요. Seed Box는 변경 전에 모든 설치를 미리 보여주고, 교체되는 것은 보관하며, 모드 업데이트 시 설정을 유지합니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep mod-mappen of gedownloade ZIP-archieven naar het venster. Seed Box toont een voorbeeld van elke installatie voordat er iets wordt aangepast, archiveert wat wordt vervangen en behoudt je instellingen bij een mod-update."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arraste pastas de mods ou arquivos ZIP baixados para a janela. O Seed Box mostra uma prévia de cada instalação antes de tocar em qualquer coisa, arquiva o que substitui e mantém suas configurações quando um mod é atualizado."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将模组文件夹或下载的 ZIP 压缩包拖入窗口。Seed Box 会在做出任何更改前预览每次安装，归档被替换的内容，并在模组更新时保留你的设置。"
+          }
+        }
+      }
+    },
     "Duplicate": {
       "comment": "Default action button in the duplicate mod set sheet.",
       "localizations": {
@@ -12387,6 +12517,71 @@
         }
       }
     },
+    "Found a bug or need help? Report it on GitHub and describe what you were doing when it happened.": {
+      "comment": "Help window content. GitHub is a service name; keep it as is.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehler gefunden oder Hilfe nötig? Melde es auf GitHub und beschreibe, was du gerade gemacht hast."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Found a bug or need help? Report it on GitHub and describe what you were doing when it happened."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Encontraste un error o necesitas ayuda? Infórmalo en GitHub y describe qué estabas haciendo cuando ocurrió."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un bug ou besoin d'aide ? Signalez-le sur GitHub en décrivant ce que vous faisiez au moment du problème."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hai trovato un bug o ti serve aiuto? Segnalalo su GitHub descrivendo cosa stavi facendo quando è successo."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バグを見つけた、または助けが必要ですか？GitHubで報告し、問題発生時に何をしていたかを記載してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "버그를 발견했거나 도움이 필요하신가요? GitHub에 보고하고 문제가 발생했을 때 무엇을 하고 있었는지 설명해 주세요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Een fout gevonden of hulp nodig? Meld het op GitHub en beschrijf wat je deed toen het gebeurde."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encontrou um bug ou precisa de ajuda? Relate no GitHub e descreva o que você estava fazendo quando aconteceu."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发现了 bug 或需要帮助？请在 GitHub 上报告，并描述问题发生时你正在进行的操作。"
+          }
+        }
+      }
+    },
     "From the game session on %@.": {
       "comment": "Footer under the Last Game Session section. %@ is a formatted date and time; keep it intact.",
       "localizations": {
@@ -12513,6 +12708,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "获取 %1$@"
+          }
+        }
+      }
+    },
+    "Getting Started": {
+      "comment": "Help window content.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erste Schritte"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Getting Started"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Primeros pasos"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Premiers pas"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Per iniziare"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "はじめに"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시작하기"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aan de slag"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Primeiros passos"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始使用"
           }
         }
       }
@@ -18358,6 +18618,136 @@
         }
       }
     },
+    "Open GitHub Issues": {
+      "comment": "Link in the help window. GitHub Issues is a service name; keep it as is.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub Issues öffnen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open GitHub Issues"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir GitHub Issues"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir GitHub Issues"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apri GitHub Issues"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub Issuesを開く"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub Issues 열기"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub Issues openen"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir GitHub Issues"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 GitHub Issues"
+          }
+        }
+      }
+    },
+    "Open Problems in the toolbar to see missing dependencies, duplicates, and what went wrong in your last game session. If the game misbehaves and no mod is named, Find Problem Mod narrows it down automatically. Deleted and replaced mods stay restorable in Restore History.": {
+      "comment": "Help window content.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffne „Probleme“ in der Symbolleiste, um fehlende Abhängigkeiten, Duplikate und Fehler der letzten Spielsitzung zu sehen. Wenn das Spiel Probleme macht und keine Mod genannt wird, grenzt „Problem-Mod finden“ sie automatisch ein. Gelöschte und ersetzte Mods bleiben über den Wiederherstellungsverlauf wiederherstellbar."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Problems in the toolbar to see missing dependencies, duplicates, and what went wrong in your last game session. If the game misbehaves and no mod is named, Find Problem Mod narrows it down automatically. Deleted and replaced mods stay restorable in Restore History."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre Problemas en la barra de herramientas para ver dependencias faltantes, duplicados y lo que falló en tu última sesión de juego. Si el juego falla y ningún mod aparece nombrado, Buscar mod problemático lo acota automáticamente. Los mods eliminados y reemplazados siguen siendo restaurables desde el Historial de restauración."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrez Problèmes dans la barre d'outils pour voir les dépendances manquantes, les doublons et ce qui a mal tourné lors de votre dernière session. Si le jeu se comporte mal sans qu'aucun mod ne soit nommé, Trouver le mod fautif le cerne automatiquement. Les mods supprimés et remplacés restent restaurables dans l'historique de restauration."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apri Problemi nella barra degli strumenti per vedere dipendenze mancanti, duplicati e cosa è andato storto nell'ultima sessione di gioco. Se il gioco si comporta male e nessuna mod viene nominata, Trova mod problematica la individua automaticamente. Le mod eliminate e sostituite restano ripristinabili nella cronologia di ripristino."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ツールバーの「問題」を開くと、不足している依存関係、重複、前回のゲームセッションでの問題を確認できます。ゲームの調子が悪いのに原因のMODが分からない場合は、「問題のMODを探す」が自動的に絞り込みます。削除・置換されたMODは復元履歴からいつでも復元できます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "도구 막대에서 문제를 열면 누락된 의존성, 중복, 마지막 게임 세션의 문제를 볼 수 있습니다. 게임이 이상한데 원인 모드를 모르겠다면 문제 모드 찾기가 자동으로 범위를 좁혀줍니다. 삭제되거나 교체된 모드는 복원 기록에서 복원할 수 있습니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Problemen in de knoppenbalk om ontbrekende afhankelijkheden, duplicaten en wat er in je laatste spelsessie misging te zien. Als het spel hapert en er geen mod wordt genoemd, grenst Probleemmod zoeken die automatisch in. Verwijderde en vervangen mods blijven herstelbaar via de herstelgeschiedenis."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abra Problemas na barra de ferramentas para ver dependências ausentes, duplicatas e o que deu errado na sua última sessão de jogo. Se o jogo se comportar mal e nenhum mod for indicado, Encontrar mod problemático restringe automaticamente. Mods excluídos e substituídos continuam restauráveis no Histórico de restauração."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开工具栏中的“问题”可查看缺失的依赖、重复项以及上次游戏会话中出现的问题。如果游戏运行异常且未指明是哪个模组，“查找问题模组”会自动缩小范围。删除和替换的模组可随时在恢复历史中恢复。"
+          }
+        }
+      }
+    },
     "Optional": {
       "comment": "Dependency kind label for optional dependencies.",
       "localizations": {
@@ -20051,6 +20441,136 @@
         }
       }
     },
+    "Report a Problem": {
+      "comment": "Help window section header.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Problem melden"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report a Problem"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informar de un problema"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signaler un problème"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segnala un problema"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "問題を報告"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "문제 보고"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Probleem melden"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relatar um problema"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "报告问题"
+          }
+        }
+      }
+    },
+    "Report a Problem…": {
+      "comment": "Help menu item that opens the GitHub issues page.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Problem melden …"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report a Problem…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informar de un problema…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signaler un problème…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segnala un problema…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "問題を報告…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "문제 보고…"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Probleem melden…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relatar um problema…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "报告问题…"
+          }
+        }
+      }
+    },
     "Required": {
       "comment": "Dependency kind label for required dependencies.",
       "localizations": {
@@ -21536,6 +22056,71 @@
         }
       }
     },
+    "Seed Box Help": {
+      "comment": "Help menu item and help window title. Seed Box is the app name; keep it as is.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed Box Hilfe"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed Box Help"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayuda de Seed Box"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aide Seed Box"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aiuto Seed Box"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed Boxヘルプ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed Box 도움말"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed Box Help"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajuda do Seed Box"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed Box 帮助"
+          }
+        }
+      }
+    },
     "Seed Box manages the default Mods folder.": {
       "comment": "Message about the Stardew Valley Mods folder managed by Seed Box.",
       "localizations": {
@@ -21597,6 +22182,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "Seed Box 管理默认的 Mods 文件夹。"
+          }
+        }
+      }
+    },
+    "Seed Box manages the mods in your Stardew Valley Mods folder. Choose the folder once and Seed Box keeps watch over it — even changes made outside the app are noticed.": {
+      "comment": "Help window content.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed Box verwaltet die Mods in deinem Stardew-Valley-Mods-Ordner. Wähle den Ordner einmal aus, und Seed Box behält ihn im Blick — auch Änderungen außerhalb der App werden bemerkt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed Box manages the mods in your Stardew Valley Mods folder. Choose the folder once and Seed Box keeps watch over it — even changes made outside the app are noticed."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed Box gestiona los mods de tu carpeta Mods de Stardew Valley. Elige la carpeta una vez y Seed Box la vigilará; incluso nota los cambios hechos fuera de la app."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed Box gère les mods de votre dossier Mods de Stardew Valley. Choisissez le dossier une fois et Seed Box le surveille — même les changements faits hors de l'app sont remarqués."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed Box gestisce le mod nella cartella Mods di Stardew Valley. Scegli la cartella una volta e Seed Box la terrà d'occhio: nota anche le modifiche fatte fuori dall'app."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed BoxはStardew ValleyのModsフォルダ内のMODを管理します。フォルダを一度選択すれば、Seed Boxが見守ります。アプリ外での変更にも気づきます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed Box는 Stardew Valley의 Mods 폴더에 있는 모드를 관리합니다. 폴더를 한 번 선택하면 Seed Box가 계속 지켜봅니다. 앱 밖에서 일어난 변경도 알아차립니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed Box beheert de mods in je Stardew Valley Mods-map. Kies de map één keer en Seed Box houdt deze in de gaten — zelfs wijzigingen buiten de app worden opgemerkt."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Seed Box gerencia os mods da sua pasta Mods do Stardew Valley. Escolha a pasta uma vez e o Seed Box ficará de olho nela — até mudanças feitas fora do app são percebidas."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed Box 管理 Stardew Valley Mods 文件夹中的模组。只需选择一次文件夹，Seed Box 就会持续关注它——即使是在应用外做出的更改也会被注意到。"
           }
         }
       }
@@ -24242,6 +24892,71 @@
         }
       }
     },
+    "Turn on update checks in Settings to compare your installed mods against smapi.io. Available updates appear in the Updates column and in each mod's details.": {
+      "comment": "Help window content. smapi.io is a service name; keep it as is.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktiviere die Update-Suche in den Einstellungen, um deine installierten Mods mit smapi.io zu vergleichen. Verfügbare Updates erscheinen in der Spalte „Updates“ und in den Details jeder Mod."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn on update checks in Settings to compare your installed mods against smapi.io. Available updates appear in the Updates column and in each mod's details."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activa la búsqueda de actualizaciones en Ajustes para comparar tus mods instalados con smapi.io. Las actualizaciones disponibles aparecen en la columna Actualizaciones y en los detalles de cada mod."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activez la recherche de mises à jour dans Réglages pour comparer vos mods installés avec smapi.io. Les mises à jour disponibles apparaissent dans la colonne Mises à jour et dans les détails de chaque mod."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attiva i controlli degli aggiornamenti nelle Impostazioni per confrontare le mod installate con smapi.io. Gli aggiornamenti disponibili compaiono nella colonna Aggiornamenti e nei dettagli di ogni mod."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定でアップデート確認をオンにすると、インストール済みMODをsmapi.ioと比較します。利用可能なアップデートは「アップデート」列と各MODの詳細に表示されます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설정에서 업데이트 확인을 켜면 설치된 모드를 smapi.io와 비교합니다. 사용 가능한 업데이트는 업데이트 열과 각 모드의 세부 정보에 표시됩니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schakel updatecontroles in bij Instellingen om je geïnstalleerde mods met smapi.io te vergelijken. Beschikbare updates verschijnen in de kolom Updates en in de details van elke mod."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ative a verificação de atualizações em Ajustes para comparar seus mods instalados com o smapi.io. Atualizações disponíveis aparecem na coluna Atualizações e nos detalhes de cada mod."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在设置中开启更新检查，即可将已安装的模组与 smapi.io 进行比较。可用更新会显示在“更新”列和每个模组的详细信息中。"
+          }
+        }
+      }
+    },
     "Type": {
       "comment": "Table column header. Shows SMAPI, Content Patcher, or another mod type.",
       "localizations": {
@@ -25912,6 +26627,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "查看更新页面"
+          }
+        }
+      }
+    },
+    "When Something Breaks": {
+      "comment": "Help window content.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wenn etwas kaputtgeht"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When Something Breaks"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuando algo falla"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quand quelque chose casse"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quando qualcosa si rompe"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "問題が起きたら"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "문제가 생겼을 때"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Als er iets misgaat"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quando algo dá errado"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "出现问题时"
           }
         }
       }

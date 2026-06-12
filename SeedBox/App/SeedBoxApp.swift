@@ -17,6 +17,12 @@ struct SeedBoxApp: App {
             SeedBoxCommands()
         }
 
+        Window(AppStrings.Help.windowTitle, id: "help") {
+            HelpView()
+        }
+        .windowResizability(.contentSize)
+        .commandsRemoved()
+
         Settings {
             SettingsSceneView()
         }
