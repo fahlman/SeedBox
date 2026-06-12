@@ -26,6 +26,10 @@ struct HelpView: View {
                     AppStrings.Help.troubleshootingTitle,
                     AppStrings.Help.troubleshootingBody
                 )
+                helpSection(
+                    AppStrings.Help.privacyTitle,
+                    AppStrings.Help.privacyBody
+                )
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text(AppStrings.Help.supportTitle)

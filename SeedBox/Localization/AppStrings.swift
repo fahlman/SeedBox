@@ -855,6 +855,8 @@ enum AppStrings {
         static let updatesBody = String(localized: "Turn on update checks in Settings to compare your installed mods against smapi.io. Available updates appear in the Updates column and in each mod's details.")
         static let troubleshootingTitle = String(localized: "When Something Breaks")
         static let troubleshootingBody = String(localized: "Open Problems in the toolbar to see missing dependencies, duplicates, and what went wrong in your last game session. If the game misbehaves and no mod is named, Find Problem Mod narrows it down automatically. Deleted and replaced mods stay restorable in Restore History.")
+        static let privacyTitle = String(localized: "Privacy")
+        static let privacyBody = String(localized: "Everything Seed Box does happens on your Mac. Nothing leaves your computer unless you turn on update checks in Settings — and then the only thing ever sent is each mod's ID, version, and update keys, to smapi.io, only when a check runs. No accounts, no analytics, no tracking.")
         static let supportTitle = String(localized: "Report a Problem")
         static let supportBody = String(localized: "Found a bug or need help? Report it on GitHub and describe what you were doing when it happened.")
         static let openIssues = String(localized: "Open GitHub Issues")

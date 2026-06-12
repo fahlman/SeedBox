@@ -12062,6 +12062,71 @@
         }
       }
     },
+    "Everything Seed Box does happens on your Mac. Nothing leaves your computer unless you turn on update checks in Settings — and then the only thing ever sent is each mod's ID, version, and update keys, to smapi.io, only when a check runs. No accounts, no analytics, no tracking.": {
+      "comment": "The app's privacy statement, shown in the help window. smapi.io is a service name; keep it as is.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alles, was Seed Box tut, geschieht auf deinem Mac. Nichts verlässt deinen Computer, es sei denn, du aktivierst die Update-Suche in den Einstellungen — und selbst dann werden nur die ID, Version und Update-Schlüssel jeder Mod an smapi.io gesendet, und nur wenn eine Suche läuft. Keine Konten, keine Analyse, kein Tracking."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Everything Seed Box does happens on your Mac. Nothing leaves your computer unless you turn on update checks in Settings — and then the only thing ever sent is each mod's ID, version, and update keys, to smapi.io, only when a check runs. No accounts, no analytics, no tracking."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todo lo que hace Seed Box ocurre en tu Mac. Nada sale de tu ordenador a menos que actives la búsqueda de actualizaciones en Ajustes; e incluso entonces, lo único que se envía es el ID, la versión y las claves de actualización de cada mod, a smapi.io, y solo cuando se ejecuta una comprobación. Sin cuentas, sin analíticas, sin rastreo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tout ce que fait Seed Box se passe sur votre Mac. Rien ne quitte votre ordinateur sauf si vous activez la recherche de mises à jour dans Réglages — et même alors, seuls l'ID, la version et les clés de mise à jour de chaque mod sont envoyés, à smapi.io, uniquement lors d'une vérification. Pas de compte, pas d'analyse, pas de suivi."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tutto ciò che Seed Box fa avviene sul tuo Mac. Nulla lascia il tuo computer a meno che tu non attivi i controlli degli aggiornamenti nelle Impostazioni — e anche allora vengono inviati solo l'ID, la versione e le chiavi di aggiornamento di ogni mod, a smapi.io, solo quando viene eseguito un controllo. Nessun account, nessuna analisi, nessun tracciamento."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed Boxの動作はすべてあなたのMac上で完結します。設定でアップデート確認をオンにしない限り、何もコンピュータの外に送信されません。オンにした場合でも、送信されるのは各MODのID、バージョン、アップデートキーのみで、送信先はsmapi.io、送信されるのは確認の実行時だけです。アカウントも、分析も、トラッキングもありません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed Box의 모든 동작은 Mac 안에서 이루어집니다. 설정에서 업데이트 확인을 켜지 않는 한 어떤 것도 컴퓨터 밖으로 나가지 않습니다. 켜더라도 전송되는 것은 각 모드의 ID, 버전, 업데이트 키뿐이며, smapi.io로, 확인이 실행될 때만 전송됩니다. 계정도, 분석도, 추적도 없습니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alles wat Seed Box doet, gebeurt op je Mac. Niets verlaat je computer tenzij je updatecontroles inschakelt bij Instellingen — en zelfs dan wordt alleen de ID, versie en update-sleutels van elke mod verzonden, naar smapi.io, en alleen wanneer een controle wordt uitgevoerd. Geen accounts, geen analyses, geen tracking."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tudo o que o Seed Box faz acontece no seu Mac. Nada sai do seu computador a menos que você ative a verificação de atualizações em Ajustes — e mesmo assim, a única coisa enviada é o ID, a versão e as chaves de atualização de cada mod, para o smapi.io, apenas quando uma verificação é executada. Sem contas, sem análises, sem rastreamento."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seed Box 的一切操作都在你的 Mac 上完成。除非你在设置中开启更新检查，否则任何数据都不会离开你的电脑——即使开启，发送的也仅是每个模组的 ID、版本和更新密钥，发送至 smapi.io，且仅在执行检查时发送。没有账户，没有分析，没有跟踪。"
+          }
+        }
+      }
+    },
     "Existing mods will be archived first, so you can restore the previous version if needed.": {
       "comment": "Import preview note explaining that replacements are reversible.",
       "localizations": {
@@ -18874,6 +18939,71 @@
           "stringUnit": {
             "state": "new",
             "value": "Previous Version"
+          }
+        }
+      }
+    },
+    "Privacy": {
+      "comment": "Help window section header.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenschutz"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacidad"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confidentialité"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プライバシー"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "개인정보 보호"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacidade"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐私"
           }
         }
       }
