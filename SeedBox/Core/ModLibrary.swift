@@ -39,19 +39,40 @@ enum ModLibrary {
             throw ModLibraryError.modFolderMissing(install.modDirectoryURL)
         }
 
-        let folders = try fileManager.contentsOfDirectory(
+        var invalidFolders: [InvalidModFolder] = []
+        var folders: [URL] = []
+        for url in try fileManager.contentsOfDirectory(
             at: install.modDirectoryURL,
             includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
             options: []
-        )
-        .filter { url in
+        ) {
             guard url.lastPathComponent != ".DS_Store" else {
-                return false
+                continue
             }
-            return fileManager.directoryExists(at: url)
-        }
 
-        var invalidFolders: [InvalidModFolder] = []
+            let isSymbolicLink = (try? url.resourceValues(
+                forKeys: [.isSymbolicLinkKey]
+            ).isSymbolicLink) ?? false
+            guard !isSymbolicLink else {
+                // Deleting or renaming a linked folder would silently operate on
+                // whatever it points at, so linked folders are surfaced instead
+                // of managed.
+                if fileManager.directoryExists(at: url) {
+                    invalidFolders.append(
+                        InvalidModFolder(
+                            url: url,
+                            folderName: url.lastPathComponent,
+                            reason: AppStrings.Problems.linkedFolder
+                        )
+                    )
+                }
+                continue
+            }
+
+            if fileManager.directoryExists(at: url) {
+                folders.append(url)
+            }
+        }
         let scannedMods = folders.compactMap { url -> ModInfo? in
             let manifestURL = ModManifestReader.findManifest(in: url, fileManager: fileManager)
             guard let manifestURL else {
@@ -134,8 +155,6 @@ enum ModLibrary {
         let resolvedArchiveDirectory = archiveDirectory ?? install.archivedModsDirectoryURL
         var result = ModInstallResult()
         var pendingOperations: [PendingInstallOperation] = []
-        var pendingIdentities: Set<ModInstallIdentity> = []
-        var pendingDestinationURLsByToken: [String: URL] = [:]
         var temporaryExtractionDirectories: [URL] = []
         defer {
             for temporaryExtractionDirectory in temporaryExtractionDirectories {
@@ -143,12 +162,9 @@ enum ModLibrary {
             }
         }
 
-        let existingModURLsByToken = ModInstalledCatalog.urlsByToken(
-            in: install.modDirectoryURL,
-            fileManager: fileManager
-        )
-        let installedMods = ModInstalledCatalog.locations(
-            in: install.modDirectoryURL,
+        var classifier = ModInstallClassifier(
+            install: install,
+            enabled: enabled,
             fileManager: fileManager
         )
 
@@ -163,51 +179,29 @@ enum ModLibrary {
             }
 
             for candidate in installSource.candidates {
-                let candidateIdentity = ModInstallPlanner.identity(for: candidate)
-                let destinationFolderName = ModInstallPlanner.destinationFolderName(
-                    for: candidate.destinationFolderName,
-                    enabled: enabled
-                )
-                let folderName = destinationFolderName.trimmingPrefix(Character("."))
-                guard !folderName.isEmpty else {
-                    throw ModLibraryError.invalidDisabledName(candidate.destinationFolderName)
-                }
-
-                let destinationURL = install.modDirectoryURL
-                    .appendingPathComponent(destinationFolderName)
-                let destinationToken = folderName.normalizedFolderToken
-                let operationIdentity = candidateIdentity ?? .folderToken(destinationToken)
-
-                guard !pendingIdentities.contains(operationIdentity) else {
+                switch try classifier.classify(candidate).resolution {
+                case .duplicateInSelection(let pendingURL):
                     result.skipped.append(
                         ModInstallPlanner.skippedResult(
                             for: candidate,
-                            existingURL: pendingDestinationURLsByToken[destinationToken],
+                            existingURL: pendingURL,
                             reason: .duplicateInSelection
                         )
                     )
-                    continue
-                }
-
-                if let existingMod = ModInstalledCatalog.matchingInstalledMod(
-                    for: candidate,
-                    destinationToken: destinationToken,
-                    installedMods: installedMods
-                ) {
-                    if ModInstallPlanner.sameFileURL(candidate.sourceURL, existingMod.url) {
-                        result.skipped.append(
-                            ModInstallPlanner.skippedResult(
-                                for: candidate,
-                                existingMod: existingMod,
-                                reason: .alreadyInstalled
-                            )
+                case .alreadyInstalledSameSource(let existingMod):
+                    result.skipped.append(
+                        ModInstallPlanner.skippedResult(
+                            for: candidate,
+                            existingMod: existingMod,
+                            reason: .alreadyInstalled
                         )
-                    } else if ModInstallPlanner.shouldReplace(
+                    )
+                case .existingDiffers(let existingMod):
+                    if ModInstallPlanner.shouldReplace(
                         candidate: candidate,
                         existingMod: existingMod,
                         policy: replacementPolicy
                     ) {
-                        pendingIdentities.insert(operationIdentity)
                         pendingOperations.append(
                             .update(
                                 candidate: candidate,
@@ -224,15 +218,7 @@ enum ModLibrary {
                             )
                         )
                     }
-                    continue
-                }
-
-                if fileManager.fileExists(atPath: destinationURL.path),
-                   !fileManager.directoryExists(at: destinationURL) {
-                    throw ModLibraryError.destinationExists(destinationURL)
-                }
-
-                if let existingURL = existingModURLsByToken[destinationToken] {
+                case .alreadyInstalledByFolderName(let existingURL):
                     result.skipped.append(
                         ModInstallPlanner.skippedResult(
                             for: candidate,
@@ -240,23 +226,9 @@ enum ModLibrary {
                             reason: .alreadyInstalled
                         )
                     )
-                    continue
+                case .install(let destinationURL):
+                    pendingOperations.append(.install(candidate: candidate, destinationURL: destinationURL))
                 }
-
-                if let pendingDestinationURL = pendingDestinationURLsByToken[destinationToken] {
-                    result.skipped.append(
-                        ModInstallPlanner.skippedResult(
-                            for: candidate,
-                            existingURL: pendingDestinationURL,
-                            reason: .duplicateInSelection
-                        )
-                    )
-                    continue
-                }
-
-                pendingIdentities.insert(operationIdentity)
-                pendingDestinationURLsByToken[destinationToken] = destinationURL
-                pendingOperations.append(.install(candidate: candidate, destinationURL: destinationURL))
             }
         }
 
@@ -288,6 +260,11 @@ enum ModLibrary {
                         try? fileManager.moveItem(at: archivedURL, to: existingMod.url)
                         throw error
                     }
+                    let configOutcome = preserveUserConfig(
+                        from: archivedURL,
+                        to: existingMod.url,
+                        fileManager: fileManager
+                    )
                     result.updated.append(
                         UpdatedModResult(
                             sourceURL: candidate.sourceURL,
@@ -296,7 +273,9 @@ enum ModLibrary {
                             displayName: ModInstallPlanner.displayName(for: candidate, fallback: existingMod.displayName),
                             previousVersion: existingMod.version,
                             installedVersion: candidate.manifest?.version?.trimmedNonEmpty,
-                            replacementKind: replacementKind
+                            replacementKind: replacementKind,
+                            preservedConfig: configOutcome == .preserved,
+                            configPreservationFailed: configOutcome == .failed
                         )
                     )
                     completedOperations.append(.updated(destinationURL: existingMod.url, archivedURL: archivedURL))
@@ -328,16 +307,21 @@ enum ModLibrary {
         }
 
         var items: [ModImportPreviewItem] = []
-        var pendingIdentities: Set<ModInstallIdentity> = []
-        var pendingDestinationURLsByToken: [String: URL] = [:]
         var temporaryExtractionDirectories: [URL] = []
+        // On success the extraction directories outlive this call: the preview
+        // owns them until it is installed or discarded.
+        var shouldRemoveTemporaryExtractionDirectories = true
+        defer {
+            if shouldRemoveTemporaryExtractionDirectories {
+                for temporaryExtractionDirectory in temporaryExtractionDirectories {
+                    try? fileManager.removeItem(at: temporaryExtractionDirectory)
+                }
+            }
+        }
 
-        let existingModURLsByToken = ModInstalledCatalog.urlsByToken(
-            in: install.modDirectoryURL,
-            fileManager: fileManager
-        )
-        let installedMods = ModInstalledCatalog.locations(
-            in: install.modDirectoryURL,
+        var classifier = ModInstallClassifier(
+            install: install,
+            enabled: true,
             fileManager: fileManager
         )
 
@@ -352,44 +336,30 @@ enum ModLibrary {
             }
 
             for candidate in installSource.candidates {
-                let destinationFolderName = ModInstallPlanner.destinationFolderName(
-                    for: candidate.destinationFolderName,
-                    enabled: true
-                )
-                let folderName = destinationFolderName.trimmingPrefix(Character("."))
-                guard !folderName.isEmpty else {
-                    throw ModLibraryError.invalidDisabledName(candidate.destinationFolderName)
-                }
-
-                let destinationToken = folderName.normalizedFolderToken
-                let operationIdentity = ModInstallPlanner.identity(for: candidate) ?? .folderToken(destinationToken)
+                let classified = try classifier.classify(candidate)
                 let action: ModImportPreviewAction
                 let existingMod: InstalledModLocation?
 
-                if pendingIdentities.contains(operationIdentity)
-                    || pendingDestinationURLsByToken[destinationToken] != nil {
+                switch classified.resolution {
+                case .duplicateInSelection:
                     existingMod = nil
                     action = .duplicateInSelection
-                } else if let match = ModInstalledCatalog.matchingInstalledMod(
-                    for: candidate,
-                    destinationToken: destinationToken,
-                    installedMods: installedMods
-                ) {
+                case .alreadyInstalledSameSource(let match):
                     existingMod = match
-                    action = ModInstallPlanner.sameFileURL(candidate.sourceURL, match.url)
-                        ? .alreadyInstalled
-                        : ModInstallPlanner.previewAction(candidate: candidate, existingMod: match)
-                    pendingIdentities.insert(operationIdentity)
-                } else if let existingURL = existingModURLsByToken[destinationToken] {
-                    existingMod = InstalledModLocation(url: existingURL, folderName: existingURL.lastPathComponent, manifest: nil)
                     action = .alreadyInstalled
-                    pendingIdentities.insert(operationIdentity)
-                } else {
+                case .existingDiffers(let match):
+                    existingMod = match
+                    action = ModInstallPlanner.previewAction(candidate: candidate, existingMod: match)
+                case .alreadyInstalledByFolderName(let existingURL):
+                    existingMod = InstalledModLocation(
+                        url: existingURL,
+                        folderName: existingURL.lastPathComponent,
+                        manifest: nil
+                    )
+                    action = .alreadyInstalled
+                case .install:
                     existingMod = nil
                     action = .install
-                    pendingIdentities.insert(operationIdentity)
-                    pendingDestinationURLsByToken[destinationToken] = install.modDirectoryURL
-                        .appendingPathComponent(destinationFolderName)
                 }
 
                 items.append(
@@ -398,7 +368,7 @@ enum ModLibrary {
                         displayName: ModInstallPlanner.displayName(for: candidate, fallback: existingMod?.displayName),
                         selectedVersion: candidate.manifest?.version?.trimmedNonEmpty,
                         existingVersion: existingMod?.version,
-                        destinationFolderName: destinationFolderName,
+                        destinationFolderName: classified.destinationFolderName,
                         existingFolderName: existingMod?.folderName,
                         action: action,
                         typeText: ModInstallPlanner.typeText(for: candidate.manifest)
@@ -407,6 +377,7 @@ enum ModLibrary {
             }
         }
 
+        shouldRemoveTemporaryExtractionDirectories = false
         return ModImportPreview(
             sourceURLs: sourceURLs,
             items: items,
@@ -479,7 +450,7 @@ enum ModLibrary {
                 )
                 let destinationToken = archivedMod.enabledFolderName.normalizedFolderToken
                 let matchingLocation = ModInstalledCatalog.matchingInstalledMod(
-                    for: archivedMod,
+                    normalizedUniqueID: archivedMod.manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID,
                     destinationToken: destinationToken,
                     installedMods: currentLocations
                 )
@@ -591,6 +562,56 @@ enum ModLibrary {
         }
     }
 
+    enum ConfigPreservationOutcome: Equatable {
+        /// The replaced copy had no config to carry.
+        case nothingToPreserve
+        case preserved
+        /// A config existed but couldn't be carried; the caller must surface
+        /// this so the user knows their settings reset (the archive still
+        /// holds the original).
+        case failed
+    }
+
+    /// SMAPI mods keep user settings in config.json, which a freshly
+    /// downloaded copy doesn't include. After replacing a mod, the previous
+    /// copy's config is carried forward (winning over any shipped defaults)
+    /// so an update doesn't silently reset the user's settings. A failure
+    /// must not fail the install, but it must not be silent either.
+    private static func preserveUserConfig(
+        from archivedModURL: URL,
+        to destinationURL: URL,
+        fileManager: FileManager
+    ) -> ConfigPreservationOutcome {
+        let configFileName = "config.json"
+        let archivedConfigURL = archivedModURL.appendingPathComponent(configFileName)
+        guard fileManager.fileExists(atPath: archivedConfigURL.path),
+              !fileManager.directoryExists(at: archivedConfigURL)
+        else {
+            return .nothingToPreserve
+        }
+
+        // Stage the copy first so a failure can't destroy the shipped config:
+        // the destination is only replaced after the user's config has been
+        // copied successfully.
+        let destinationConfigURL = destinationURL.appendingPathComponent(configFileName)
+        let stagedConfigURL = destinationURL.appendingPathComponent(".seedbox-config-staging")
+        try? fileManager.removeItem(at: stagedConfigURL)
+
+        do {
+            try fileManager.copyItem(at: archivedConfigURL, to: stagedConfigURL)
+            if fileManager.fileExists(atPath: destinationConfigURL.path) {
+                _ = try fileManager.replaceItemAt(destinationConfigURL, withItemAt: stagedConfigURL)
+            } else {
+                try fileManager.moveItem(at: stagedConfigURL, to: destinationConfigURL)
+            }
+            return .preserved
+        } catch {
+            try? fileManager.removeItem(at: stagedConfigURL)
+            AppLog.scan.error("Carrying config.json forward failed for \(destinationURL.lastPathComponent): \(error)")
+            return .failed
+        }
+    }
+
     private static func disambiguatedIDs(for mods: [ModInfo]) -> [ModInfo] {
         let duplicateIDs = Dictionary(grouping: mods, by: \.id)
             .filter { $0.value.count > 1 }
@@ -621,7 +642,9 @@ enum ModLibrary {
                 at: containerURL,
                 includingPropertiesForKeys: nil
               ),
-              children.isEmpty
+              // The metadata sidecar doesn't keep a container alive once its
+              // last archived mod is restored.
+              !children.contains(where: { fileManager.directoryExists(at: $0) })
         else {
             return
         }

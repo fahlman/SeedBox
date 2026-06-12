@@ -1,5 +1,15 @@
 import Foundation
 
+struct StatusEvent: Equatable, Sendable {
+    enum Severity: Equatable, Sendable {
+        case info
+        case error
+    }
+
+    var severity: Severity
+    var message: String
+}
+
 struct ModManagerState: Equatable, Sendable {
     var modsDirectoryPath: String
     var status: InstallationStatus
@@ -9,11 +19,25 @@ struct ModManagerState: Equatable, Sendable {
     var archivedMods: [ArchivedModInfo]
     var archiveSummary: ModArchiveSummary
     var archiveSettings: ArchiveSettings
+    var sourceCleanupSettings = SourceCleanupSettings(
+        moveModFilesToTrashAfterAddingMods: false,
+        suppressAddModsSuccessNotification: false
+    )
+    var checksForModUpdates = false
+    var availableUpdates: [ModAvailableUpdate] = []
+    var availableSMAPIUpdate: ModAvailableUpdate?
+    /// Mod pages resolved during update checks, keyed by normalized unique ID.
+    /// Powers "Get Mod" links for missing dependencies.
+    var knownModPageURLs: [String: URL] = [:]
     var hasLoadedMods: Bool
     var modSets: [ModSet]
     var selectedModSetID: String
     var appliedModSetID: String?
-    var activityMessage: String
+    var activityStatus: StatusEvent?
+    var bisectionSession: ModBisectionSession?
+    var hasSMAPILogFolderAccess = false
+    var lastSessionReport: SMAPILogReport?
+    var pendingLastSessionNotice: LastSessionNotice?
     var auditTrail: AuditTrailState
     var pendingSourceCleanupOffer: SourceCleanupOffer?
 
@@ -37,12 +61,30 @@ struct ModManagerState: Equatable, Sendable {
         )
     }
 
+    /// String-level access to the current status event, kept for the many
+    /// call sites that only deal in messages. Setting a message produces an
+    /// info-severity event; clearing it removes the event.
+    var activityMessage: String {
+        get {
+            activityStatus?.message ?? ""
+        }
+        set {
+            activityStatus = newValue.isEmpty
+                ? nil
+                : StatusEvent(severity: .info, message: newValue)
+        }
+    }
+
     var statusLineMessage: String {
-        if !activityMessage.isEmpty {
-            return activityMessage
+        if let activityStatus {
+            return activityStatus.message
         }
 
         return auditTrail.recentEntries.last?.summary ?? ""
+    }
+
+    var statusLineSeverity: StatusEvent.Severity {
+        activityStatus?.severity ?? .info
     }
 
     var duplicateGroups: [ModDuplicateGroup] {
@@ -55,8 +97,95 @@ struct ModManagerState: Equatable, Sendable {
         }
     }
 
+    /// Enabled mods whose declared MinimumApiVersion exceeds the installed
+    /// SMAPI version detected from the bundled mods.
+    var smapiVersionIssues: [ModInfo] {
+        guard let smapiVersion = detectedSMAPIVersion else {
+            return []
+        }
+
+        return mods.filter { mod in
+            guard mod.isEnabled,
+                  let minimumVersion = mod.manifest?.minimumApiVersion?.trimmedNonEmpty
+            else {
+                return false
+            }
+
+            return !ModVersionComparator.version(smapiVersion, satisfiesMinimum: minimumVersion)
+        }
+    }
+
+    /// Last-session log findings attributed to currently installed mods.
+    /// Entries for mods that were removed since the session are dropped.
+    var lastSessionIssues: [LastSessionModIssue] {
+        guard let lastSessionReport else {
+            return []
+        }
+
+        var skippedReasonsByName: [String: String] = [:]
+        for skippedMod in lastSessionReport.skippedMods {
+            skippedReasonsByName[skippedMod.name.lowercased()] = skippedMod.reason
+        }
+
+        return mods.compactMap { mod in
+            let nameKey = mod.displayName.lowercased()
+            let skippedReason = skippedReasonsByName[nameKey]
+            let errorCount = lastSessionReport.modErrorCounts[nameKey] ?? 0
+            guard skippedReason != nil || errorCount > 0 else {
+                return nil
+            }
+
+            return LastSessionModIssue(
+                mod: mod,
+                skippedReason: skippedReason,
+                errorCount: errorCount
+            )
+        }
+    }
+
     var hasProblems: Bool {
-        !dependencyIssues.isEmpty || !invalidModFolders.isEmpty || !duplicateGroups.isEmpty
+        !dependencyIssues.isEmpty
+            || !invalidModFolders.isEmpty
+            || !duplicateGroups.isEmpty
+            || !smapiVersionIssues.isEmpty
+            || !lastSessionIssues.isEmpty
+    }
+
+    /// The installed SMAPI version, derived from SMAPI's bundled mods inside
+    /// the Mods folder so no access outside the folder is needed.
+    var detectedSMAPIVersion: String? {
+        SMAPIIdentifiers.detectedSMAPIVersion(in: mods)
+    }
+
+    /// The known SMAPI update, if it is still newer than what's installed.
+    var smapiUpdate: ModAvailableUpdate? {
+        guard let availableSMAPIUpdate,
+              !ModVersionComparator.version(
+                detectedSMAPIVersion,
+                satisfiesMinimum: availableSMAPIUpdate.latestVersion
+              )
+        else {
+            return nil
+        }
+
+        return availableSMAPIUpdate
+    }
+
+    /// The known update for a mod, if it is still newer than what's installed.
+    /// Check results are point-in-time; installing or updating a mod after a
+    /// check makes its entry stale, so freshness is decided here.
+    func availableUpdate(for mod: ModInfo) -> ModAvailableUpdate? {
+        guard let uniqueID = mod.manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID,
+              let update = availableUpdates.first(where: { $0.modID == uniqueID }),
+              !ModVersionComparator.version(
+                mod.manifest?.version,
+                satisfiesMinimum: update.latestVersion
+              )
+        else {
+            return nil
+        }
+
+        return update
     }
 }
 
@@ -101,6 +230,19 @@ enum ModManagerReadiness: Equatable, Sendable {
 
     var canCreateModFolder: Bool {
         self == .missingModsFolder
+    }
+
+    /// The status message explaining why mod management is unavailable, or
+    /// nil when ready.
+    var managementBlockedMessage: String? {
+        switch self {
+        case .needsFolderAccess:
+            return AppStrings.Status.chooseModsFolderBeforeManaging
+        case .missingModsFolder:
+            return AppStrings.Status.modsFolderMissingChooseAgain
+        case .ready:
+            return nil
+        }
     }
 
     func setupTitle(modFolderName: String) -> String {

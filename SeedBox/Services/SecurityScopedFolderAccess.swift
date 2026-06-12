@@ -81,10 +81,59 @@ final class SecurityScopedFolderAccess: @unchecked Sendable {
         }
 
         if isStale {
-            try saveBookmark(for: url)
+            // Creating a security-scoped bookmark requires active access to the
+            // resource. Refreshing the stale bookmark is best effort: the
+            // resolved URL still works for this launch even if the save fails.
+            let token = SecurityScopedAccessToken(url: url)
+            do {
+                try saveBookmark(for: url)
+                AppLog.folderAccess.info("Refreshed a stale bookmark (key: \(self.bookmarkKey, privacy: .public)).")
+            } catch {
+                AppLog.folderAccess.error("Couldn't refresh a stale bookmark (key: \(self.bookmarkKey, privacy: .public)): \(error)")
+            }
+            token.stop()
         }
 
         return url.standardizedFileURL.resolvingSymlinksInPath()
+    }
+}
+
+/// Shared bookkeeping for reporting lost folder access: clears the broken
+/// bookmark and de-duplicates repeated failure messages so the same problem
+/// isn't re-announced on every operation. Each owner uses its instance from a
+/// single isolation context.
+final class FolderAccessFailureReporter: @unchecked Sendable {
+    private let folderAccess: SecurityScopedFolderAccess
+    private var lastReportedMessage: String?
+
+    init(folderAccess: SecurityScopedFolderAccess) {
+        self.folderAccess = folderAccess
+    }
+
+    func noteSuccess() {
+        lastReportedMessage = nil
+    }
+
+    /// Returns the user-facing message, or nil when this exact failure was
+    /// already reported.
+    func reportLostAccess(_ error: SecurityScopedFolderAccessError) -> String? {
+        AppLog.folderAccess.error("Folder access lost; bookmark cleared: \(error)")
+        folderAccess.clearBookmark()
+        return deduplicated(AppStrings.Status.chooseModsFolderAgain(error.localizedDescription))
+    }
+
+    func reportRestoreFailure(_ error: Error) -> String? {
+        AppLog.folderAccess.error("Folder access operation failed: \(error)")
+        return deduplicated(AppStrings.Status.couldNotRestoreSavedFolderAccess(error.localizedDescription))
+    }
+
+    private func deduplicated(_ message: String) -> String? {
+        guard lastReportedMessage != message else {
+            return nil
+        }
+
+        lastReportedMessage = message
+        return message
     }
 }
 

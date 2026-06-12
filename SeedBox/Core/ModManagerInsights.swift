@@ -59,21 +59,6 @@ struct ModLibraryScanResult: Equatable, Sendable {
     var invalidFolders: [InvalidModFolder]
 }
 
-struct ArchiveSettings: Equatable, Sendable {
-    static let defaultRetentionDays = 30
-
-    var automaticallyPrunesExpiredArchives: Bool
-    var retentionDays: Int
-
-    var normalizedRetentionDays: Int {
-        max(1, retentionDays)
-    }
-
-    var retentionInterval: TimeInterval {
-        TimeInterval(normalizedRetentionDays) * 24 * 60 * 60
-    }
-}
-
 enum ModManagerInsights {
     static func duplicateGroups(in mods: [ModInfo]) -> [ModDuplicateGroup] {
         var groupsByKey: [String: [ModInfo]] = [:]

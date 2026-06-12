@@ -1,6 +1,8 @@
 import Foundation
 
-struct ModManagerStateStore {
+// UserDefaults and the bookmark store are both thread-safe; this value is
+// handed to the service actor, which owns persistence from then on.
+struct ModManagerStateStore: @unchecked Sendable {
     private let folderAccess: SecurityScopedFolderAccess
     private let modSetDirectory: URL
     private let preferences: ModManagerPreferences
@@ -71,6 +73,24 @@ struct ModManagerStateStore {
         }
     }
 
+    var checksForModUpdates: Bool {
+        get {
+            preferences.checksForModUpdates
+        }
+        nonmutating set {
+            preferences.checksForModUpdates = newValue
+        }
+    }
+
+    var announcedLogSessionDate: Date? {
+        get {
+            preferences.announcedLogSessionDate
+        }
+        nonmutating set {
+            preferences.announcedLogSessionDate = newValue
+        }
+    }
+
     func save(_ state: ModManagerState) {
         preferences.save(state)
     }
@@ -94,11 +114,15 @@ struct ModManagerStateStore {
             archivedMods: [],
             archiveSummary: ModArchiveSummary(),
             archiveSettings: preferences.archiveSettings,
+            sourceCleanupSettings: preferences.sourceCleanupSettings,
+            checksForModUpdates: preferences.checksForModUpdates,
+            availableUpdates: [],
             hasLoadedMods: false,
             modSets: [],
             selectedModSetID: selectedModSetID,
             appliedModSetID: nil,
-            activityMessage: "",
+            activityStatus: nil,
+            bisectionSession: preferences.bisectionSession,
             auditTrail: AuditTrailState(
                 logPath: StardewInstall.auditLogURL(forModSetDirectory: modSetDirectory).path,
                 recentEntries: [],

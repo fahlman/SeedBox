@@ -12,11 +12,44 @@ struct ModInstallCandidate {
     var manifest: ModManifest?
 }
 
+struct ModArchiveExtractionLimits: Sendable {
+    /// Generous ceilings for real mod archives that still stop decompression
+    /// bombs long before they exhaust disk space.
+    static let standard = ModArchiveExtractionLimits(
+        maximumEntryCount: 20_000,
+        maximumTotalUncompressedByteCount: 4 * 1024 * 1024 * 1024
+    )
+
+    var maximumEntryCount: Int
+    var maximumTotalUncompressedByteCount: UInt64
+}
+
+enum ModArchiveExtractionError: Error, Equatable, LocalizedError, Sendable {
+    case tooManyEntries(URL, limit: Int)
+    case expandsTooLarge(URL, limitByteCount: UInt64)
+
+    var errorDescription: String? {
+        switch self {
+        case .tooManyEntries(let url, let limit):
+            return AppStrings.Errors.archiveHasTooManyFiles(url.lastPathComponent, limit: limit)
+        case .expandsTooLarge(let url, let limitByteCount):
+            return AppStrings.Errors.archiveExpandsTooLarge(
+                url.lastPathComponent,
+                limitText: ByteCountFormatter.string(
+                    fromByteCount: Int64(clamping: limitByteCount),
+                    countStyle: .file
+                )
+            )
+        }
+    }
+}
+
 enum ModInstallSourceResolver {
     private static let maximumInstallSearchDepth = 8
 
     static func resolve(
         from sourceURL: URL,
+        limits: ModArchiveExtractionLimits = .standard,
         fileManager: FileManager = .default
     ) throws -> ModInstallSource {
         guard sourceURL.pathExtension.lowercased() == "zip" else {
@@ -26,10 +59,17 @@ enum ModInstallSourceResolver {
             )
         }
 
+        try validateArchiveWithinLimits(sourceURL, limits: limits)
+
         let extractionDirectory = fileManager.temporaryDirectory
             .appendingPathComponent("SeedBoxZip-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: extractionDirectory, withIntermediateDirectories: true)
-        try fileManager.unzipItem(at: sourceURL, to: extractionDirectory)
+        do {
+            try fileManager.unzipItem(at: sourceURL, to: extractionDirectory)
+        } catch {
+            try? fileManager.removeItem(at: extractionDirectory)
+            throw error
+        }
 
         return ModInstallSource(
             candidates: installCandidates(
@@ -39,6 +79,35 @@ enum ModInstallSourceResolver {
             ),
             temporaryExtractionDirectory: extractionDirectory
         )
+    }
+
+    private static func validateArchiveWithinLimits(
+        _ archiveURL: URL,
+        limits: ModArchiveExtractionLimits
+    ) throws {
+        let archive = try Archive(url: archiveURL, accessMode: .read)
+
+        var entryCount = 0
+        var totalUncompressedByteCount: UInt64 = 0
+        for entry in archive {
+            entryCount += 1
+            guard entryCount <= limits.maximumEntryCount else {
+                throw ModArchiveExtractionError.tooManyEntries(
+                    archiveURL,
+                    limit: limits.maximumEntryCount
+                )
+            }
+
+            let (sum, didOverflow) = totalUncompressedByteCount
+                .addingReportingOverflow(entry.uncompressedSize)
+            totalUncompressedByteCount = didOverflow ? .max : sum
+            guard totalUncompressedByteCount <= limits.maximumTotalUncompressedByteCount else {
+                throw ModArchiveExtractionError.expandsTooLarge(
+                    archiveURL,
+                    limitByteCount: limits.maximumTotalUncompressedByteCount
+                )
+            }
+        }
     }
 
     private static func installCandidates(

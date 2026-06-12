@@ -15,6 +15,12 @@ struct UpdatedModResult: Equatable, Sendable {
     var previousVersion: String?
     var installedVersion: String?
     var replacementKind: ModReplacementKind
+    /// Whether the user's config.json from the replaced copy was carried into
+    /// the new copy.
+    var preservedConfig = false
+    /// The replaced copy had a config.json but carrying it forward failed —
+    /// the user's settings will reset unless restored from the archive.
+    var configPreservationFailed = false
 }
 
 struct RestoredModResult: Equatable, Sendable {

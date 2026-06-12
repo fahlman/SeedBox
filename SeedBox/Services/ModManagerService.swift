@@ -4,16 +4,40 @@ actor ModManagerService {
     let folderAccessCoordinator: ModManagerFolderAccessCoordinator
     let auditRecorder: ModManagerAuditRecorder
     let modSetDirectory: URL
+    let stateStore: ModManagerStateStore
+    let updateChecker: ModUpdateChecking
+    /// Separate read-only grant for SMAPI's log folder, which lives outside
+    /// the managed Mods folder.
+    let smapiLogFolderAccess: SecurityScopedFolderAccess
+
+    /// The canonical app state. Every mutation runs on this actor against the
+    /// current value, so overlapping operations can never lose each other's
+    /// updates.
+    private(set) var state: ModManagerState
 
     init(
         folderAccess: SecurityScopedFolderAccess,
+        smapiLogFolderAccess: SecurityScopedFolderAccess,
+        stateStore: ModManagerStateStore,
+        initialState: ModManagerState,
         modSetDirectory: URL = StardewInstall.defaultModSetDirectory(),
-        auditLogURL: URL? = nil
+        auditLogURL: URL? = nil,
+        updateChecker: ModUpdateChecking = SMAPIModUpdateClient()
     ) {
         folderAccessCoordinator = ModManagerFolderAccessCoordinator(folderAccess: folderAccess)
+        self.smapiLogFolderAccess = smapiLogFolderAccess
+        self.stateStore = stateStore
+        state = initialState
         self.modSetDirectory = modSetDirectory
         let auditLogURL = auditLogURL ?? StardewInstall.auditLogURL(forModSetDirectory: modSetDirectory)
         auditRecorder = ModManagerAuditRecorder(logURL: auditLogURL)
+        self.updateChecker = updateChecker
+    }
+
+    func commit(_ nextState: ModManagerState) -> ModManagerState {
+        state = nextState
+        stateStore.save(state)
+        return state
     }
 
     func refreshedState(from state: ModManagerState) -> ModManagerState {
@@ -34,25 +58,8 @@ actor ModManagerService {
         reloadArchivedMods(in: &nextState)
         reloadModSets(in: &nextState)
         reloadAuditTrail(in: &nextState)
+        reloadSMAPILogReport(in: &nextState)
         return nextState
-    }
-
-    func reconcileObservedModsFolderChange(from state: ModManagerState) -> ModManagerState {
-        var refreshedState = refreshedState(from: state)
-        let addedMods = addedMods(in: refreshedState, comparedTo: state)
-
-        guard !addedMods.isEmpty else {
-            record(AppStrings.Status.modsFolderChangedRefreshed, in: &refreshedState)
-            return refreshedState
-        }
-
-        return reconcileAddedMods(
-            addedMods,
-            fallbackURLs: addedMods.map(\.url),
-            source: .watchedFolder,
-            shouldEnable: shouldEnableAddedMods(in: state),
-            in: refreshedState
-        )
     }
 
     func reconcileStartupModsFolderChange(
@@ -123,7 +130,7 @@ actor ModManagerService {
             )
             return nextState
         } catch {
-            record(AppStrings.Status.couldNotSaveFolderAccess(error.localizedDescription), in: &nextState)
+            record(AppStrings.Status.couldNotSaveFolderAccess(error.localizedDescription), severity: .error, in: &nextState)
             return nextState
         }
     }
@@ -152,7 +159,7 @@ actor ModManagerService {
         } catch is SecurityScopedFolderAccessError {
             return nextState
         } catch {
-            record(AppStrings.Status.couldNotCreateModFolder(error.localizedDescription), in: &nextState)
+            record(AppStrings.Status.couldNotCreateModFolder(error.localizedDescription), severity: .error, in: &nextState)
             return nextState
         }
     }
@@ -201,7 +208,7 @@ actor ModManagerService {
         } catch is SecurityScopedFolderAccessError {
             return nextState
         } catch {
-            record(AppStrings.Status.couldNotAddMods(error.localizedDescription), in: &nextState)
+            record(AppStrings.Status.couldNotAddMods(error.localizedDescription), severity: .error, in: &nextState)
             return nextState
         }
     }
@@ -252,7 +259,7 @@ actor ModManagerService {
         } catch is SecurityScopedFolderAccessError {
             return nextState
         } catch {
-            record(AppStrings.Status.couldNotAddMods(error.localizedDescription), in: &nextState)
+            record(AppStrings.Status.couldNotAddMods(error.localizedDescription), severity: .error, in: &nextState)
             return nextState
         }
     }
@@ -289,7 +296,7 @@ actor ModManagerService {
         } catch is SecurityScopedFolderAccessError {
             return nextState
         } catch {
-            record(AppStrings.Status.couldNotUpdateMod(mod.displayName, errorDescription: error.localizedDescription), in: &nextState)
+            record(AppStrings.Status.couldNotUpdateMod(mod.displayName, errorDescription: error.localizedDescription), severity: .error, in: &nextState)
             return nextState
         }
     }
@@ -303,11 +310,77 @@ actor ModManagerService {
             return state
         }
 
-        var nextState = state
-        for mod in mods {
-            nextState = setMod(mod, enabled: enabled, in: nextState)
+        guard mods.count > 1 else {
+            return setMod(mods[0], enabled: enabled, in: state)
         }
-        return nextState
+
+        var nextState = state
+        guard guardCanManageMods(in: &nextState) else {
+            return nextState
+        }
+
+        var changedMods: [(mod: ModInfo, destinationURL: URL)] = []
+        var failedMods: [(mod: ModInfo, error: any Error)] = []
+        do {
+            try performWithFolderAccess(state: &nextState) {
+                for mod in mods {
+                    do {
+                        changedMods.append((mod, try ModLibrary.setEnabled(mod, enabled: enabled)))
+                    } catch {
+                        failedMods.append((mod, error))
+                    }
+                }
+            }
+        } catch is SecurityScopedFolderAccessError {
+            // The folder-access coordinator already recorded the problem.
+            return nextState
+        } catch {
+            record(
+                AppStrings.Status.couldNotUpdateMod(
+                    mods[0].displayName,
+                    errorDescription: error.localizedDescription
+                ),
+                severity: .error,
+                in: &nextState
+            )
+            return nextState
+        }
+
+        guard !changedMods.isEmpty else {
+            if let firstFailure = failedMods.first {
+                record(AppStrings.Status.couldNotUpdateMod(
+                        firstFailure.mod.displayName,
+                        errorDescription: firstFailure.error.localizedDescription
+                    ), severity: .error, in: &nextState)
+            }
+            return nextState
+        }
+
+        var changeMessage = enabled
+            ? AppStrings.Status.enabledMods(count: changedMods.count)
+            : AppStrings.Status.disabledMods(count: changedMods.count)
+        if let firstFailure = failedMods.first {
+            changeMessage += " " + AppStrings.Status.couldNotUpdateMod(
+                firstFailure.mod.displayName,
+                errorDescription: firstFailure.error.localizedDescription
+            )
+        }
+        record(changeMessage, in: &nextState)
+        nextState = refreshedState(from: nextState)
+        var savedState = saveCurrentStateToSelectedModSet(
+            in: nextState,
+            recordingSuccess: AppStrings.Status.updatedModSet(
+                after: changeMessage,
+                setName: nextState.modSetSelection.selectedSetName
+            )
+        )
+        audit(
+            enabled ? .modEnabled : .modDisabled,
+            summary: savedState.activityMessage.isEmpty ? changeMessage : savedState.activityMessage,
+            subjects: changedMods.map { auditSubjectForMod($0.mod, path: $0.destinationURL.path) },
+            in: &savedState
+        )
+        return savedState
     }
 
     func deleteMod(_ mod: ModInfo, in state: ModManagerState) -> ModManagerState {
@@ -348,8 +421,101 @@ actor ModManagerService {
         } catch is SecurityScopedFolderAccessError {
             return nextState
         } catch {
-            record(AppStrings.Status.couldNotDeleteMod(mod.displayName, errorDescription: error.localizedDescription), in: &nextState)
+            record(AppStrings.Status.couldNotDeleteMod(mod.displayName, errorDescription: error.localizedDescription), severity: .error, in: &nextState)
             return nextState
+        }
+    }
+
+    func resolveDuplicateGroup(id: String, in state: ModManagerState) -> ModManagerState {
+        var nextState = state
+        guard guardCanManageMods(in: &nextState) else {
+            return nextState
+        }
+
+        guard let group = nextState.duplicateGroups.first(where: { $0.id == id }),
+              group.mods.count > 1,
+              let keptMod = preferredDuplicate(in: group.mods)
+        else {
+            return nextState
+        }
+
+        let modsToArchive = group.mods.filter { $0.id != keptMod.id }
+        do {
+            let currentInstall = install(for: nextState)
+            let archivedURLs = try performWithFolderAccess(state: &nextState) {
+                try modsToArchive.map { mod in
+                    try ModLibrary.archive(
+                        mod,
+                        in: currentInstall.archivedModsDirectoryURL
+                    )
+                }
+            }
+            let changeMessage = AppStrings.Status.keptAndArchivedDuplicates(
+                keptName: keptMod.displayName,
+                count: modsToArchive.count
+            )
+            record(changeMessage, in: &nextState)
+            nextState = refreshedState(from: nextState)
+            var savedState = saveCurrentStateToSelectedModSet(
+                in: nextState,
+                recordingSuccess: AppStrings.Status.updatedModSet(
+                    after: changeMessage,
+                    setName: nextState.modSetSelection.selectedSetName
+                )
+            )
+            audit(
+                .duplicatesResolved,
+                summary: savedState.activityMessage.isEmpty ? changeMessage : savedState.activityMessage,
+                subjects: modsToArchive.map { auditSubjectForMod($0) },
+                details: [
+                    "kept_folder": keptMod.folderName,
+                    "kept_version": keptMod.manifest?.version?.trimmedNonEmpty ?? "",
+                    "archive_paths": archivedURLs.map(\.path).joined(separator: "\n")
+                ],
+                in: &savedState
+            )
+            return savedState
+        } catch is SecurityScopedFolderAccessError {
+            return nextState
+        } catch {
+            record(
+                AppStrings.Status.couldNotResolveDuplicates(error.localizedDescription),
+                severity: .error,
+                in: &nextState
+            )
+            return nextState
+        }
+    }
+
+    /// Picks the duplicate copy to keep: highest version first, then enabled
+    /// over disabled, then the alphabetically first folder for stability.
+    private func preferredDuplicate(in mods: [ModInfo]) -> ModInfo? {
+        mods.max { lhs, rhs in
+            let lhsVersion = lhs.manifest?.version?.trimmedNonEmpty
+            let rhsVersion = rhs.manifest?.version?.trimmedNonEmpty
+            switch (lhsVersion, rhsVersion) {
+            case (nil, nil):
+                break
+            case (nil, .some):
+                return true
+            case (.some, nil):
+                return false
+            case (.some(let lhsVersion), .some(let rhsVersion)):
+                switch ModVersionComparator.compare(lhsVersion, to: rhsVersion) {
+                case .orderedAscending:
+                    return true
+                case .orderedDescending:
+                    return false
+                case .orderedSame:
+                    break
+                }
+            }
+
+            if lhs.isEnabled != rhs.isEnabled {
+                return !lhs.isEnabled
+            }
+
+            return lhs.folderName.localizedCaseInsensitiveCompare(rhs.folderName) == .orderedDescending
         }
     }
 
@@ -397,7 +563,7 @@ actor ModManagerService {
         } catch is SecurityScopedFolderAccessError {
             return nextState
         } catch {
-            record(AppStrings.Status.couldNotRestoreArchivedMods(error.localizedDescription), in: &nextState)
+            record(AppStrings.Status.couldNotRestoreArchivedMods(error.localizedDescription), severity: .error, in: &nextState)
             return nextState
         }
     }
@@ -419,239 +585,8 @@ actor ModManagerService {
             )
             return refreshedState
         } catch {
-            record(AppStrings.Status.couldNotPruneArchivedMods(error.localizedDescription), in: &nextState)
+            record(AppStrings.Status.couldNotPruneArchivedMods(error.localizedDescription), severity: .error, in: &nextState)
             return nextState
         }
     }
-
-    func createModSet(
-        named name: String,
-        from sourceSet: ModSet? = nil,
-        in state: ModManagerState
-    ) -> ModManagerState {
-        var nextState = state
-        guard guardCanManageMods(in: &nextState) else {
-            return nextState
-        }
-
-        let source = sourceSet ?? ModSetStore.snapshotSet(
-            id: "current",
-            name: AppStrings.ModSetNames.current,
-            from: nextState.mods
-        )
-
-        do {
-            let newSet = try ModSetStore.createSet(
-                named: name,
-                from: source,
-                existingSets: nextState.modSets
-            )
-
-            try ModSetStore.saveSet(
-                newSet,
-                install: install(for: nextState)
-            )
-
-            let createdSetMatchesCurrentMods = sourceSet == nil
-                || nextState.appliedModSetID == sourceSet?.id
-            setSelectedModSetID(newSet.id, in: &nextState)
-            nextState.appliedModSetID = createdSetMatchesCurrentMods ? newSet.id : nil
-            record(AppStrings.Status.createdModSet(newSet.name), in: &nextState)
-            var refreshedState = refreshedState(from: nextState)
-            audit(
-                .modSetCreated,
-                summary: refreshedState.activityMessage,
-                subjects: [auditSubjectForModSet(newSet)],
-                details: [
-                    "source_mod_set_id": sourceSet?.id ?? "current",
-                    "source_mod_set_name": sourceSet?.name ?? AppStrings.ModSetNames.current
-                ],
-                in: &refreshedState
-            )
-            return refreshedState
-        } catch {
-            record(AppStrings.Status.couldNotCreateModSet(error.localizedDescription), in: &nextState)
-            return nextState
-        }
-    }
-
-    func duplicateSelectedModSet(named name: String, in state: ModManagerState) -> ModManagerState {
-        guard let selectedSet = state.modSetSelection.selectedSet else {
-            return state
-        }
-
-        return createModSet(named: name, from: selectedSet, in: state)
-    }
-
-    func renameSelectedModSet(to requestedName: String, in state: ModManagerState) -> ModManagerState {
-        var nextState = state
-        guard guardCanManageMods(in: &nextState) else {
-            return nextState
-        }
-
-        guard var selectedSet = nextState.modSetSelection.selectedSet else {
-            return nextState
-        }
-        guard selectedSet.isUserEditable else {
-            record(AppStrings.Status.includedModSetNamesCannotBeChanged, in: &nextState)
-            return nextState
-        }
-
-        let trimmedName = requestedName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else {
-            record(AppStrings.Status.setNameCannotBeEmpty, in: &nextState)
-            return nextState
-        }
-
-        let hasConflict = nextState.modSets.contains { set in
-            set.id != selectedSet.id
-                && set.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                == trimmedName.lowercased()
-        }
-        if hasConflict {
-            record(AppStrings.Errors.duplicateModSetName(trimmedName), in: &nextState)
-            return nextState
-        }
-
-        let oldName = selectedSet.name
-        selectedSet.name = trimmedName
-
-        do {
-            try ModSetStore.saveSet(
-                selectedSet,
-                install: install(for: nextState)
-            )
-            record(AppStrings.Status.renamedSet(to: trimmedName), in: &nextState)
-            var refreshedState = refreshedState(from: nextState)
-            audit(
-                .modSetRenamed,
-                summary: refreshedState.activityMessage,
-                subjects: [auditSubjectForModSet(selectedSet)],
-                details: [
-                    "old_name": oldName,
-                    "new_name": trimmedName
-                ],
-                in: &refreshedState
-            )
-            return refreshedState
-        } catch {
-            record(AppStrings.Status.couldNotRenameModSet(error.localizedDescription), in: &nextState)
-            return nextState
-        }
-    }
-
-    func selectModSet(id: String, in state: ModManagerState) -> ModManagerState {
-        var nextState = state
-        let isReapplyingSelectedSet = nextState.selectedModSetID == id
-        guard !isReapplyingSelectedSet || nextState.appliedModSetID != id else {
-            return nextState
-        }
-
-        guard guardCanManageMods(in: &nextState) else {
-            return nextState
-        }
-
-        guard let setToApply = nextState.modSets.first(where: { $0.id == id }) else {
-            record(AppStrings.Status.couldNotApplySetSelectionMissing, in: &nextState)
-            return nextState
-        }
-
-        do {
-            if !isReapplyingSelectedSet,
-               let previousSet = nextState.modSetSelection.selectedSet {
-                try saveCurrentStateIfEditable(to: previousSet, in: nextState)
-            }
-
-            let changedCount = try applyModSet(setToApply, in: nextState, state: &nextState)
-            setSelectedModSetID(id, in: &nextState)
-            nextState.appliedModSetID = id
-            record(AppStrings.Status.appliedSet(setToApply.name, changedCount: changedCount), in: &nextState)
-            var refreshedState = refreshedState(from: nextState)
-            audit(
-                .modSetApplied,
-                summary: refreshedState.activityMessage,
-                subjects: [auditSubjectForModSet(setToApply)],
-                details: [
-                    "changed_count": "\(changedCount)"
-                ],
-                in: &refreshedState
-            )
-            return refreshedState
-        } catch is SecurityScopedFolderAccessError {
-            return nextState
-        } catch {
-            record(AppStrings.Status.couldNotApplySet(error.localizedDescription), in: &nextState)
-            return nextState
-        }
-    }
-
-    func deleteModSet(_ set: ModSet, in state: ModManagerState) -> ModManagerState {
-        var nextState = state
-        guard guardCanManageMods(in: &nextState) else {
-            return nextState
-        }
-
-        do {
-            try ModSetStore.deleteSet(
-                set,
-                install: install(for: nextState)
-            )
-        } catch {
-            record(AppStrings.Status.couldNotDeleteModSet(error.localizedDescription), in: &nextState)
-            return nextState
-        }
-
-        guard nextState.selectedModSetID == set.id else {
-            if nextState.appliedModSetID == set.id {
-                nextState.appliedModSetID = nil
-            }
-
-            record(AppStrings.Status.deletedModSet(set.name), in: &nextState)
-            var refreshedState = refreshedState(from: nextState)
-            auditDeletedModSet(set, wasSelected: false, in: &refreshedState)
-            return refreshedState
-        }
-
-        guard let defaultSet = nextState.modSets.first(where: { $0.id == ModSetStore.defaultSetID }) else {
-            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
-            nextState.appliedModSetID = nil
-            record(AppStrings.Status.deletedModSet(set.name), in: &nextState)
-            var refreshedState = refreshedState(from: nextState)
-            auditDeletedModSet(set, wasSelected: true, in: &refreshedState)
-            return refreshedState
-        }
-
-        do {
-            let changedCount = try applyModSet(defaultSet, in: nextState, state: &nextState)
-            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
-            nextState.appliedModSetID = ModSetStore.defaultSetID
-            record(
-                AppStrings.Status.deletedModSetAppliedDefault(set.name, changedCount: changedCount),
-                in: &nextState
-            )
-            var refreshedState = refreshedState(from: nextState)
-            auditDeletedModSet(
-                set,
-                wasSelected: true,
-                details: [
-                    "fallback_mod_set_id": defaultSet.id,
-                    "fallback_mod_set_name": defaultSet.name,
-                    "fallback_changed_count": "\(changedCount)"
-                ],
-                in: &refreshedState
-            )
-            return refreshedState
-        } catch is SecurityScopedFolderAccessError {
-            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
-            nextState.appliedModSetID = nil
-            record(AppStrings.Status.deletedModSetChooseFolderAgainToApplyDefault(set.name), in: &nextState)
-            return refreshedState(from: nextState)
-        } catch {
-            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
-            nextState.appliedModSetID = nil
-            record(AppStrings.Status.deletedModSetCouldNotApplyDefault(set.name, errorDescription: error.localizedDescription), in: &nextState)
-            return refreshedState(from: nextState)
-        }
-    }
-
 }

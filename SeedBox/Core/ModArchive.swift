@@ -27,8 +27,36 @@ struct ArchivedModInfo: Identifiable, Equatable, Sendable {
     }
 }
 
+/// Sidecar metadata written into each archive container. The container's
+/// folder name carries the same information for human readers; this file is
+/// the canonical machine-readable copy.
+private struct ArchiveContainerInfo: Codable {
+    var date: Date
+    var reason: String
+}
+
+private final class CachedArchiveSummary {
+    let signature: [String: Date]
+    let summary: ModArchiveSummary
+
+    init(signature: [String: Date], summary: ModArchiveSummary) {
+        self.signature = signature
+        self.summary = summary
+    }
+}
+
 enum ModArchive {
     static let retentionInterval: TimeInterval = 30 * 24 * 60 * 60
+    static let containerInfoFileName = "Archive Info.plist"
+
+    // NSCache is documented thread-safe. Archiving, restoring, and pruning
+    // all change a container's modification date or the container list, which
+    // changes the signature and invalidates the entry.
+    nonisolated(unsafe) private static let summaryCache: NSCache<NSString, CachedArchiveSummary> = {
+        let cache = NSCache<NSString, CachedArchiveSummary>()
+        cache.countLimit = 8
+        return cache
+    }()
 
     static func archive(
         _ sourceURL: URL,
@@ -47,6 +75,11 @@ enum ModArchive {
         try fileManager.createDirectory(
             at: containerURL,
             withIntermediateDirectories: true
+        )
+        writeContainerInfoIfMissing(
+            ArchiveContainerInfo(date: date, reason: reason.rawValue),
+            in: containerURL,
+            fileManager: fileManager
         )
 
         let destinationURL = uniqueDestinationURL(
@@ -126,7 +159,7 @@ enum ModArchive {
                     folderName: childURL.lastPathComponent,
                     reason: archiveReason(from: containerURL),
                     archivedDate: archiveDate(for: containerURL),
-                    manifest: loadManifest(at: manifestURL)
+                    manifest: ModManifestReader.loadManifest(at: manifestURL)
                 )
             }
         }
@@ -149,16 +182,51 @@ enum ModArchive {
             return ModArchiveSummary()
         }
 
+        // The deep byte-count walk runs on every state refresh, so it's
+        // skipped whenever the shallow container signature is unchanged.
+        let signature = containerSignature(in: archiveDirectory, fileManager: fileManager)
+        let cacheKey = archiveDirectory.standardizedFileURL.path as NSString
+        if let cached = summaryCache.object(forKey: cacheKey),
+           cached.signature == signature {
+            return cached.summary
+        }
+
         let archivedMods = try archivedMods(in: archiveDirectory, fileManager: fileManager)
         let totalByteCount = try byteCount(of: archiveDirectory, fileManager: fileManager)
         let dates = archivedMods.compactMap(\.archivedDate)
 
-        return ModArchiveSummary(
+        let summary = ModArchiveSummary(
             archivedModCount: archivedMods.count,
             totalByteCount: totalByteCount,
             oldestArchiveDate: dates.min(),
             newestArchiveDate: dates.max()
         )
+        summaryCache.setObject(
+            CachedArchiveSummary(signature: signature, summary: summary),
+            forKey: cacheKey
+        )
+        return summary
+    }
+
+    /// A cheap shallow fingerprint of the archive: each container's name and
+    /// modification date. Manual edits deep inside an archived mod won't
+    /// change it, which is acceptable for display-only totals.
+    private static func containerSignature(
+        in archiveDirectory: URL,
+        fileManager: FileManager
+    ) -> [String: Date] {
+        let children = (try? fileManager.contentsOfDirectory(
+            at: archiveDirectory,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        )) ?? []
+
+        var signature: [String: Date] = [:]
+        for childURL in children {
+            let values = try? childURL.resourceValues(forKeys: [.contentModificationDateKey])
+            signature[childURL.lastPathComponent] = values?.contentModificationDate ?? .distantPast
+        }
+        return signature
     }
 
     static func previousVersion(
@@ -198,14 +266,66 @@ enum ModArchive {
         return "\(timestamp)-\(reason.rawValue)"
     }
 
+    private static func writeContainerInfoIfMissing(
+        _ info: ArchiveContainerInfo,
+        in containerURL: URL,
+        fileManager: FileManager
+    ) {
+        let infoURL = containerURL.appendingPathComponent(containerInfoFileName)
+        guard !fileManager.fileExists(atPath: infoURL.path) else {
+            return
+        }
+
+        do {
+            try PropertyListEncoder().encode(info).write(to: infoURL)
+        } catch {
+            // The folder name still carries the metadata via the legacy parse.
+            AppLog.archive.error("Couldn't write the archive metadata sidecar: \(error)")
+        }
+    }
+
+    private static func containerInfo(for containerURL: URL) -> ArchiveContainerInfo? {
+        let infoURL = containerURL.appendingPathComponent(containerInfoFileName)
+        guard let data = try? Data(contentsOf: infoURL) else {
+            // Normal for containers created before the sidecar existed.
+            return nil
+        }
+
+        do {
+            return try PropertyListDecoder().decode(ArchiveContainerInfo.self, from: data)
+        } catch {
+            AppLog.archive.error("Archive metadata sidecar exists but couldn't be decoded: \(error)")
+            return nil
+        }
+    }
+
     private static func archiveReason(from containerURL: URL) -> ModArchiveReason? {
+        if let info = containerInfo(for: containerURL),
+           let reason = ModArchiveReason(rawValue: info.reason) {
+            return reason
+        }
+
+        return legacyArchiveReason(from: containerURL)
+    }
+
+    private static func archiveDate(for containerURL: URL) -> Date? {
+        if let info = containerInfo(for: containerURL) {
+            return info.date
+        }
+
+        return legacyArchiveDate(for: containerURL)
+    }
+
+    // Containers created before the sidecar existed carry their metadata only
+    // in the folder name.
+    private static func legacyArchiveReason(from containerURL: URL) -> ModArchiveReason? {
         let suffix = containerURL.lastPathComponent.split(separator: "-").last.map(String.init)
         return suffix.flatMap(ModArchiveReason.init(rawValue:))
     }
 
-    private static func archiveDate(for containerURL: URL) -> Date? {
+    private static func legacyArchiveDate(for containerURL: URL) -> Date? {
         let containerName = containerURL.lastPathComponent
-        guard let reason = archiveReason(from: containerURL) else {
+        guard let reason = legacyArchiveReason(from: containerURL) else {
             return nil
         }
 
@@ -221,14 +341,6 @@ enum ModArchive {
             options: .regularExpression
         )
         return ISO8601DateFormatter().date(from: timestamp)
-    }
-
-    private static func loadManifest(at url: URL) -> ModManifest? {
-        guard let data = try? Data(contentsOf: url) else {
-            return nil
-        }
-
-        return try? JSONDecoder().decode(ModManifest.self, from: data)
     }
 
     private static func uniqueDestinationURL(

@@ -17,16 +17,12 @@ extension ModManagerService {
     }
 
     func guardCanManageMods(in state: inout ModManagerState) -> Bool {
-        switch state.readiness {
-        case .needsFolderAccess:
-            record(AppStrings.Status.chooseModsFolderBeforeManaging, in: &state)
-            return false
-        case .missingModsFolder:
-            record(AppStrings.Status.modsFolderMissingChooseAgain, in: &state)
-            return false
-        case .ready:
+        guard let blockedMessage = state.readiness.managementBlockedMessage else {
             return true
         }
+
+        record(blockedMessage, in: &state)
+        return false
     }
 
     func performWithFolderAccess<T>(
@@ -43,8 +39,12 @@ extension ModManagerService {
         folderAccessCoordinator.performIfAvailable(state: &state, operation)
     }
 
-    func record(_ message: String, in state: inout ModManagerState) {
-        state.activityMessage = message
+    func record(
+        _ message: String,
+        severity: StatusEvent.Severity = .info,
+        in state: inout ModManagerState
+    ) {
+        state.activityStatus = StatusEvent(severity: severity, message: message)
     }
 
     func setSelectedModSetID(_ id: String, in state: inout ModManagerState) {

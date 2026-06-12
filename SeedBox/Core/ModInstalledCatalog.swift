@@ -41,54 +41,30 @@ enum ModInstalledCatalog {
             }
     }
 
-    static func urlsByToken(
-        in modsDirectory: URL,
-        fileManager: FileManager
-    ) -> [String: URL] {
-        let installedURLs = (try? fileManager.contentsOfDirectory(
-            at: modsDirectory,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: []
-        )) ?? []
-
+    static func urlsByToken(for locations: [InstalledModLocation]) -> [String: URL] {
         var urlsByToken: [String: URL] = [:]
-        for installedURL in installedURLs where fileManager.directoryExists(at: installedURL) {
-            let token = installedURL.lastPathComponent.normalizedFolderToken
+        for location in locations {
+            let token = location.folderName.normalizedFolderToken
             guard !token.isEmpty, urlsByToken[token] == nil else {
                 continue
             }
 
-            urlsByToken[token] = installedURL
+            urlsByToken[token] = location.url
         }
 
         return urlsByToken
     }
 
+    /// Matches by manifest unique ID when one is available, falling back to
+    /// the normalized destination folder name.
     static func matchingInstalledMod(
-        for candidate: ModInstallCandidate,
+        normalizedUniqueID: String?,
         destinationToken: String,
         installedMods: [InstalledModLocation]
     ) -> InstalledModLocation? {
-        if let candidateUniqueID = candidate.manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID,
+        if let normalizedUniqueID,
            let match = installedMods.first(where: { installedMod in
-               installedMod.normalizedUniqueID == candidateUniqueID
-           }) {
-            return match
-        }
-
-        return installedMods.first { installedMod in
-            installedMod.folderName.normalizedFolderToken == destinationToken
-        }
-    }
-
-    static func matchingInstalledMod(
-        for archivedMod: ArchivedModInfo,
-        destinationToken: String,
-        installedMods: [InstalledModLocation]
-    ) -> InstalledModLocation? {
-        if let archivedUniqueID = archivedMod.manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID,
-           let match = installedMods.first(where: { installedMod in
-               installedMod.normalizedUniqueID == archivedUniqueID
+               installedMod.normalizedUniqueID == normalizedUniqueID
            }) {
             return match
         }

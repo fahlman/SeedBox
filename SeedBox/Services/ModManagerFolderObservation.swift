@@ -5,7 +5,6 @@ final class ModManagerFolderObservation {
     private let folderAccess: SecurityScopedFolderAccess
     private let monitor: ModsFolderMonitoring
     private let notifier: ModFolderChangeNotifying
-    private var ignoredChangeDeadline = Date.distantPast
 
     init(
         folderAccess: SecurityScopedFolderAccess,
@@ -21,14 +20,6 @@ final class ModManagerFolderObservation {
                 await onChange()
             }
         }
-    }
-
-    func ignoreChangesBriefly() {
-        ignoredChangeDeadline = Date().addingTimeInterval(2)
-    }
-
-    var shouldHandleObservedChange: Bool {
-        Date() >= ignoredChangeDeadline
     }
 
     func notifyObservedChange() {

@@ -55,6 +55,25 @@ class SeedBoxTestCase: XCTestCase {
         return defaults
     }
 
+    @MainActor
+    func waitUntil(
+        timeout: Duration = .seconds(2),
+        condition: () -> Bool,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            if condition() {
+                return
+            }
+
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+
+        XCTFail("Timed out waiting for condition.", file: file, line: line)
+    }
+
     func assertSameFileURL(
         _ actualURL: URL,
         _ expectedURL: URL,

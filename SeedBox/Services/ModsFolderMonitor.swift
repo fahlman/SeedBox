@@ -1,4 +1,4 @@
-import Darwin
+import CoreServices
 import Foundation
 
 protocol ModsFolderMonitoring: AnyObject {
@@ -20,12 +20,14 @@ enum ModsFolderMonitorError: Error, LocalizedError {
     }
 }
 
+/// Watches the Mods folder with FSEvents, which observes the whole tree —
+/// including files edited in place inside mod folders — and coalesces bursts
+/// of activity through its built-in latency.
 final class ModsFolderMonitor: ModsFolderMonitoring, @unchecked Sendable {
     var onChange: (@MainActor () -> Void)?
 
-    private let debounceInterval: DispatchTimeInterval = .milliseconds(600)
-    private var source: DispatchSourceFileSystemObject?
-    private var debounceWorkItem: DispatchWorkItem?
+    private let eventLatency: CFTimeInterval = 0.6
+    private var stream: FSEventStreamRef?
     private var securityScopedAccess: SecurityScopedAccessToken?
     private var watchedURL: URL?
 
@@ -42,53 +44,75 @@ final class ModsFolderMonitor: ModsFolderMonitoring, @unchecked Sendable {
 
         stopWatching()
 
-        let fileDescriptor = open(standardizedURL.path, O_EVTONLY)
-        guard fileDescriptor >= 0 else {
+        var context = FSEventStreamContext(
+            version: 0,
+            info: Unmanaged.passUnretained(self).toOpaque(),
+            retain: nil,
+            release: nil,
+            copyDescription: nil
+        )
+        let nextStream = FSEventStreamCreate(
+            kCFAllocatorDefault,
+            { _, info, _, _, _, _ in
+                guard let info else {
+                    return
+                }
+
+                Unmanaged<ModsFolderMonitor>.fromOpaque(info)
+                    .takeUnretainedValue()
+                    .notifyChange()
+            },
+            &context,
+            [standardizedURL.path] as CFArray,
+            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+            eventLatency,
+            FSEventStreamCreateFlags(kFSEventStreamCreateFlagWatchRoot)
+        )
+
+        guard let nextStream else {
             securityScopedAccess.stop()
+            AppLog.monitor.error("FSEventStreamCreate failed for the Mods folder.")
             throw ModsFolderMonitorError.couldNotOpen(
                 standardizedURL,
-                String(cString: strerror(errno))
+                "FSEventStreamCreate"
             )
         }
 
-        let nextSource = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: fileDescriptor,
-            eventMask: [.write, .delete, .rename, .attrib],
-            queue: .main
-        )
-
-        nextSource.setEventHandler { [weak self] in
-            self?.scheduleDebouncedChange()
+        FSEventStreamSetDispatchQueue(nextStream, .main)
+        guard FSEventStreamStart(nextStream) else {
+            FSEventStreamInvalidate(nextStream)
+            FSEventStreamRelease(nextStream)
+            securityScopedAccess.stop()
+            AppLog.monitor.error("FSEventStreamStart failed for the Mods folder.")
+            throw ModsFolderMonitorError.couldNotOpen(
+                standardizedURL,
+                "FSEventStreamStart"
+            )
         }
-        nextSource.setCancelHandler {
-            close(fileDescriptor)
-        }
 
-        source = nextSource
+        stream = nextStream
         watchedURL = standardizedURL
         self.securityScopedAccess = securityScopedAccess
-        nextSource.resume()
+        AppLog.monitor.info("Watching the Mods folder for changes.")
     }
 
     func stopWatching() {
-        debounceWorkItem?.cancel()
-        debounceWorkItem = nil
-        source?.cancel()
-        source = nil
+        if let stream {
+            FSEventStreamStop(stream)
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+            AppLog.monitor.info("Stopped watching the Mods folder.")
+        }
+        stream = nil
         watchedURL = nil
         securityScopedAccess = nil
     }
 
-    private func scheduleDebouncedChange() {
-        debounceWorkItem?.cancel()
-
-        let workItem = DispatchWorkItem { [weak self] in
-            DispatchQueue.main.async {
-                self?.onChange?()
-            }
+    private func notifyChange() {
+        AppLog.monitor.debug("FSEvents reported a change in the watched tree.")
+        DispatchQueue.main.async { [weak self] in
+            self?.onChange?()
         }
-        debounceWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + debounceInterval, execute: workItem)
     }
 
     deinit {

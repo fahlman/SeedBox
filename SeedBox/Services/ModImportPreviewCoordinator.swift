@@ -1,30 +1,31 @@
 import Foundation
 
+enum ModImportPreviewResult {
+    case success(ModImportPreview)
+    case failure(WorkspaceActionOutcome)
+}
+
 @MainActor
 final class ModImportPreviewCoordinator {
     private let folderAccess: SecurityScopedFolderAccess
-    private var lastFolderAccessError: String?
+    private let failureReporter: FolderAccessFailureReporter
 
     init(folderAccess: SecurityScopedFolderAccess) {
         self.folderAccess = folderAccess
+        failureReporter = FolderAccessFailureReporter(folderAccess: folderAccess)
     }
 
     func prepareImportPreview(
         from selectedURLs: [URL],
         install: StardewInstall,
-        state: ModManagerState
+        readiness: ModManagerReadiness
     ) -> ModImportPreviewResult {
-        if let readinessMessage = importBlockedMessage(for: state) {
-            return .failure(stateByRecording(readinessMessage, in: state))
+        if let blockedMessage = readiness.managementBlockedMessage {
+            return .failure(.info(blockedMessage))
         }
 
         guard !selectedURLs.isEmpty else {
-            return .failure(
-                stateByRecording(
-                    AppStrings.Status.chooseModFoldersOrZipArchives,
-                    in: state
-                )
-            )
+            return .failure(.info(AppStrings.Status.chooseModFoldersOrZipArchives))
         }
 
         let sourceTokens = selectedURLs.map(SecurityScopedAccessToken.init(url:))
@@ -39,55 +40,14 @@ final class ModImportPreviewCoordinator {
                     into: install
                 )
             }
-            lastFolderAccessError = nil
-            return .success(preview, state)
+            failureReporter.noteSuccess()
+            return .success(preview)
         } catch let error as SecurityScopedFolderAccessError {
-            return .failure(stateByRecordingFolderAccessProblem(error, in: state))
+            return .failure(.folderAccessLost(failureReporter.reportLostAccess(error)))
         } catch {
             return .failure(
-                stateByRecording(
-                    AppStrings.Status.couldNotPreviewMods(error.localizedDescription),
-                    in: state
-                )
+                .error(AppStrings.Status.couldNotPreviewMods(error.localizedDescription))
             )
         }
     }
-
-    private func importBlockedMessage(for state: ModManagerState) -> String? {
-        switch state.readiness {
-        case .needsFolderAccess:
-            return AppStrings.Status.chooseModsFolderBeforeManaging
-        case .missingModsFolder:
-            return AppStrings.Status.modsFolderMissingChooseAgain
-        case .ready:
-            return nil
-        }
-    }
-
-    private func stateByRecordingFolderAccessProblem(
-        _ error: SecurityScopedFolderAccessError,
-        in state: ModManagerState
-    ) -> ModManagerState {
-        folderAccess.clearBookmark()
-
-        let message = AppStrings.Status.chooseModsFolderAgain(error.localizedDescription)
-        var nextState = state
-        nextState.hasSavedFolderAccess = false
-        if lastFolderAccessError != message {
-            nextState.activityMessage = message
-            lastFolderAccessError = message
-        }
-        return nextState
-    }
-
-    private func stateByRecording(_ message: String, in state: ModManagerState) -> ModManagerState {
-        var nextState = state
-        nextState.activityMessage = message
-        return nextState
-    }
-}
-
-enum ModImportPreviewResult {
-    case success(ModImportPreview, ModManagerState)
-    case failure(ModManagerState)
 }

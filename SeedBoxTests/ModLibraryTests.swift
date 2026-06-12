@@ -1176,6 +1176,491 @@ final class ModLibraryTests: SeedBoxTestCase {
         XCTAssertEqual(summary.newestArchiveDate, archiveDate)
     }
 
+    func testScansManifestWithCommentsTrailingCommasAndByteOrderMark() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let modURL = install.modDirectoryURL.appendingPathComponent("LenientMod")
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+
+        let rawManifest = """
+        {
+            // SMAPI parses manifests leniently, so Seed Box must too.
+            "Name": "Lenient Mod",
+            "Author": "Test Author",
+            "Version": "2.0.0",
+            "Description": "Permissive JSON.",
+            "UniqueID": "Test.LenientMod",
+        }
+        """
+        var manifestData = Data([0xEF, 0xBB, 0xBF])
+        manifestData.append(Data(rawManifest.utf8))
+        try manifestData.write(to: modURL.appendingPathComponent("manifest.json"))
+
+        let mod = try XCTUnwrap(
+            ModLibrary.scan(install: install).first { $0.folderName == "LenientMod" }
+        )
+
+        XCTAssertEqual(mod.displayName, "Lenient Mod")
+        XCTAssertEqual(mod.manifest?.version, "2.0.0")
+        XCTAssertEqual(mod.manifest?.uniqueID, "Test.LenientMod")
+    }
+
+    func testPreviewImportRemovesExtractedArchivesWhenASourceFails() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads")
+        let packageURL = downloadsURL.appendingPathComponent("ExampleMod")
+        let zipURL = downloadsURL.appendingPathComponent("ExampleMod.zip")
+        let emptyFolderURL = downloadsURL.appendingPathComponent("NotAMod")
+
+        try FileManager.default.createDirectory(at: packageURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Example Mod", to: packageURL)
+        try makeZip(from: packageURL, to: zipURL)
+        try FileManager.default.createDirectory(at: emptyFolderURL, withIntermediateDirectories: true)
+
+        let extractionDirectoriesBefore = extractedArchiveDirectoryNames()
+
+        XCTAssertThrowsError(
+            try ModLibrary.previewImport(from: [zipURL, emptyFolderURL], into: install)
+        ) { error in
+            XCTAssertEqual(error as? ModLibraryError, .noInstallableMods(emptyFolderURL))
+        }
+
+        XCTAssertEqual(extractedArchiveDirectoryNames(), extractionDirectoriesBefore)
+    }
+
+    func testScanFlagsSymlinkedFoldersAsInvalid() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let realModURL = install.modDirectoryURL.appendingPathComponent("RealMod")
+        let linkTargetURL = temporaryDirectory.appendingPathComponent("Elsewhere")
+        let linkURL = install.modDirectoryURL.appendingPathComponent("LinkedMod")
+
+        try FileManager.default.createDirectory(at: realModURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Real Mod", to: realModURL)
+        try FileManager.default.createDirectory(at: linkTargetURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Linked Mod", to: linkTargetURL)
+        try FileManager.default.createSymbolicLink(at: linkURL, withDestinationURL: linkTargetURL)
+
+        let scanResult = try ModLibrary.scanWithDiagnostics(install: install)
+
+        XCTAssertEqual(scanResult.mods.map(\.displayName), ["Real Mod"])
+        XCTAssertEqual(scanResult.invalidFolders.map(\.folderName), ["LinkedMod"])
+    }
+
+    func testRejectsArchiveExceedingEntryLimit() throws {
+        let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads")
+        let packageURL = downloadsURL.appendingPathComponent("BigMod")
+        let zipURL = downloadsURL.appendingPathComponent("BigMod.zip")
+
+        try FileManager.default.createDirectory(at: packageURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Big Mod", to: packageURL)
+        for index in 1...3 {
+            try "asset".write(
+                to: packageURL.appendingPathComponent("asset\(index).txt"),
+                atomically: true,
+                encoding: .utf8
+            )
+        }
+        try makeZip(from: packageURL, to: zipURL)
+
+        let limits = ModArchiveExtractionLimits(
+            maximumEntryCount: 2,
+            maximumTotalUncompressedByteCount: .max
+        )
+
+        XCTAssertThrowsError(
+            try ModInstallSourceResolver.resolve(from: zipURL, limits: limits)
+        ) { error in
+            XCTAssertEqual(
+                error as? ModArchiveExtractionError,
+                .tooManyEntries(zipURL, limit: 2)
+            )
+        }
+    }
+
+    func testRejectsArchiveExpandingBeyondSizeLimit() throws {
+        let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads")
+        let packageURL = downloadsURL.appendingPathComponent("HugeMod")
+        let zipURL = downloadsURL.appendingPathComponent("HugeMod.zip")
+
+        try FileManager.default.createDirectory(at: packageURL, withIntermediateDirectories: true)
+        try String(repeating: "x", count: 4096).write(
+            to: packageURL.appendingPathComponent("payload.txt"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try makeZip(from: packageURL, to: zipURL)
+
+        let limits = ModArchiveExtractionLimits(
+            maximumEntryCount: .max,
+            maximumTotalUncompressedByteCount: 1024
+        )
+
+        XCTAssertThrowsError(
+            try ModInstallSourceResolver.resolve(from: zipURL, limits: limits)
+        ) { error in
+            XCTAssertEqual(
+                error as? ModArchiveExtractionError,
+                .expandsTooLarge(zipURL, limitByteCount: 1024)
+            )
+        }
+    }
+
+    func testManifestCacheReflectsOnDiskChanges() throws {
+        let modURL = temporaryDirectory.appendingPathComponent("CachedMod", isDirectory: true)
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        let manifestURL = modURL.appendingPathComponent("manifest.json")
+
+        try writeManifest(name: "Cached Mod", to: modURL, version: "1.0.0")
+        XCTAssertEqual(ModManifestReader.loadManifest(at: manifestURL)?.version, "1.0.0")
+        XCTAssertEqual(ModManifestReader.loadManifest(at: manifestURL)?.version, "1.0.0")
+
+        try writeManifest(
+            name: "Cached Mod With A Longer Name",
+            to: modURL,
+            version: "2.0.0"
+        )
+
+        XCTAssertEqual(ModManifestReader.loadManifest(at: manifestURL)?.version, "2.0.0")
+    }
+
+    func testIgnoresImplausiblyLargeManifest() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let modURL = install.modDirectoryURL.appendingPathComponent("OversizedManifestMod")
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+
+        let padding = String(repeating: "x", count: ModManifestReader.maximumManifestByteCount)
+        let oversizedManifest = """
+        {"Name": "Oversized Mod", "Version": "1.0.0", "Description": "\(padding)"}
+        """
+        try oversizedManifest.write(
+            to: modURL.appendingPathComponent("manifest.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let mod = try XCTUnwrap(
+            ModLibrary.scan(install: install).first { $0.folderName == "OversizedManifestMod" }
+        )
+
+        XCTAssertNil(mod.manifest)
+        XCTAssertEqual(mod.displayName, "OversizedManifestMod")
+    }
+
+    func testUpdatingModPreservesUserConfig() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let installedURL = install.modDirectoryURL.appendingPathComponent("Alpha")
+        try FileManager.default.createDirectory(at: installedURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Alpha", to: installedURL, version: "1.0.0", uniqueID: "Test.Alpha")
+        let userConfig = #"{"difficulty": "hard"}"#
+        try userConfig.write(
+            to: installedURL.appendingPathComponent("config.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let newVersionURL = temporaryDirectory.appendingPathComponent("Downloads").appendingPathComponent("Alpha")
+        try FileManager.default.createDirectory(at: newVersionURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Alpha", to: newVersionURL, version: "2.0.0", uniqueID: "Test.Alpha")
+
+        let result = try ModLibrary.installMods(from: [newVersionURL], into: install)
+
+        let updated = try XCTUnwrap(result.updated.first)
+        XCTAssertTrue(updated.preservedConfig)
+        XCTAssertEqual(
+            try String(contentsOf: installedURL.appendingPathComponent("config.json"), encoding: .utf8),
+            userConfig
+        )
+        XCTAssertEqual(
+            ModManifestReader.loadManifest(at: installedURL.appendingPathComponent("manifest.json"))?.version,
+            "2.0.0"
+        )
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: updated.archivedURL.appendingPathComponent("config.json").path
+            ),
+            "The archived copy keeps the original config too."
+        )
+    }
+
+    func testUserConfigWinsOverShippedDefaultConfig() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let installedURL = install.modDirectoryURL.appendingPathComponent("Alpha")
+        try FileManager.default.createDirectory(at: installedURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Alpha", to: installedURL, version: "1.0.0", uniqueID: "Test.Alpha")
+        let userConfig = #"{"difficulty": "hard"}"#
+        try userConfig.write(
+            to: installedURL.appendingPathComponent("config.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let newVersionURL = temporaryDirectory.appendingPathComponent("Downloads").appendingPathComponent("Alpha")
+        try FileManager.default.createDirectory(at: newVersionURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Alpha", to: newVersionURL, version: "2.0.0", uniqueID: "Test.Alpha")
+        try #"{"difficulty": "default"}"#.write(
+            to: newVersionURL.appendingPathComponent("config.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let result = try ModLibrary.installMods(from: [newVersionURL], into: install)
+
+        XCTAssertEqual(result.updated.first?.preservedConfig, true)
+        XCTAssertEqual(
+            try String(contentsOf: installedURL.appendingPathComponent("config.json"), encoding: .utf8),
+            userConfig
+        )
+    }
+
+    func testUpdateWithoutExistingConfigPreservesNothing() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let installedURL = install.modDirectoryURL.appendingPathComponent("Alpha")
+        try FileManager.default.createDirectory(at: installedURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Alpha", to: installedURL, version: "1.0.0", uniqueID: "Test.Alpha")
+
+        let newVersionURL = temporaryDirectory.appendingPathComponent("Downloads").appendingPathComponent("Alpha")
+        try FileManager.default.createDirectory(at: newVersionURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Alpha", to: newVersionURL, version: "2.0.0", uniqueID: "Test.Alpha")
+
+        let result = try ModLibrary.installMods(from: [newVersionURL], into: install)
+
+        XCTAssertEqual(result.updated.first?.preservedConfig, false)
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: installedURL.appendingPathComponent("config.json").path
+            )
+        )
+    }
+
+    func testFailedConfigCarryIsReportedNotSilent() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let installedURL = install.modDirectoryURL.appendingPathComponent("Alpha")
+        try FileManager.default.createDirectory(at: installedURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Alpha", to: installedURL, version: "1.0.0", uniqueID: "Test.Alpha")
+        let configURL = installedURL.appendingPathComponent("config.json")
+        try #"{"difficulty": "hard"}"#.write(to: configURL, atomically: true, encoding: .utf8)
+        // An unreadable config makes the carry-forward copy fail.
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: configURL.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: configURL.path)
+        }
+
+        let newVersionURL = temporaryDirectory.appendingPathComponent("Downloads").appendingPathComponent("Alpha")
+        try FileManager.default.createDirectory(at: newVersionURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Alpha", to: newVersionURL, version: "2.0.0", uniqueID: "Test.Alpha")
+
+        let result = try ModLibrary.installMods(from: [newVersionURL], into: install)
+
+        let updated = try XCTUnwrap(result.updated.first)
+        XCTAssertFalse(updated.preservedConfig)
+        XCTAssertTrue(updated.configPreservationFailed)
+        try? FileManager.default.setAttributes(
+            [.posixPermissions: 0o644],
+            ofItemAtPath: updated.archivedURL.appendingPathComponent("config.json").path
+        )
+    }
+
+    func testShippedConfigSurvivesFailedCarryForward() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let installedURL = install.modDirectoryURL.appendingPathComponent("Alpha")
+        try FileManager.default.createDirectory(at: installedURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Alpha", to: installedURL, version: "1.0.0", uniqueID: "Test.Alpha")
+        let configURL = installedURL.appendingPathComponent("config.json")
+        try #"{"difficulty": "hard"}"#.write(to: configURL, atomically: true, encoding: .utf8)
+        // An unreadable old config makes the carry-forward fail.
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: configURL.path)
+
+        let newVersionURL = temporaryDirectory.appendingPathComponent("Downloads").appendingPathComponent("Alpha")
+        try FileManager.default.createDirectory(at: newVersionURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Alpha", to: newVersionURL, version: "2.0.0", uniqueID: "Test.Alpha")
+        let shippedConfig = #"{"difficulty": "default"}"#
+        try shippedConfig.write(
+            to: newVersionURL.appendingPathComponent("config.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let result = try ModLibrary.installMods(from: [newVersionURL], into: install)
+
+        let updated = try XCTUnwrap(result.updated.first)
+        XCTAssertTrue(updated.configPreservationFailed)
+        XCTAssertEqual(
+            try String(contentsOf: installedURL.appendingPathComponent("config.json"), encoding: .utf8),
+            shippedConfig,
+            "A failed carry-forward must not destroy the new version's shipped config."
+        )
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: installedURL.appendingPathComponent(".seedbox-config-staging").path
+            ),
+            "Staging leftovers must be cleaned up."
+        )
+        try? FileManager.default.setAttributes(
+            [.posixPermissions: 0o644],
+            ofItemAtPath: updated.archivedURL.appendingPathComponent("config.json").path
+        )
+    }
+
+    func testArchiveSummaryCacheInvalidatesWhenArchiveChanges() throws {
+        let modsDirectory = try makeModsDirectory()
+        let archiveDirectory = temporaryDirectory.appendingPathComponent("Archived Mods")
+
+        let firstModURL = modsDirectory.appendingPathComponent("FirstMod")
+        try FileManager.default.createDirectory(at: firstModURL, withIntermediateDirectories: true)
+        try writeManifest(name: "First Mod", to: firstModURL)
+        _ = try ModArchive.archive(firstModURL, in: archiveDirectory, reason: .deleted)
+
+        let firstSummary = try ModArchive.summary(in: archiveDirectory)
+        XCTAssertEqual(firstSummary.archivedModCount, 1)
+        XCTAssertEqual(try ModArchive.summary(in: archiveDirectory), firstSummary)
+
+        let secondModURL = modsDirectory.appendingPathComponent("SecondMod")
+        try FileManager.default.createDirectory(at: secondModURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Second Mod", to: secondModURL)
+        _ = try ModArchive.archive(secondModURL, in: archiveDirectory, reason: .deleted)
+
+        let secondSummary = try ModArchive.summary(in: archiveDirectory)
+        XCTAssertEqual(secondSummary.archivedModCount, 2)
+        XCTAssertGreaterThan(secondSummary.totalByteCount, firstSummary.totalByteCount)
+    }
+
+    func testPreviewRejectsConflictingFileAtDestinationLikeInstallDoes() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let sourceURL = temporaryDirectory.appendingPathComponent("ConflictMod")
+        try FileManager.default.createDirectory(at: sourceURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Conflict Mod", to: sourceURL)
+
+        let conflictingFileURL = install.modDirectoryURL.appendingPathComponent("ConflictMod")
+        try "not a folder".write(to: conflictingFileURL, atomically: true, encoding: .utf8)
+
+        XCTAssertThrowsError(
+            try ModLibrary.previewImport(from: [sourceURL], into: install)
+        ) { error in
+            XCTAssertEqual(error as? ModLibraryError, .destinationExists(conflictingFileURL))
+        }
+        XCTAssertThrowsError(
+            try ModLibrary.installMods(from: [sourceURL], into: install)
+        ) { error in
+            XCTAssertEqual(error as? ModLibraryError, .destinationExists(conflictingFileURL))
+        }
+    }
+
+    func testPreviewAndInstallAgreeOnDuplicateOfSkippedInstalledMod() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let installedURL = install.modDirectoryURL.appendingPathComponent("Alpha")
+        try FileManager.default.createDirectory(at: installedURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Alpha", to: installedURL, version: "2.0.0", uniqueID: "Test.Alpha")
+
+        let firstCopyURL = temporaryDirectory.appendingPathComponent("Copy1").appendingPathComponent("Alpha")
+        let secondCopyURL = temporaryDirectory.appendingPathComponent("Copy2").appendingPathComponent("Alpha")
+        for copyURL in [firstCopyURL, secondCopyURL] {
+            try FileManager.default.createDirectory(at: copyURL, withIntermediateDirectories: true)
+            try writeManifest(name: "Alpha", to: copyURL, version: "1.0.0", uniqueID: "Test.Alpha")
+        }
+
+        let preview = try ModLibrary.previewImport(
+            from: [firstCopyURL, secondCopyURL],
+            into: install
+        )
+        XCTAssertEqual(preview.items.map(\.action), [.downgrade, .duplicateInSelection])
+
+        let installResult = try ModLibrary.installMods(
+            from: [firstCopyURL, secondCopyURL],
+            into: install,
+            replacementPolicy: .newerOnly
+        )
+        XCTAssertTrue(installResult.installed.isEmpty)
+        XCTAssertTrue(installResult.updated.isEmpty)
+        XCTAssertEqual(
+            installResult.skipped.map(\.reason),
+            [.alreadyInstalled, .duplicateInSelection]
+        )
+    }
+
+    func testArchiveSidecarPreservesExactDateAndReason() throws {
+        let modsDirectory = try makeModsDirectory()
+        let archiveDirectory = temporaryDirectory.appendingPathComponent("Archived Mods")
+        let modURL = modsDirectory.appendingPathComponent("ArchivedMod")
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Archived Mod", to: modURL)
+
+        let archiveDate = Date(timeIntervalSince1970: 1_750_000_000.25)
+        _ = try ModArchive.archive(
+            modURL,
+            in: archiveDirectory,
+            reason: .updated,
+            date: archiveDate
+        )
+
+        let archivedMod = try XCTUnwrap(ModArchive.archivedMods(in: archiveDirectory).first)
+        XCTAssertEqual(archivedMod.reason, .updated)
+        XCTAssertEqual(
+            archivedMod.archivedDate?.timeIntervalSince1970 ?? 0,
+            archiveDate.timeIntervalSince1970,
+            accuracy: 0.001
+        )
+    }
+
+    func testLegacyArchiveContainerWithoutSidecarStillParses() throws {
+        let archiveDirectory = temporaryDirectory.appendingPathComponent("Archived Mods")
+        let containerURL = archiveDirectory.appendingPathComponent(
+            "2026-01-02T03-04-05Z-deleted",
+            isDirectory: true
+        )
+        let archivedModURL = containerURL.appendingPathComponent("OldMod")
+        try FileManager.default.createDirectory(at: archivedModURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Old Mod", to: archivedModURL)
+
+        let archivedMod = try XCTUnwrap(ModArchive.archivedMods(in: archiveDirectory).first)
+
+        XCTAssertEqual(archivedMod.reason, .deleted)
+        XCTAssertEqual(
+            archivedMod.archivedDate,
+            ISO8601DateFormatter().date(from: "2026-01-02T03:04:05Z")
+        )
+    }
+
+    func testRestoringLastArchivedModRemovesContainerDespiteSidecar() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let archiveDirectory = install.archivedModsDirectoryURL
+        let modURL = install.modDirectoryURL.appendingPathComponent("RestorableMod")
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Restorable Mod", to: modURL)
+
+        _ = try ModArchive.archive(modURL, in: archiveDirectory, reason: .deleted)
+        let archivedMod = try XCTUnwrap(ModArchive.archivedMods(in: archiveDirectory).first)
+
+        _ = try ModLibrary.restoreArchivedMods(
+            [archivedMod],
+            into: install,
+            archiveDirectory: archiveDirectory
+        )
+
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: archivedMod.containerURL.path),
+            "Container holding only the metadata sidecar should be removed."
+        )
+        XCTAssertTrue(FileManager.default.directoryExists(at: modURL))
+    }
+
+    private func extractedArchiveDirectoryNames() -> Set<String> {
+        let children = (try? FileManager.default.contentsOfDirectory(
+            atPath: FileManager.default.temporaryDirectory.path
+        )) ?? []
+        return Set(children.filter { $0.hasPrefix("SeedBoxZip-") })
+    }
+
     private func makeZip(from sourceURL: URL, to zipURL: URL) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")

@@ -2,10 +2,11 @@ import Foundation
 
 final class ModManagerFolderAccessCoordinator: @unchecked Sendable {
     private let folderAccess: SecurityScopedFolderAccess
-    private var lastFolderAccessError: String?
+    private let failureReporter: FolderAccessFailureReporter
 
     init(folderAccess: SecurityScopedFolderAccess) {
         self.folderAccess = folderAccess
+        failureReporter = FolderAccessFailureReporter(folderAccess: folderAccess)
     }
 
     var hasBookmark: Bool {
@@ -14,7 +15,7 @@ final class ModManagerFolderAccessCoordinator: @unchecked Sendable {
 
     func saveBookmark(for url: URL) throws {
         try folderAccess.saveBookmark(for: url)
-        lastFolderAccessError = nil
+        failureReporter.noteSuccess()
     }
 
     func perform<T>(
@@ -23,10 +24,13 @@ final class ModManagerFolderAccessCoordinator: @unchecked Sendable {
     ) throws -> T {
         do {
             let result = try folderAccess.withAccess(operation)
-            lastFolderAccessError = nil
+            failureReporter.noteSuccess()
             return result
         } catch let error as SecurityScopedFolderAccessError {
-            recordFolderAccessProblem(error, in: &state)
+            state.hasSavedFolderAccess = false
+            if let message = failureReporter.reportLostAccess(error) {
+                state.activityStatus = StatusEvent(severity: .error, message: message)
+            }
             throw error
         }
     }
@@ -37,31 +41,15 @@ final class ModManagerFolderAccessCoordinator: @unchecked Sendable {
     ) -> T? {
         do {
             let result = try perform(state: &state, operation)
-            lastFolderAccessError = nil
+            failureReporter.noteSuccess()
             return result
         } catch is SecurityScopedFolderAccessError {
             return nil
         } catch {
-            let message = error.localizedDescription
-            if lastFolderAccessError != message {
-                state.activityMessage = AppStrings.Status.couldNotRestoreSavedFolderAccess(message)
-                lastFolderAccessError = message
+            if let message = failureReporter.reportRestoreFailure(error) {
+                state.activityStatus = StatusEvent(severity: .error, message: message)
             }
             return nil
-        }
-    }
-
-    private func recordFolderAccessProblem(
-        _ error: SecurityScopedFolderAccessError,
-        in state: inout ModManagerState
-    ) {
-        folderAccess.clearBookmark()
-        state.hasSavedFolderAccess = false
-
-        let message = AppStrings.Status.chooseModsFolderAgain(error.localizedDescription)
-        if lastFolderAccessError != message {
-            state.activityMessage = message
-            lastFolderAccessError = message
         }
     }
 }

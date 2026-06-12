@@ -59,7 +59,17 @@ extension ModManagerService {
                 .map(\.destinationURL.lastPathComponent)
                 .map(\.normalizedFolderToken)
         )
-        let changeMessage = installSummary(for: installResult)
+        var changeMessage = installSummary(for: installResult)
+        var changeSeverity = StatusEvent.Severity.info
+        let failedConfigNames = installResult.updated
+            .filter(\.configPreservationFailed)
+            .map(\.displayName)
+        if !failedConfigNames.isEmpty {
+            changeMessage += " " + AppStrings.Status.couldNotPreserveConfigs(
+                failedConfigNames.joined(separator: ", ")
+            )
+            changeSeverity = .error
+        }
 
         do {
             if !installResult.installed.isEmpty {
@@ -73,7 +83,7 @@ extension ModManagerService {
             }
 
             nextState = refreshedState(from: nextState)
-            record(changeMessage, in: &nextState)
+            record(changeMessage, severity: changeSeverity, in: &nextState)
 
             let savedState: ModManagerState
             if !installResult.installed.isEmpty {
@@ -113,7 +123,7 @@ extension ModManagerService {
         } catch is SecurityScopedFolderAccessError {
             return nextState
         } catch {
-            record(AppStrings.Status.couldNotReconcileInstalledMods(error.localizedDescription), in: &nextState)
+            record(AppStrings.Status.couldNotReconcileInstalledMods(error.localizedDescription), severity: .error, in: &nextState)
             return nextState
         }
     }
@@ -169,7 +179,7 @@ extension ModManagerService {
         } catch is SecurityScopedFolderAccessError {
             return nextState
         } catch {
-            record(AppStrings.Status.couldNotReconcileAddedMods(error.localizedDescription), in: &nextState)
+            record(AppStrings.Status.couldNotReconcileAddedMods(error.localizedDescription), severity: .error, in: &nextState)
             return nextState
         }
     }
@@ -286,6 +296,14 @@ extension ModManagerService {
             "\(update.displayName): \(update.previousVersion ?? "unknown") -> \(update.installedVersion ?? "unknown")"
         }
         .joined(separator: "\n")
+        details["preserved_configs"] = installResult.updated
+            .filter(\.preservedConfig)
+            .map(\.displayName)
+            .joined(separator: "\n")
+        details["config_failures"] = installResult.updated
+            .filter(\.configPreservationFailed)
+            .map(\.displayName)
+            .joined(separator: "\n")
         return details
     }
 

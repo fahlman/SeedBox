@@ -27,7 +27,7 @@ extension ModManagerService {
             state.mods = []
             state.invalidModFolders = []
             state.hasLoadedMods = false
-            record(AppStrings.Status.couldNotReadMods(error.localizedDescription), in: &state)
+            record(AppStrings.Status.couldNotReadMods(error.localizedDescription), severity: .error, in: &state)
         }
     }
 
@@ -45,7 +45,7 @@ extension ModManagerService {
         } catch {
             state.archivedMods = []
             state.archiveSummary = ModArchiveSummary()
-            record(AppStrings.Status.couldNotReadArchivedMods(error.localizedDescription), in: &state)
+            record(AppStrings.Status.couldNotReadArchivedMods(error.localizedDescription), severity: .error, in: &state)
         }
     }
 
@@ -85,7 +85,7 @@ extension ModManagerService {
             state.modSets = []
             setSelectedModSetID(ModSetStore.defaultSetID, in: &state)
             state.appliedModSetID = nil
-            record(AppStrings.Status.couldNotReadModSets(error.localizedDescription), in: &state)
+            record(AppStrings.Status.couldNotReadModSets(error.localizedDescription), severity: .error, in: &state)
         }
     }
 
@@ -111,7 +111,7 @@ extension ModManagerService {
                 in: &state
             )
         } catch {
-            record(AppStrings.Status.couldNotPruneArchivedMods(error.localizedDescription), in: &state)
+            record(AppStrings.Status.couldNotPruneArchivedMods(error.localizedDescription), severity: .error, in: &state)
         }
     }
 

@@ -1,114 +1,88 @@
 import AppKit
 import Foundation
 
+/// The result of a main-actor side effect that may need to flow back into the
+/// canonical state owned by the service actor.
+enum WorkspaceActionOutcome {
+    case completed
+    case recorded(StatusEvent)
+    /// The saved bookmark stopped working and was cleared; the state's
+    /// folder-access flag must drop. The message is nil when the same failure
+    /// was already reported.
+    case folderAccessLost(String?)
+
+    static func info(_ message: String) -> Self {
+        .recorded(StatusEvent(severity: .info, message: message))
+    }
+
+    static func error(_ message: String) -> Self {
+        .recorded(StatusEvent(severity: .error, message: message))
+    }
+}
+
 @MainActor
 final class ModManagerWorkspacePresenter {
     private let folderAccess: SecurityScopedFolderAccess
-    private var lastFolderAccessError: String?
+    private let failureReporter: FolderAccessFailureReporter
 
     init(folderAccess: SecurityScopedFolderAccess) {
         self.folderAccess = folderAccess
+        failureReporter = FolderAccessFailureReporter(folderAccess: folderAccess)
     }
 
-    func revealModsFolder(in state: ModManagerState, install: StardewInstall) -> ModManagerState {
-        if let readinessMessage = revealBlockedMessage(for: state) {
-            return stateByRecording(
-                readinessMessage,
-                in: state
-            )
+    func revealModsFolder(readiness: ModManagerReadiness, install: StardewInstall) -> WorkspaceActionOutcome {
+        if let blockedMessage = readiness.managementBlockedMessage {
+            return .info(blockedMessage)
         }
 
         return revealWithFolderAccess(
             [install.modDirectoryURL],
-            failureMessage: { AppStrings.Status.couldNotRevealModsFolder($0) },
-            in: state
+            failureMessage: { AppStrings.Status.couldNotRevealModsFolder($0) }
         )
     }
 
-    func revealArchivedModsFolder(in state: ModManagerState, install: StardewInstall) -> ModManagerState {
+    func revealArchivedModsFolder(install: StardewInstall) -> WorkspaceActionOutcome {
         do {
             try FileManager.default.createDirectory(
                 at: install.archivedModsDirectoryURL,
                 withIntermediateDirectories: true
             )
             NSWorkspace.shared.activateFileViewerSelecting([install.archivedModsDirectoryURL])
-            return state
+            return .completed
         } catch {
-            return stateByRecording(
-                AppStrings.Status.couldNotRevealArchivedMods(error.localizedDescription),
-                in: state
+            return .error(
+                AppStrings.Status.couldNotRevealArchivedMods(error.localizedDescription)
             )
         }
     }
 
-    func revealMod(_ mod: ModInfo, in state: ModManagerState) -> ModManagerState {
-        if let readinessMessage = revealBlockedMessage(for: state) {
-            return stateByRecording(
-                readinessMessage,
-                in: state
-            )
+    func revealMod(_ mod: ModInfo, readiness: ModManagerReadiness) -> WorkspaceActionOutcome {
+        if let blockedMessage = readiness.managementBlockedMessage {
+            return .info(blockedMessage)
         }
 
         return revealWithFolderAccess(
             [mod.url],
             failureMessage: {
                 AppStrings.Status.couldNotRevealMod(mod.displayName, errorDescription: $0)
-            },
-            in: state
+            }
         )
-    }
-
-    private func revealBlockedMessage(for state: ModManagerState) -> String? {
-        switch state.readiness {
-        case .needsFolderAccess:
-            return AppStrings.Status.chooseModsFolderBeforeManaging
-        case .missingModsFolder:
-            return AppStrings.Status.modsFolderMissingChooseAgain
-        case .ready:
-            return nil
-        }
     }
 
     private func revealWithFolderAccess(
         _ urls: [URL],
-        failureMessage: (String) -> String,
-        in state: ModManagerState
-    ) -> ModManagerState {
+        failureMessage: (String) -> String
+    ) -> WorkspaceActionOutcome {
         do {
             try folderAccess.withAccess {
                 NSWorkspace.shared.activateFileViewerSelecting(urls)
             }
-            lastFolderAccessError = nil
-            return state
+            failureReporter.noteSuccess()
+            return .completed
         } catch let error as SecurityScopedFolderAccessError {
-            return stateByRecordingFolderAccessProblem(error, in: state)
+            return .folderAccessLost(failureReporter.reportLostAccess(error))
         } catch {
-            return stateByRecording(
-                failureMessage(error.localizedDescription),
-                in: state
-            )
+            return .error(failureMessage(error.localizedDescription))
         }
-    }
-
-    private func stateByRecordingFolderAccessProblem(
-        _ error: SecurityScopedFolderAccessError,
-        in state: ModManagerState
-    ) -> ModManagerState {
-        folderAccess.clearBookmark()
-
-        let message = AppStrings.Status.chooseModsFolderAgain(error.localizedDescription)
-        var nextState = state
-        nextState.hasSavedFolderAccess = false
-        if lastFolderAccessError != message {
-            nextState.activityMessage = message
-            lastFolderAccessError = message
-        }
-        return nextState
-    }
-
-    private func stateByRecording(_ message: String, in state: ModManagerState) -> ModManagerState {
-        var nextState = state
-        nextState.activityMessage = message
-        return nextState
     }
 }
