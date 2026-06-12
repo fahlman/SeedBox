@@ -24,7 +24,7 @@
 /* Begin PBXFileReference section */
 		94174AFB2FD45E4A00CC009E /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
 		94174AFD2FD45E5800CC009E /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
-		F00300000000000000000001 /* Seed Box.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Seed Box.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F00300000000000000000001 /* Seed Box Mod Manager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Seed Box Mod Manager.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F00300000000000000000002 /* SeedBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SeedBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -84,7 +84,7 @@
 		G00300000000000000000001 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				F00300000000000000000001 /* Seed Box.app */,
+				F00300000000000000000001 /* Seed Box Mod Manager.app */,
 				F00300000000000000000002 /* SeedBoxTests.xctest */,
 			);
 			name = Products;
@@ -112,7 +112,7 @@
 				946852BE2FCE991A00E94F9B /* ZIPFoundation */,
 			);
 			productName = "Seed Box";
-			productReference = F00300000000000000000001 /* Seed Box.app */;
+			productReference = F00300000000000000000001 /* Seed Box Mod Manager.app */;
 			productType = "com.apple.product-type.application";
 		};
 		T00200000000000000000001 /* SeedBoxTests */ = {
@@ -353,7 +353,7 @@
 				);
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.fahlsing.SeedBox;
-				PRODUCT_NAME = "Seed Box";
+				PRODUCT_NAME = "Seed Box Mod Manager";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_MODULE_NAME = SeedBox;
 			};
@@ -393,7 +393,7 @@
 				);
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.fahlsing.SeedBox;
-				PRODUCT_NAME = "Seed Box";
+				PRODUCT_NAME = "Seed Box Mod Manager";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_MODULE_NAME = SeedBox;
 			};
@@ -413,7 +413,7 @@
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.fahlsing.SeedBoxTests;
 				PRODUCT_NAME = SeedBoxTests;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Seed Box.app/Contents/MacOS/SeedBox";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Seed Box Mod Manager.app/Contents/MacOS/SeedBox";
 			};
 			name = Debug;
 		};
@@ -431,7 +431,7 @@
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.fahlsing.SeedBoxTests;
 				PRODUCT_NAME = SeedBoxTests;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Seed Box.app/Contents/MacOS/SeedBox";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Seed Box Mod Manager.app/Contents/MacOS/SeedBox";
 			};
 			name = Release;
 		};
