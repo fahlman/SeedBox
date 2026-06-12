@@ -1,7 +1,8 @@
+import AppKit
 import SwiftUI
 
 struct ModManagerWindow: View {
-    @StateObject private var viewModel = ModManagerViewModel()
+    private let viewModel = ModManagerViewModel.shared
     @SceneStorage("modManager.selectedModSetID") private var selectedModSetID = ModSetStore.defaultSetID
     @SceneStorage("modManager.searchText") private var searchText = ""
     @SceneStorage("modManager.selectedModIDs") private var selectedModIDsStorage = "[]"
@@ -15,9 +16,19 @@ struct ModManagerWindow: View {
         )
         .navigationTitle(windowTitle)
         .task {
-            restoreWindowStateIfNeeded()
+            await restoreWindowStateIfNeeded()
             await viewModel.refresh()
             synchronizeSelectedModSetWithAvailableSets()
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
+        ) { _ in
+            // Catches state written while Seed Box stayed open in the
+            // background — most importantly the SMAPI log from a game session
+            // that just ended.
+            Task {
+                await viewModel.refreshAfterActivation()
+            }
         }
         .onChange(of: viewModel.state.selectedModSetID) { _, selectedModSetID in
             self.selectedModSetID = selectedModSetID
@@ -31,12 +42,12 @@ struct ModManagerWindow: View {
         viewModel.state.modSetSelection.selectedSet?.name ?? AppStrings.App.name
     }
 
-    private func restoreWindowStateIfNeeded() {
+    private func restoreWindowStateIfNeeded() async {
         guard !restoredWindowState else {
             return
         }
 
-        viewModel.restoreSelectedModSet(id: selectedModSetID)
+        await viewModel.restoreSelectedModSet(id: selectedModSetID)
         restoredWindowState = true
     }
 
@@ -49,7 +60,10 @@ struct ModManagerWindow: View {
         selectedModSetID = availableIDs.contains(ModSetStore.defaultSetID)
             ? ModSetStore.defaultSetID
             : viewModel.state.modSets.first?.id ?? ModSetStore.defaultSetID
-        viewModel.restoreSelectedModSet(id: selectedModSetID)
+        let restoredID = selectedModSetID
+        Task {
+            await viewModel.restoreSelectedModSet(id: restoredID)
+        }
     }
 
     private var selectedModIDsBinding: Binding<Set<String>> {
@@ -83,9 +97,7 @@ struct ModManagerWindow: View {
 }
 
 struct SettingsSceneView: View {
-    @StateObject private var viewModel = ModManagerViewModel()
-
     var body: some View {
-        SettingsView(viewModel: viewModel)
+        SettingsView(viewModel: ModManagerViewModel.shared)
     }
 }

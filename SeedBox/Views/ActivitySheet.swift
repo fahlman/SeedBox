@@ -80,6 +80,14 @@ private extension AuditLogAction {
             return AppStrings.AuditActions.modSetDeleted
         case .archivesPruned:
             return AppStrings.AuditActions.archivesPruned
+        case .modUpdatesChecked:
+            return AppStrings.AuditActions.modUpdatesChecked
+        case .duplicatesResolved:
+            return AppStrings.AuditActions.duplicatesResolved
+        case .problemSearch:
+            return AppStrings.AuditActions.problemSearch
+        case .logFolderSelected:
+            return AppStrings.AuditActions.logFolderSelected
         }
     }
 }
