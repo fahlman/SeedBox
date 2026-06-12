@@ -6,6 +6,12 @@ struct SeedBoxCommands: Commands {
     @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button(AppStrings.Commands.aboutSeedBox) {
+                NSApplication.shared.orderFrontStandardAboutPanel(nil)
+            }
+        }
+
         CommandGroup(replacing: .newItem) {
             Button(AppStrings.Commands.newModSet) {
                 context?.actions.createModSet()

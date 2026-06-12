@@ -64,6 +64,7 @@ enum AppStrings {
     }
 
     enum Commands {
+        static let aboutSeedBox = String(localized: "About Seed Box")
         static let addMods = String(localized: "Add Mods...")
         static let chooseModsFolder = String(localized: "Choose Mods Folder...")
         static let compareModSet = String(localized: "Compare Mod Set")
