@@ -52,6 +52,18 @@ private final class CachedLogReport {
 enum SMAPILogReader {
     static let fileName = "SMAPI-latest.txt"
 
+    /// Where SMAPI writes its logs. Used only to point the folder picker at
+    /// the right place — access still comes from the user's selection.
+    /// Derived from the real user home, because inside the sandbox the home
+    /// directory resolves to the app container instead.
+    static var defaultLogFolderURL: URL {
+        let realHomePath = String(cString: getpwuid(getuid()).pointee.pw_dir)
+        return URL(fileURLWithPath: realHomePath, isDirectory: true)
+            .appendingPathComponent(".config", isDirectory: true)
+            .appendingPathComponent("StardewValley", isDirectory: true)
+            .appendingPathComponent("ErrorLogs", isDirectory: true)
+    }
+
     /// Trace-heavy logs can be large; anything beyond this is implausible
     /// and skipped rather than read into memory.
     static let maximumLogByteCount = 64 * 1024 * 1024

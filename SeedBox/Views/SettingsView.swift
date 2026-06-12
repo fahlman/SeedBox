@@ -105,6 +105,20 @@ struct SettingsView: View {
                 } label: {
                     Label(AppStrings.Settings.chooseLogFolder, systemImage: "folder")
                 }
+                .fileDialogDefaultDirectory(SMAPILogReader.defaultLogFolderURL)
+                .fileImporter(
+                    isPresented: $isChoosingLogFolder,
+                    allowedContentTypes: [.folder]
+                ) { result in
+                    switch result {
+                    case .success(let url):
+                        Task {
+                            await viewModel.chooseSMAPILogFolder(url)
+                        }
+                    case .failure(let error):
+                        viewModel.recordSMAPILogFolderSelectionError(error)
+                    }
+                }
             }
 
             Section(AppStrings.Settings.modUpdatesSection) {
@@ -185,19 +199,6 @@ struct SettingsView: View {
                 }
             case .failure(let error):
                 viewModel.recordModsFolderSelectionError(error)
-            }
-        }
-        .fileImporter(
-            isPresented: $isChoosingLogFolder,
-            allowedContentTypes: [.folder]
-        ) { result in
-            switch result {
-            case .success(let url):
-                Task {
-                    await viewModel.chooseSMAPILogFolder(url)
-                }
-            case .failure(let error):
-                viewModel.recordSMAPILogFolderSelectionError(error)
             }
         }
     }
