@@ -2,8 +2,9 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct SettingsView: View {
-    @ObservedObject var viewModel: ModManagerViewModel
+    var viewModel: ModManagerViewModel
     @State private var isChoosingModsFolder = false
+    @State private var isChoosingLogFolder = false
 
     private var presentationState: ModManagerSettingsPresentationState {
         ModManagerSettingsPresentationState(viewModel: viewModel)
@@ -67,23 +68,100 @@ struct SettingsView: View {
             Section(AppStrings.Settings.addingModsSection) {
                 Toggle(
                     AppStrings.Settings.moveModFilesToTrashAfterAddingMods,
-                    isOn: moveModFilesToTrashBinding
+                    isOn: settingBinding(
+                        get: { viewModel.state.sourceCleanupSettings.moveModFilesToTrashAfterAddingMods },
+                        set: viewModel.setMoveModFilesToTrashAfterAddingMods
+                    )
                 )
 
                 Toggle(
                     AppStrings.Settings.suppressAddModsSuccessNotification,
-                    isOn: suppressAddModsSuccessNotificationBinding
+                    isOn: settingBinding(
+                        get: { viewModel.state.sourceCleanupSettings.suppressAddModsSuccessNotification },
+                        set: viewModel.setSuppressAddModsSuccessNotification
+                    )
                 )
+            }
+
+            Section(AppStrings.Settings.smapiLogSection) {
+                LabeledContent(AppStrings.Settings.logFolder) {
+                    Label(
+                        viewModel.state.hasSMAPILogFolderAccess
+                            ? AppStrings.Settings.saved
+                            : AppStrings.Settings.notSaved,
+                        systemImage: viewModel.state.hasSMAPILogFolderAccess
+                            ? "checkmark.circle.fill"
+                            : "doc.text.magnifyingglass"
+                    )
+                    .foregroundStyle(viewModel.state.hasSMAPILogFolderAccess ? .green : .secondary)
+                }
+
+                Text(AppStrings.Settings.smapiLogFooter)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                Button {
+                    isChoosingLogFolder = true
+                } label: {
+                    Label(AppStrings.Settings.chooseLogFolder, systemImage: "folder")
+                }
+            }
+
+            Section(AppStrings.Settings.modUpdatesSection) {
+                Toggle(
+                    AppStrings.Settings.checkForModUpdatesToggle,
+                    isOn: settingBinding(
+                        get: { viewModel.state.checksForModUpdates },
+                        set: viewModel.setChecksForModUpdates
+                    )
+                )
+
+                Text(AppStrings.Settings.modUpdatesPrivacyFooter)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                Button {
+                    Task {
+                        await viewModel.checkForModUpdates()
+                    }
+                } label: {
+                    Label(AppStrings.Settings.checkForUpdatesNow, systemImage: "arrow.triangle.2.circlepath")
+                }
+                .disabled(
+                    !viewModel.state.checksForModUpdates
+                        || !presentationState.readiness.canManageMods
+                )
+
+                if let smapiUpdate = viewModel.state.smapiUpdate {
+                    HStack(spacing: 8) {
+                        Label(
+                            AppStrings.Status.smapiUpdateAvailable(smapiUpdate.latestVersion),
+                            systemImage: "arrow.up.circle.fill"
+                        )
+                        .foregroundStyle(.blue)
+
+                        if let downloadURL = smapiUpdate.downloadURL {
+                            Link(AppStrings.ModInspector.viewUpdatePage, destination: downloadURL)
+                                .font(.callout)
+                        }
+                    }
+                }
             }
 
             Section(AppStrings.Settings.archivesSection) {
                 Toggle(
                     AppStrings.Settings.automaticallyPruneExpiredArchives,
-                    isOn: automaticallyPrunesExpiredArchivesBinding
+                    isOn: settingBinding(
+                        get: { viewModel.state.archiveSettings.automaticallyPrunesExpiredArchives },
+                        set: viewModel.setAutomaticallyPrunesExpiredArchives
+                    )
                 )
 
                 Stepper(
-                    value: archiveRetentionDaysBinding,
+                    value: settingBinding(
+                        get: { viewModel.state.archiveSettings.normalizedRetentionDays },
+                        set: viewModel.setArchiveRetentionDays
+                    ),
                     in: 1...365
                 ) {
                     LabeledContent(AppStrings.Settings.keepArchivedMods) {
@@ -109,49 +187,31 @@ struct SettingsView: View {
                 viewModel.recordModsFolderSelectionError(error)
             }
         }
+        .fileImporter(
+            isPresented: $isChoosingLogFolder,
+            allowedContentTypes: [.folder]
+        ) { result in
+            switch result {
+            case .success(let url):
+                Task {
+                    await viewModel.chooseSMAPILogFolder(url)
+                }
+            case .failure(let error):
+                viewModel.recordSMAPILogFolderSelectionError(error)
+            }
+        }
     }
 
-    private var moveModFilesToTrashBinding: Binding<Bool> {
-        Binding(
-            get: {
-                presentationState.sourceCleanupSettings.moveModFilesToTrashAfterAddingMods
-            },
-            set: { isEnabled in
-                viewModel.setMoveModFilesToTrashAfterAddingMods(isEnabled)
+    /// Bridges a state-backed value and an async actor-routed setter into a
+    /// SwiftUI binding.
+    private func settingBinding<Value: Sendable>(
+        get: @escaping () -> Value,
+        set: @escaping (Value) async -> Void
+    ) -> Binding<Value> {
+        Binding(get: get) { newValue in
+            Task {
+                await set(newValue)
             }
-        )
-    }
-
-    private var suppressAddModsSuccessNotificationBinding: Binding<Bool> {
-        Binding(
-            get: {
-                presentationState.sourceCleanupSettings.suppressAddModsSuccessNotification
-            },
-            set: { isEnabled in
-                viewModel.setSuppressAddModsSuccessNotification(isEnabled)
-            }
-        )
-    }
-
-    private var automaticallyPrunesExpiredArchivesBinding: Binding<Bool> {
-        Binding(
-            get: {
-                presentationState.archiveSettings.automaticallyPrunesExpiredArchives
-            },
-            set: { isEnabled in
-                viewModel.setAutomaticallyPrunesExpiredArchives(isEnabled)
-            }
-        )
-    }
-
-    private var archiveRetentionDaysBinding: Binding<Int> {
-        Binding(
-            get: {
-                presentationState.archiveSettings.normalizedRetentionDays
-            },
-            set: { days in
-                viewModel.setArchiveRetentionDays(days)
-            }
-        )
+        }
     }
 }

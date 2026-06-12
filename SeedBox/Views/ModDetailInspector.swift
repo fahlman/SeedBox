@@ -7,6 +7,9 @@ struct ModDetailInspector: View {
     var previousArchivedVersion: ArchivedModInfo?
     var archivedVersions: [ArchivedModInfo]
     var duplicateGroups: [ModDuplicateGroup]
+    var availableUpdate: ModAvailableUpdate?
+    var dependencyPageURLs: [String: URL]
+    var lastSessionIssue: LastSessionModIssue?
     var archiveSummary: ModArchiveSummary
     var restorePreviousVersion: () -> Void
     var showRestoreHistory: () -> Void
@@ -17,6 +20,8 @@ struct ModDetailInspector: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
+                updateSection
+                lastSessionSection
 
                 if let description = mod.descriptionText {
                     Text(description)
@@ -60,6 +65,47 @@ struct ModDetailInspector: View {
         }
     }
 
+    @ViewBuilder
+    private var updateSection: some View {
+        if let availableUpdate {
+            VStack(alignment: .leading, spacing: 6) {
+                Label(
+                    AppStrings.ModInspector.updateAvailable(availableUpdate.latestVersion),
+                    systemImage: "arrow.up.circle.fill"
+                )
+                .foregroundStyle(.blue)
+
+                if let downloadURL = availableUpdate.downloadURL {
+                    Link(AppStrings.ModInspector.viewUpdatePage, destination: downloadURL)
+                        .font(.callout)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var lastSessionSection: some View {
+        if let lastSessionIssue {
+            VStack(alignment: .leading, spacing: 4) {
+                if let skippedReason = lastSessionIssue.skippedReason {
+                    Label(
+                        AppStrings.Problems.skippedLastSession(skippedReason),
+                        systemImage: "xmark.octagon.fill"
+                    )
+                    .foregroundStyle(.orange)
+                }
+                if lastSessionIssue.errorCount > 0 {
+                    Label(
+                        AppStrings.Problems.lastSessionErrors(count: lastSessionIssue.errorCount),
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .foregroundStyle(.orange)
+                }
+            }
+            .font(.callout)
+        }
+    }
+
     private var revealButton: some View {
         HStack {
             Button {
@@ -89,6 +135,15 @@ struct ModDetailInspector: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
+
+                                if status.state == .missing,
+                                   let pageURL = dependencyPageURLs[status.requirement.normalizedUniqueID] {
+                                    Link(
+                                        AppStrings.Problems.getMod(status.displayName),
+                                        destination: pageURL
+                                    )
+                                    .font(.caption)
+                                }
                             }
                         } icon: {
                             Image(systemName: status.systemImage)

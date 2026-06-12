@@ -15,7 +15,13 @@ struct ModManagerPresentationState {
     ) {
         let dependencyGraph = ModDependencyGraph(mods: state.mods)
         let query = ModSearchQuery(searchText)
-        let filteredMods = state.mods.filter { query.matches($0, in: dependencyGraph) }
+        let filteredMods = state.mods.filter { mod in
+            query.matches(
+                mod,
+                in: dependencyGraph,
+                hasAvailableUpdate: state.availableUpdate(for: mod) != nil
+            )
+        }
         let selectedMod = Self.selectedMod(in: filteredMods, selectedModIDs: selectedModIDs)
 
         self.state = state
@@ -43,6 +49,10 @@ struct ModManagerPresentationState {
         state.statusLineMessage
     }
 
+    var statusLineSeverity: StatusEvent.Severity {
+        state.statusLineSeverity
+    }
+
     var archiveSummary: ModArchiveSummary {
         state.archiveSummary
     }
@@ -63,7 +73,9 @@ struct ModManagerPresentationState {
         ModProblemSummary(
             dependencyIssues: state.dependencyIssues,
             invalidFolders: state.invalidModFolders,
-            duplicateGroups: state.duplicateGroups
+            duplicateGroups: state.duplicateGroups,
+            smapiVersionIssues: state.smapiVersionIssues,
+            detectedSMAPIVersion: state.detectedSMAPIVersion
         )
     }
 
@@ -156,6 +168,8 @@ struct ModProblemSummary {
     var dependencyIssues: [ModInfo]
     var invalidFolders: [InvalidModFolder]
     var duplicateGroups: [ModDuplicateGroup]
+    var smapiVersionIssues: [ModInfo]
+    var detectedSMAPIVersion: String?
 }
 
 struct ModSelectionState {
@@ -166,6 +180,9 @@ struct ModSelectionState {
     var previousArchivedVersion: ArchivedModInfo?
     var archivedVersions: [ArchivedModInfo]
     var duplicateGroups: [ModDuplicateGroup]
+    var availableUpdate: ModAvailableUpdate?
+    var dependencyPageURLs: [String: URL]
+    var lastSessionIssue: LastSessionModIssue?
 
     init(
         selectedModIDs: Set<String>,
@@ -184,12 +201,22 @@ struct ModSelectionState {
             duplicateGroups = state.duplicateGroups.filter { group in
                 group.mods.contains { $0.id == selectedMod.id }
             }
+            availableUpdate = state.availableUpdate(for: selectedMod)
+            dependencyPageURLs = state.knownModPageURLs.filter { id, _ in
+                selectedMod.dependencyRequirements.contains { requirement in
+                    requirement.normalizedUniqueID == id
+                }
+            }
+            lastSessionIssue = state.lastSessionIssues.first { $0.mod.id == selectedMod.id }
         } else {
             dependencyStatuses = []
             dependents = []
             previousArchivedVersion = nil
             archivedVersions = []
             duplicateGroups = []
+            availableUpdate = nil
+            dependencyPageURLs = [:]
+            lastSessionIssue = nil
         }
     }
 

@@ -18,6 +18,10 @@ enum AuditLogAction: String, Codable, Equatable, Sendable {
     case modSetApplied
     case modSetDeleted
     case archivesPruned
+    case modUpdatesChecked
+    case duplicatesResolved
+    case problemSearch
+    case logFolderSelected
 }
 
 enum AuditLogSubjectKind: String, Codable, Equatable, Sendable {

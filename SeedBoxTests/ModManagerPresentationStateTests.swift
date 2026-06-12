@@ -95,7 +95,7 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
             modSets: sets,
             selectedModSetID: ModSetStore.defaultSetID,
             appliedModSetID: ModSetStore.defaultSetID,
-            activityMessage: "",
+            activityStatus: nil,
             auditTrail: AuditTrailState(
                 logPath: install.modSetDirectory.appendingPathComponent("Audit Log.json").path,
                 recentEntries: [],

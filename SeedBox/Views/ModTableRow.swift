@@ -2,6 +2,7 @@ import Foundation
 
 struct ModTableRow: Identifiable {
     var mod: ModInfo
+    var availableUpdate: ModAvailableUpdate?
 
     var id: String {
         mod.id
@@ -29,5 +30,13 @@ struct ModTableRow: Identifiable {
 
     var updateSourceText: String {
         mod.updateSourceText
+    }
+
+    /// Sorts mods with available updates first within the Updates column.
+    var updateSortText: String {
+        if let availableUpdate {
+            return "0 \(availableUpdate.latestVersion)"
+        }
+        return "1 \(mod.updateSourceText)"
     }
 }

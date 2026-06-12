@@ -227,7 +227,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         let offer = try XCTUnwrap(viewModel.state.pendingSourceCleanupOffer)
         XCTAssertEqual(offer.sourceURLs.map(\.path), [sourceURL.path])
 
-        viewModel.dismissSourceCleanupOffer()
+        await viewModel.dismissSourceCleanupOffer()
 
         XCTAssertNil(viewModel.state.pendingSourceCleanupOffer)
         XCTAssertTrue(
@@ -255,7 +255,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         await viewModel.addMods(from: [sourceURL])
 
         let offer = try XCTUnwrap(viewModel.state.pendingSourceCleanupOffer)
-        viewModel.keepSourceFiles(for: offer, remembersChoice: true)
+        await viewModel.keepSourceFiles(for: offer, remembersChoice: true)
 
         let preferences = ModManagerPreferences(defaults: defaults)
         XCTAssertFalse(preferences.moveModFilesToTrashAfterAddingMods)
@@ -481,6 +481,153 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(deletedEntry.action, .modDeleted)
         let archivedPath = try XCTUnwrap(deletedEntry.details["archive_path"])
         XCTAssertTrue(FileManager.default.fileExists(atPath: archivedPath))
+    }
+
+    func testBulkDisablingAndEnablingModsUpdatesStatesWithSingleSummary() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        let modNames = ["Console Commands", "Content Patcher", "Save Backup"]
+
+        for modName in modNames {
+            let modURL = install.modDirectoryURL
+                .appendingPathComponent(modName.replacingOccurrences(of: " ", with: ""))
+            try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+            try writeManifest(name: modName, to: modURL)
+        }
+
+        let viewModel = ModManagerViewModel(
+            defaults: defaults,
+            modSetDirectory: install.modSetDirectoryURL
+        )
+        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let auditEntryCountBeforeDisable = viewModel.state.auditTrail.recentEntries.count
+
+        await viewModel.setMods(viewModel.state.mods, enabled: false)
+
+        XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
+            "Console Commands": false,
+            "Content Patcher": false,
+            "Save Backup": false
+        ])
+        XCTAssertEqual(viewModel.state.statusLineMessage, "Disabled 3 mods.")
+        XCTAssertEqual(
+            viewModel.state.auditTrail.recentEntries.count,
+            auditEntryCountBeforeDisable + 1
+        )
+        let disabledEntry = try XCTUnwrap(viewModel.state.auditTrail.recentEntries.last)
+        XCTAssertEqual(disabledEntry.action, .modDisabled)
+        XCTAssertEqual(disabledEntry.subjects.count, 3)
+
+        await viewModel.setMods(viewModel.state.mods, enabled: true)
+
+        XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
+            "Console Commands": true,
+            "Content Patcher": true,
+            "Save Backup": true
+        ])
+        XCTAssertEqual(viewModel.state.statusLineMessage, "Enabled 3 mods.")
+        let enabledEntry = try XCTUnwrap(viewModel.state.auditTrail.recentEntries.last)
+        XCTAssertEqual(enabledEntry.action, .modEnabled)
+        XCTAssertEqual(enabledEntry.subjects.count, 3)
+    }
+
+    func testFlagsEnabledModsRequiringNewerSMAPI() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+
+        let bundledURL = install.modDirectoryURL.appendingPathComponent("ConsoleCommands")
+        try FileManager.default.createDirectory(at: bundledURL, withIntermediateDirectories: true)
+        try writeManifest(
+            name: "Console Commands",
+            to: bundledURL,
+            version: "4.0.0",
+            uniqueID: "SMAPI.ConsoleCommands"
+        )
+
+        let demandingURL = install.modDirectoryURL.appendingPathComponent("Demanding")
+        try FileManager.default.createDirectory(at: demandingURL, withIntermediateDirectories: true)
+        try """
+        {"Name": "Demanding Mod", "Author": "Test", "Version": "1.0.0", \
+        "UniqueID": "Test.Demanding", "MinimumApiVersion": "9.0.0"}
+        """.write(
+            to: demandingURL.appendingPathComponent("manifest.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let viewModel = ModManagerViewModel(
+            defaults: defaults,
+            modSetDirectory: install.modSetDirectoryURL
+        )
+        await viewModel.chooseModsFolder(install.modDirectoryURL)
+
+        XCTAssertEqual(viewModel.state.smapiVersionIssues.map(\.displayName), ["Demanding Mod"])
+        XCTAssertTrue(viewModel.state.hasProblems)
+
+        let demandingMod = try XCTUnwrap(
+            viewModel.state.mods.first { $0.displayName == "Demanding Mod" }
+        )
+        await viewModel.setMod(demandingMod, enabled: false)
+
+        XCTAssertTrue(viewModel.state.smapiVersionIssues.isEmpty, "Disabled mods aren't flagged.")
+    }
+
+    func testResolvingDuplicateGroupKeepsNewestCopyAndArchivesRest() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        let newerURL = install.modDirectoryURL.appendingPathComponent("Alpha")
+        let olderURL = install.modDirectoryURL.appendingPathComponent("AlphaOld")
+
+        try FileManager.default.createDirectory(at: newerURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Alpha", to: newerURL, version: "2.0.0", uniqueID: "Test.Alpha")
+        try FileManager.default.createDirectory(at: olderURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Alpha", to: olderURL, version: "1.0.0", uniqueID: "Test.Alpha")
+
+        let viewModel = ModManagerViewModel(
+            defaults: defaults,
+            modSetDirectory: install.modSetDirectoryURL
+        )
+        await viewModel.chooseModsFolder(install.modDirectoryURL)
+
+        let group = try XCTUnwrap(viewModel.state.duplicateGroups.first)
+        XCTAssertEqual(group.mods.count, 2)
+
+        await viewModel.resolveDuplicateGroup(id: group.id)
+
+        XCTAssertTrue(viewModel.state.duplicateGroups.isEmpty)
+        XCTAssertEqual(viewModel.state.mods.map(\.folderName), ["Alpha"])
+        XCTAssertEqual(viewModel.state.mods.first?.versionText, "2.0.0")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: olderURL.path))
+        XCTAssertEqual(viewModel.state.archivedMods.count, 1)
+        XCTAssertEqual(viewModel.state.archivedMods.first?.versionText, "1.0.0")
+
+        let auditEntry = try XCTUnwrap(viewModel.state.auditTrail.recentEntries.last)
+        XCTAssertEqual(auditEntry.action, .duplicatesResolved)
+        XCTAssertEqual(auditEntry.details["kept_folder"], "Alpha")
+        XCTAssertEqual(auditEntry.details["kept_version"], "2.0.0")
+    }
+
+    func testFailedModSetCreationRecordsErrorSeverityStatus() async throws {
+        let install = try makeInstall()
+        let modURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
+        let defaults = try makeIsolatedUserDefaults()
+
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Content Patcher", to: modURL)
+
+        let viewModel = ModManagerViewModel(
+            defaults: defaults,
+            modSetDirectory: install.modSetDirectoryURL
+        )
+        await viewModel.chooseModsFolder(install.modDirectoryURL)
+
+        await viewModel.createModSet(named: "Favorites")
+        XCTAssertEqual(viewModel.state.statusLineSeverity, .info)
+
+        await viewModel.createModSet(named: "Favorites")
+
+        XCTAssertEqual(viewModel.state.activityStatus?.severity, .error)
+        XCTAssertEqual(viewModel.state.statusLineSeverity, .error)
     }
 
     func testRestoringDeletedModFromHistoryRestoresFolderAndAudits() async throws {
@@ -864,12 +1011,10 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         try FileManager.default.createDirectory(at: disabledNewModURL, withIntermediateDirectories: true)
         try writeManifest(name: "New Mod", to: disabledNewModURL)
 
-        let service = ModManagerService(
-            folderAccess: SecurityScopedFolderAccess(defaults: defaults),
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        let reconciledState = await service.reconcileObservedModsFolderChange(from: viewModel.state)
+        let service = makeService(defaults: defaults, install: install, initialState: viewModel.state)
+        let (reconciledState, didObserveExternalChange) = await service.reconcileObservedModsFolderChange()
 
+        XCTAssertTrue(didObserveExternalChange)
         XCTAssertEqual(reconciledState.modSetSelection.appliedSetID, favoritesSetID)
         XCTAssertEqual(modEnabledStates(in: reconciledState.mods), [
             "Console Commands": false,
@@ -913,12 +1058,10 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         try FileManager.default.createDirectory(at: enabledNewModURL, withIntermediateDirectories: true)
         try writeManifest(name: "New Mod", to: enabledNewModURL)
 
-        let service = ModManagerService(
-            folderAccess: SecurityScopedFolderAccess(defaults: defaults),
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        let reconciledState = await service.reconcileObservedModsFolderChange(from: viewModel.state)
+        let service = makeService(defaults: defaults, install: install, initialState: viewModel.state)
+        let (reconciledState, didObserveExternalChange) = await service.reconcileObservedModsFolderChange()
 
+        XCTAssertTrue(didObserveExternalChange)
         XCTAssertEqual(reconciledState.modSetSelection.appliedSetID, ModSetStore.noneSetID)
         XCTAssertEqual(modEnabledStates(in: reconciledState.mods), [
             "Console Commands": false,
@@ -972,23 +1115,29 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(notifier.notificationCount, 0)
     }
 
-    private func waitUntil(
-        timeout: Duration = .seconds(2),
-        condition: () -> Bool,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) async throws {
-        let deadline = ContinuousClock.now + timeout
-        while ContinuousClock.now < deadline {
-            if condition() {
-                return
-            }
-
-            try await Task.sleep(nanoseconds: 20_000_000)
-        }
-
-        XCTFail("Timed out waiting for condition.", file: file, line: line)
+    private func makeService(
+        defaults: UserDefaults,
+        install: StardewInstall,
+        initialState: ModManagerState
+    ) -> ModManagerService {
+        let folderAccess = SecurityScopedFolderAccess(defaults: defaults)
+        let stateStore = ModManagerStateStore(
+            folderAccess: folderAccess,
+            modSetDirectory: install.modSetDirectoryURL,
+            preferences: ModManagerPreferences(defaults: defaults)
+        )
+        return ModManagerService(
+            folderAccess: folderAccess,
+            smapiLogFolderAccess: SecurityScopedFolderAccess(
+                defaults: defaults,
+                bookmarkKey: "smapiLogFolderBookmarkData"
+            ),
+            stateStore: stateStore,
+            initialState: initialState,
+            modSetDirectory: install.modSetDirectoryURL
+        )
     }
+
 }
 
 private final class SpyModsFolderMonitor: ModsFolderMonitoring {

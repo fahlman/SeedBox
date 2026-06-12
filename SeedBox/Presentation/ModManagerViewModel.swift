@@ -1,40 +1,53 @@
 import Foundation
+import Observation
 
 @MainActor
-final class ModManagerViewModel: ObservableObject {
-    @Published private(set) var state: ModManagerState
+@Observable
+final class ModManagerViewModel {
+    /// The one production instance, shared by every scene so all windows
+    /// observe the same canonical state. Tests construct isolated instances.
+    static let shared = ModManagerViewModel()
 
-    private let importPreviewCoordinator: ModImportPreviewCoordinator
-    private let modSetDirectory: URL
-    private let service: ModManagerService
-    private let workspacePresenter: ModManagerWorkspacePresenter
-    private var folderObservation: ModManagerFolderObservation?
-    private var stateStore: ModManagerStateStore
-    private var sharedStateSync: ModManagerSharedStateSync?
+    private(set) var state: ModManagerState
+
+    @ObservationIgnored private let importPreviewCoordinator: ModImportPreviewCoordinator
+    @ObservationIgnored private let modSetDirectory: URL
+    @ObservationIgnored private let service: ModManagerService
+    @ObservationIgnored private let workspacePresenter: ModManagerWorkspacePresenter
+    @ObservationIgnored private var folderObservation: ModManagerFolderObservation?
 
     init(
         defaults: UserDefaults = .standard,
         modSetDirectory: URL = StardewInstall.defaultModSetDirectory(),
         selectedModSetID: String = ModSetStore.defaultSetID,
         modsFolderMonitor: ModsFolderMonitoring = ModsFolderMonitor(),
-        folderChangeNotifier: ModFolderChangeNotifying = UserNotificationModFolderChangeNotifier.shared
+        folderChangeNotifier: ModFolderChangeNotifying = UserNotificationModFolderChangeNotifier.shared,
+        updateChecker: ModUpdateChecking = SMAPIModUpdateClient()
     ) {
         let folderAccess = SecurityScopedFolderAccess(defaults: defaults)
+        let smapiLogFolderAccess = SecurityScopedFolderAccess(
+            defaults: defaults,
+            bookmarkKey: "smapiLogFolderBookmarkData"
+        )
         let preferences = ModManagerPreferences(defaults: defaults)
         let stateStore = ModManagerStateStore(
             folderAccess: folderAccess,
             modSetDirectory: modSetDirectory,
             preferences: preferences
         )
+        let initialState = stateStore.initialState(selectedModSetID: selectedModSetID)
+        state = initialState
         importPreviewCoordinator = ModImportPreviewCoordinator(folderAccess: folderAccess)
         self.modSetDirectory = modSetDirectory
-        self.stateStore = stateStore
         service = ModManagerService(
             folderAccess: folderAccess,
-            modSetDirectory: modSetDirectory
+            smapiLogFolderAccess: smapiLogFolderAccess,
+            stateStore: stateStore,
+            initialState: initialState,
+            modSetDirectory: modSetDirectory,
+            updateChecker: updateChecker
         )
         workspacePresenter = ModManagerWorkspacePresenter(folderAccess: folderAccess)
-        state = stateStore.initialState(selectedModSetID: selectedModSetID)
         folderObservation = ModManagerFolderObservation(
             folderAccess: folderAccess,
             monitor: modsFolderMonitor,
@@ -45,13 +58,6 @@ final class ModManagerViewModel: ObservableObject {
             }
 
             await self.refreshAfterObservedModsFolderChange()
-        }
-        sharedStateSync = ModManagerSharedStateSync { [weak self] in
-            guard let self else {
-                return
-            }
-
-            await self.refreshAfterSharedStateChange()
         }
         updateModsFolderMonitor()
     }
@@ -67,66 +73,56 @@ final class ModManagerViewModel: ObservableObject {
         StardewInstall.modFolderName
     }
 
+    var sourceCleanupSettings: SourceCleanupSettings {
+        state.sourceCleanupSettings
+    }
+
+    var archiveSettings: ArchiveSettings {
+        state.archiveSettings
+    }
+
     func refresh() async {
-        var nextState = stateStore.stateByRestoringSavedFolder(from: state)
-        if stateStore.hasLastKnownModFolderTokens {
-            nextState = await service.reconcileStartupModsFolderChange(
-                from: nextState,
-                previousModFolderTokens: stateStore.lastKnownModFolderTokens,
-                appliedModSetID: stateStore.lastAppliedModSetID
-            )
-        } else {
-            nextState = await service.refreshedState(from: nextState)
-        }
-        commitState(nextState, broadcastsChange: false)
+        commit(await service.refresh())
+    }
+
+    func refreshAfterActivation() async {
+        commit(await service.refreshAfterActivation())
     }
 
     func chooseModsFolder(_ selectedURL: URL) async {
-        commitState(await service.chooseModsFolder(selectedURL, from: state))
+        commit(await service.chooseModsFolder(selectedURL))
     }
 
     func recordModsFolderSelectionError(_ error: Error) {
-        record(AppStrings.Status.couldNotChooseModsFolder(error.localizedDescription))
+        record(AppStrings.Status.couldNotChooseModsFolder(error.localizedDescription), severity: .error)
     }
 
     func revealModsFolder() {
-        commitState(
-            workspacePresenter.revealModsFolder(in: state, install: install),
-            broadcastsChange: false
-        )
+        apply(workspacePresenter.revealModsFolder(readiness: state.readiness, install: install))
     }
 
     func revealArchivedModsFolder() {
-        commitState(
-            workspacePresenter.revealArchivedModsFolder(in: state, install: install),
-            broadcastsChange: false
-        )
+        apply(workspacePresenter.revealArchivedModsFolder(install: install))
     }
 
     func revealMod(_ mod: ModInfo) {
-        commitState(
-            workspacePresenter.revealMod(mod, in: state),
-            broadcastsChange: false
-        )
+        apply(workspacePresenter.revealMod(mod, readiness: state.readiness))
     }
 
     func createModFolder() async {
-        await commitFolderMutation {
-            await service.createModFolder(from: state)
-        }
+        commit(await service.createModFolder())
     }
 
     func prepareImportPreview(from selectedURLs: [URL]) -> ModImportPreview? {
         switch importPreviewCoordinator.prepareImportPreview(
             from: selectedURLs,
             install: install,
-            state: state
+            readiness: state.readiness
         ) {
-        case .success(let preview, let nextState):
-            commitState(nextState, broadcastsChange: false)
+        case .success(let preview):
             return preview
-        case .failure(let nextState):
-            commitState(nextState, broadcastsChange: false)
+        case .failure(let outcome):
+            apply(outcome)
             return nil
         }
     }
@@ -135,181 +131,155 @@ final class ModManagerViewModel: ObservableObject {
         from selectedURLs: [URL],
         replacementPolicy: ModInstallReplacementPolicy = .newerOnly
     ) async {
-        await commitFolderMutation {
-                await service.addMods(
-                    from: selectedURLs,
-                    sourceCleanupSettings: stateStore.sourceCleanupSettings,
-                    replacementPolicy: replacementPolicy,
-                    in: state
-                )
-        }
+        commit(await service.addMods(from: selectedURLs, replacementPolicy: replacementPolicy))
     }
 
     func addPreviewedMods(_ preview: ModImportPreview) async {
-        await commitFolderMutation {
-            await service.addPreviewedMods(
-                preview,
-                sourceCleanupSettings: stateStore.sourceCleanupSettings,
-                in: state
-            )
-        }
+        commit(await service.addPreviewedMods(preview))
     }
 
     func recordAddModsSelectionError(_ error: Error) {
-        record(AppStrings.Status.couldNotChooseMods(error.localizedDescription))
+        record(AppStrings.Status.couldNotChooseMods(error.localizedDescription), severity: .error)
     }
 
-    func keepSourceFiles(for offer: SourceCleanupOffer, remembersChoice: Bool) {
-        if remembersChoice {
-            stateStore.moveModFilesToTrashAfterAddingMods = false
-            stateStore.suppressAddModsSuccessNotification = true
-        }
-        dismissSourceCleanupOffer()
+    func keepSourceFiles(for offer: SourceCleanupOffer, remembersChoice: Bool) async {
+        commit(await service.keepSourceFiles(for: offer, remembersChoice: remembersChoice))
     }
 
-    func dismissSourceCleanupOffer() {
-        guard state.pendingSourceCleanupOffer != nil else {
-            return
-        }
-
-        var nextState = state
-        nextState.pendingSourceCleanupOffer = nil
-        commitState(nextState, broadcastsChange: false)
+    func dismissSourceCleanupOffer() async {
+        commit(await service.dismissSourceCleanupOffer())
     }
 
     func moveSourceFilesToTrash(
         for offer: SourceCleanupOffer,
         remembersChoice: Bool = false
     ) async {
-        if remembersChoice {
-            stateStore.moveModFilesToTrashAfterAddingMods = true
-            stateStore.suppressAddModsSuccessNotification = true
-        }
-        commitState(await service.moveSourceFilesToTrash(for: offer, in: state))
+        commit(await service.moveSourceFilesToTrash(for: offer, remembersChoice: remembersChoice))
     }
 
-    var sourceCleanupSettings: SourceCleanupSettings {
-        stateStore.sourceCleanupSettings
+    func setMoveModFilesToTrashAfterAddingMods(_ isEnabled: Bool) async {
+        commit(await service.setMoveModFilesToTrashAfterAddingMods(isEnabled))
     }
 
-    var archiveSettings: ArchiveSettings {
-        stateStore.archiveSettings
+    func setSuppressAddModsSuccessNotification(_ isEnabled: Bool) async {
+        commit(await service.setSuppressAddModsSuccessNotification(isEnabled))
     }
 
-    func setMoveModFilesToTrashAfterAddingMods(_ isEnabled: Bool) {
-        stateStore.moveModFilesToTrashAfterAddingMods = isEnabled
-        objectWillChange.send()
+    func setAutomaticallyPrunesExpiredArchives(_ isEnabled: Bool) async {
+        commit(await service.setAutomaticallyPrunesExpiredArchives(isEnabled))
     }
 
-    func setSuppressAddModsSuccessNotification(_ isEnabled: Bool) {
-        stateStore.suppressAddModsSuccessNotification = isEnabled
-        objectWillChange.send()
+    func setArchiveRetentionDays(_ days: Int) async {
+        commit(await service.setArchiveRetentionDays(days))
     }
 
-    func setAutomaticallyPrunesExpiredArchives(_ isEnabled: Bool) {
-        stateStore.automaticallyPrunesExpiredArchives = isEnabled
-        var nextState = state
-        nextState.archiveSettings = stateStore.archiveSettings
-        commitState(nextState, broadcastsChange: false)
+    func setChecksForModUpdates(_ isEnabled: Bool) async {
+        commit(await service.setChecksForModUpdates(isEnabled))
     }
 
-    func setArchiveRetentionDays(_ days: Int) {
-        stateStore.archiveRetentionDays = days
-        var nextState = state
-        nextState.archiveSettings = stateStore.archiveSettings
-        commitState(nextState, broadcastsChange: false)
+    func checkForModUpdates() async {
+        commit(await service.recordActivity(AppStrings.Status.checkingForModUpdates))
+        commit(await service.checkForModUpdates())
     }
 
     func setMod(_ mod: ModInfo, enabled: Bool) async {
-        await commitFolderMutation {
-            await service.setMod(mod, enabled: enabled, in: state)
-        }
+        commit(await service.setMod(mod, enabled: enabled))
     }
 
     func setMods(_ mods: [ModInfo], enabled: Bool) async {
-        await commitFolderMutation {
-            await service.setMods(mods, enabled: enabled, in: state)
-        }
+        commit(await service.setMods(mods, enabled: enabled))
     }
 
     func deleteMod(_ mod: ModInfo) async {
-        await commitFolderMutation {
-            await service.deleteMod(mod, in: state)
-        }
+        commit(await service.deleteMod(mod))
     }
 
     func restoreArchivedMods(_ archivedMods: [ArchivedModInfo]) async {
-        await commitFolderMutation {
-            await service.restoreArchivedMods(archivedMods, in: state)
-        }
+        commit(await service.restoreArchivedMods(archivedMods))
     }
 
     func restorePreviousVersion(of mod: ModInfo) async {
-        guard let archivedMod = ModArchive.previousVersion(for: mod, in: state.archivedMods) else {
-            record(AppStrings.Status.noPreviousVersionAvailable(mod.displayName))
-            return
-        }
-
-        await restoreArchivedMods([archivedMod])
+        commit(await service.restorePreviousVersion(of: mod))
     }
 
     func pruneExpiredArchives() async {
-        commitState(await service.pruneExpiredArchives(in: state))
+        commit(await service.pruneExpiredArchives())
+    }
+
+    func resolveDuplicateGroup(id: String) async {
+        commit(await service.resolveDuplicateGroup(id: id))
+    }
+
+    func chooseSMAPILogFolder(_ selectedURL: URL) async {
+        commit(await service.chooseSMAPILogFolder(selectedURL))
+    }
+
+    func recordSMAPILogFolderSelectionError(_ error: Error) {
+        record(AppStrings.Status.couldNotChooseLogFolder(error.localizedDescription), severity: .error)
+    }
+
+    func dismissLastSessionNotice() async {
+        commit(await service.dismissLastSessionNotice())
+    }
+
+    func startBisection() async {
+        commit(await service.startBisection())
+    }
+
+    func recordBisectionResult(problemOccurred: Bool) async {
+        commit(await service.recordBisectionResult(problemOccurred: problemOccurred))
+    }
+
+    func cancelBisection() async {
+        commit(await service.cancelBisection())
     }
 
     func createModSet(named name: String, from sourceSet: ModSet? = nil) async {
-        commitState(await service.createModSet(named: name, from: sourceSet, in: state))
+        commit(await service.createModSet(named: name, from: sourceSet))
     }
 
     func duplicateSelectedModSet(named name: String) async {
-        commitState(await service.duplicateSelectedModSet(named: name, in: state))
+        commit(await service.duplicateSelectedModSet(named: name))
     }
 
     func renameSelectedModSet(to requestedName: String) async {
-        commitState(await service.renameSelectedModSet(to: requestedName, in: state))
+        commit(await service.renameSelectedModSet(to: requestedName))
     }
 
     func selectModSet(id: String) async {
-        await commitFolderMutation {
-            await service.selectModSet(id: id, in: state)
-        }
+        commit(await service.selectModSet(id: id))
     }
 
-    func restoreSelectedModSet(id: String) {
-        guard state.selectedModSetID != id else {
-            return
-        }
-
-        var nextState = state
-        nextState.selectedModSetID = id
-        commitState(nextState, broadcastsChange: false)
+    func restoreSelectedModSet(id: String) async {
+        commit(await service.restoreSelectedModSet(id: id))
     }
 
     func deleteModSet(_ set: ModSet) async {
-        await commitFolderMutation {
-            await service.deleteModSet(set, in: state)
+        commit(await service.deleteModSet(set))
+    }
+
+    private func record(_ message: String, severity: StatusEvent.Severity = .info) {
+        Task {
+            commit(await service.recordActivity(message, severity: severity))
         }
     }
 
-    private func record(_ message: String) {
-        state.activityMessage = message
+    private func apply(_ outcome: WorkspaceActionOutcome) {
+        switch outcome {
+        case .completed:
+            break
+        case .recorded(let event):
+            record(event.message, severity: event.severity)
+        case .folderAccessLost(let message):
+            Task {
+                commit(await service.noteFolderAccessLost(message: message))
+            }
+        }
     }
 
-    private func commitState(_ nextState: ModManagerState, broadcastsChange: Bool = true) {
+    private func commit(_ nextState: ModManagerState) {
         state = nextState
-        persistPreferences()
         updateModsFolderMonitor()
-
-        if broadcastsChange {
-            sharedStateSync?.broadcastChange()
-        }
-    }
-
-    private func commitFolderMutation(_ mutation: () async -> ModManagerState) async {
-        folderObservation?.ignoreChangesBriefly()
-        let nextState = await mutation()
-        commitState(nextState)
-        folderObservation?.ignoreChangesBriefly()
     }
 
     private func refreshAfterObservedModsFolderChange() async {
@@ -318,28 +288,20 @@ final class ModManagerViewModel: ObservableObject {
             return
         }
 
-        guard folderObservation?.shouldHandleObservedChange ?? false else {
-            return
+        let (reconciledState, didObserveExternalChange) = await service.reconcileObservedModsFolderChange()
+        commit(reconciledState)
+        if didObserveExternalChange {
+            folderObservation?.notifyObservedChange()
         }
-
-        let reconciledState = await service.reconcileObservedModsFolderChange(from: state)
-        commitState(reconciledState)
-        folderObservation?.notifyObservedChange()
-    }
-
-    private func refreshAfterSharedStateChange() async {
-        var nextState = stateStore.stateByRestoringSavedFolder(from: state)
-        nextState = await service.refreshedState(from: nextState)
-        commitState(nextState, broadcastsChange: false)
     }
 
     private func updateModsFolderMonitor() {
-        if let message = folderObservation?.synchronizeWatching(for: state, install: install) {
-            record(message)
+        guard let message = folderObservation?.synchronizeWatching(for: state, install: install),
+              message != state.activityMessage
+        else {
+            return
         }
-    }
 
-    private func persistPreferences() {
-        stateStore.save(state)
+        record(message, severity: .error)
     }
 }

@@ -6,6 +6,7 @@ struct ModList: View {
     var modFolderName: String
     @Binding var selectedModIDs: Set<String>
     var selectedMod: ModInfo?
+    var availableUpdate: (ModInfo) -> ModAvailableUpdate?
     var addMods: () -> Void
     var requestSetModEnabled: (ModInfo, Bool) -> Void
     var revealSelectedMod: () -> Void
@@ -14,7 +15,10 @@ struct ModList: View {
     @SceneStorage("modList.sortDirection") private var storedSortDirection = ModListSortDirection.forward.rawValue
 
     private var rows: [ModTableRow] {
-        mods.map(ModTableRow.init).sorted(using: currentSortOrder)
+        mods.map { mod in
+            ModTableRow(mod: mod, availableUpdate: availableUpdate(mod))
+        }
+        .sorted(using: currentSortOrder)
     }
 
     var body: some View {
@@ -54,9 +58,16 @@ struct ModList: View {
                 }
                 .width(min: 120, ideal: 150, max: 180)
 
-                TableColumn(AppStrings.Table.updates, value: \.updateSourceText) { row in
-                    Text(row.updateSourceText)
-                        .lineLimit(1)
+                TableColumn(AppStrings.Table.updates, value: \.updateSortText) { row in
+                    if let availableUpdate = row.availableUpdate {
+                        Label(availableUpdate.latestVersion, systemImage: "arrow.up.circle.fill")
+                            .foregroundStyle(.blue)
+                            .lineLimit(1)
+                            .help(AppStrings.ModInspector.updateAvailable(availableUpdate.latestVersion))
+                    } else {
+                        Text(row.updateSourceText)
+                            .lineLimit(1)
+                    }
                 }
                 .width(min: 110, ideal: 130, max: 170)
             }
@@ -131,7 +142,7 @@ private enum ModListSortColumn: String {
             self = .author
         } else if comparator.keyPath == \ModTableRow.typeText {
             self = .type
-        } else if comparator.keyPath == \ModTableRow.updateSourceText {
+        } else if comparator.keyPath == \ModTableRow.updateSortText {
             self = .updates
         } else {
             return nil
@@ -149,7 +160,7 @@ private enum ModListSortColumn: String {
         case .type:
             return KeyPathComparator(\ModTableRow.typeText, order: direction.sortOrder)
         case .updates:
-            return KeyPathComparator(\ModTableRow.updateSourceText, order: direction.sortOrder)
+            return KeyPathComparator(\ModTableRow.updateSortText, order: direction.sortOrder)
         }
     }
 }

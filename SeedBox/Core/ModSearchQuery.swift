@@ -26,7 +26,11 @@ struct ModSearchQuery: Sendable {
         terms = Self.parse(rawValue)
     }
 
-    func matches(_ mod: ModInfo, in graph: ModDependencyGraph? = nil) -> Bool {
+    func matches(
+        _ mod: ModInfo,
+        in graph: ModDependencyGraph? = nil,
+        hasAvailableUpdate: Bool = false
+    ) -> Bool {
         guard !terms.isEmpty else {
             return true
         }
@@ -46,6 +50,9 @@ struct ModSearchQuery: Sendable {
             case .type:
                 return mod.typeText.matchesSearchValue(term.value)
             case .updates:
+                if term.value.normalizedSearchText == "available" {
+                    return hasAvailableUpdate
+                }
                 return [
                     mod.updateSourceText,
                     mod.updateKeysText ?? ""
