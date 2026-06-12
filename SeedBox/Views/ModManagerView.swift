@@ -414,6 +414,7 @@ struct ModManagerView: View {
                         .strokeBorder(Color.accentColor, lineWidth: 2)
                 }
                 .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
     }
 

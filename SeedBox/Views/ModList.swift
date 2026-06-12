@@ -64,6 +64,7 @@ struct ModList: View {
                             .foregroundStyle(.blue)
                             .lineLimit(1)
                             .help(AppStrings.ModInspector.updateAvailable(availableUpdate.latestVersion))
+                            .accessibilityLabel(AppStrings.ModInspector.updateAvailable(availableUpdate.latestVersion))
                     } else {
                         Text(row.updateSourceText)
                             .lineLimit(1)
