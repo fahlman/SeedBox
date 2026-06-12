@@ -3,7 +3,7 @@ import SwiftUI
 
 extension ModManagerView {
     @ToolbarContentBuilder
-    var toolbarContent: some ToolbarContent {
+    func toolbarContent(_ presentationState: ModManagerPresentationState) -> some ToolbarContent {
         ModManagerToolbar(
             presentationState: presentationState,
             isShowingModInspector: presentation.isShowingModInspector,
@@ -12,7 +12,7 @@ extension ModManagerView {
         )
     }
 
-    var commandContext: ModManagerCommandContext {
+    func commandContext(_ presentationState: ModManagerPresentationState) -> ModManagerCommandContext {
         ModManagerCommandContext(
             presentationState: presentationState,
             actions: actions
@@ -98,6 +98,12 @@ extension ModManagerView {
     func pruneExpiredArchives() {
         Task {
             await viewModel.pruneExpiredArchives()
+        }
+    }
+
+    func resolveDuplicateGroup(_ id: String) {
+        Task {
+            await viewModel.resolveDuplicateGroup(id: id)
         }
     }
 
@@ -278,12 +284,38 @@ extension ModManagerView {
         selectedModIDs.remove(id)
     }
 
+    func syncLastSessionNotice() {
+        guard let notice = viewModel.state.pendingLastSessionNotice,
+              presentation.alert == nil
+        else {
+            return
+        }
+
+        presentation.alert = .lastSessionNotice(notice)
+    }
+
     func syncSourceCleanupOffer() {
         presentation.resetSourceCleanupChoice()
         if let offer = presentationState.pendingSourceCleanupOffer {
             presentation.sheet = .sourceCleanup(offer)
         } else if case .sourceCleanup = presentation.sheet {
             presentation.dismissSheet()
+        }
+    }
+
+    func syncBisectionSheet() {
+        if presentationState.state.bisectionSession != nil {
+            if presentation.sheet?.id != ModManagerSheet.bisection.id {
+                presentation.sheet = .bisection
+            }
+        } else if case .bisection = presentation.sheet {
+            presentation.dismissSheet()
+        }
+    }
+
+    func startBisection() {
+        Task {
+            await viewModel.startBisection()
         }
     }
 }

@@ -30,6 +30,7 @@ enum ModManagerSheet: Identifiable {
     case activity
     case restoreHistory
     case modSetComparison(ModSetComparison)
+    case bisection
 
     var id: String {
         switch self {
@@ -47,6 +48,8 @@ enum ModManagerSheet: Identifiable {
             return "restore-history"
         case .modSetComparison(let comparison):
             return "mod-set-comparison-\(comparison.id)"
+        case .bisection:
+            return "bisection"
         }
     }
 }
@@ -55,6 +58,7 @@ enum ModManagerAlert: Identifiable {
     case deleteMod(ModInfo)
     case deleteModSet(ModSet)
     case dependency(DependencyConfirmation)
+    case lastSessionNotice(LastSessionNotice)
 
     var id: String {
         switch self {
@@ -64,6 +68,8 @@ enum ModManagerAlert: Identifiable {
             return "delete-mod-set-\(set.id)"
         case .dependency(let confirmation):
             return "dependency-\(confirmation.id)"
+        case .lastSessionNotice(let notice):
+            return "last-session-notice-\(notice.id)"
         }
     }
 
@@ -75,6 +81,8 @@ enum ModManagerAlert: Identifiable {
             return AppStrings.Alerts.deleteModSetTitle
         case .dependency(let confirmation):
             return confirmation.title
+        case .lastSessionNotice:
+            return AppStrings.Alerts.lastSessionNoticeTitle
         }
     }
 }

@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ModManagerView: View {
-    @ObservedObject var viewModel: ModManagerViewModel
+    var viewModel: ModManagerViewModel
     @Binding var searchText: String
     @Binding var selectedModIDs: Set<String>
     @State var presentation = ModManagerViewPresentation()
@@ -24,10 +24,14 @@ struct ModManagerView: View {
     }
 
     var body: some View {
-        content
+        // Built once per render pass; rebuilding it on each access would
+        // reconstruct the dependency graph and re-run the search filter.
+        let presentationState = presentationState
+
+        content(presentationState)
             .background(.background)
             .overlay {
-                dropOverlay
+                dropOverlay(presentationState)
             }
             .dropDestination(for: URL.self) { urls, _ in
                 installDroppedMods(from: urls)
@@ -35,7 +39,7 @@ struct ModManagerView: View {
                 presentation.isDropTargeted = isTargeted
             }
             .toolbar {
-                toolbarContent
+                toolbarContent(presentationState)
             }
             .searchable(
                 text: $searchText,
@@ -67,25 +71,40 @@ struct ModManagerView: View {
                     viewModel.recordModsFolderSelectionError(error)
                 }
             }
-            .sheet(item: activeSheet, content: sheetContent)
+            .sheet(item: activeSheet) { sheet in
+                sheetContent(for: sheet, presentationState: presentationState)
+            }
             .alert(
                 presentation.alert?.title ?? AppStrings.Alerts.dependencyWarning,
                 isPresented: alertIsPresented,
                 presenting: presentation.alert,
                 actions: alertActions,
-                message: alertMessage
+                message: { alert in
+                    alertMessage(for: alert, presentationState: presentationState)
+                }
             )
             .onChange(of: presentationState.pendingSourceCleanupOffer?.id) {
                 syncSourceCleanupOffer()
             }
+            .onChange(of: presentationState.state.bisectionSession) {
+                syncBisectionSheet()
+            }
+            .onChange(of: presentationState.state.pendingLastSessionNotice?.id) {
+                syncLastSessionNotice()
+            }
             .onAppear {
                 syncSourceCleanupOffer()
+                syncBisectionSheet()
+                syncLastSessionNotice()
             }
-            .focusedValue(\.modManagerCommandContext, commandContext)
+            .focusedValue(\.modManagerCommandContext, commandContext(presentationState))
     }
 
     @ViewBuilder
-    private func sheetContent(for sheet: ModManagerSheet) -> some View {
+    private func sheetContent(
+        for sheet: ModManagerSheet,
+        presentationState: ModManagerPresentationState
+    ) -> some View {
         switch sheet {
         case .modSetEditor(let mode):
             ModSetNameSheet(
@@ -115,10 +134,12 @@ struct ModManagerView: View {
                 offer: offer,
                 remembersChoice: $presentation.remembersSourceCleanupChoice,
                 keepFiles: {
-                    viewModel.keepSourceFiles(
-                        for: offer,
-                        remembersChoice: presentation.remembersSourceCleanupChoice
-                    )
+                    Task {
+                        await viewModel.keepSourceFiles(
+                            for: offer,
+                            remembersChoice: presentation.remembersSourceCleanupChoice
+                        )
+                    }
                     presentation.dismissSheet()
                 },
                 moveToTrash: {
@@ -131,7 +152,9 @@ struct ModManagerView: View {
                     }
                 },
                 dismissNotice: {
-                    viewModel.dismissSourceCleanupOffer()
+                    Task {
+                        await viewModel.dismissSourceCleanupOffer()
+                    }
                     presentation.dismissSheet()
                 }
             )
@@ -140,6 +163,20 @@ struct ModManagerView: View {
                 dependencyIssues: presentationState.problemSummary.dependencyIssues,
                 invalidFolders: presentationState.problemSummary.invalidFolders,
                 duplicateGroups: presentationState.problemSummary.duplicateGroups,
+                smapiVersionIssues: presentationState.problemSummary.smapiVersionIssues,
+                detectedSMAPIVersion: presentationState.problemSummary.detectedSMAPIVersion,
+                lastSessionIssues: presentationState.state.lastSessionIssues,
+                lastSessionDate: presentationState.state.lastSessionReport?.generatedAt,
+                modPageURLs: presentationState.state.knownModPageURLs,
+                canStartBisection: presentationState.canManageMods
+                    && presentationState.state.bisectionSession == nil
+                    && presentationState.state.mods.filter(\.isEnabled).count >= 2,
+                canManageMods: presentationState.canManageMods,
+                resolveDuplicates: resolveDuplicateGroup,
+                disableMod: { mod in
+                    setMod(mod, enabled: false)
+                },
+                startBisection: startBisection,
                 close: {
                     presentation.dismissSheet()
                 }
@@ -167,6 +204,22 @@ struct ModManagerView: View {
             ModSetComparisonSheet(comparison: comparison) {
                 presentation.dismissSheet()
             }
+        case .bisection:
+            if let session = presentationState.state.bisectionSession {
+                BisectionSheet(
+                    session: session,
+                    reportResult: { problemOccurred in
+                        Task {
+                            await viewModel.recordBisectionResult(problemOccurred: problemOccurred)
+                        }
+                    },
+                    cancel: {
+                        Task {
+                            await viewModel.cancelBisection()
+                        }
+                    }
+                )
+            }
         }
     }
 
@@ -178,7 +231,9 @@ struct ModManagerView: View {
             set: { sheet in
                 if sheet == nil,
                    case .sourceCleanup = presentation.sheet {
-                    viewModel.dismissSourceCleanupOffer()
+                    Task {
+                        await viewModel.dismissSourceCleanupOffer()
+                    }
                 }
                 presentation.sheet = sheet
             }
@@ -226,11 +281,29 @@ struct ModManagerView: View {
             Button(confirmation.confirmTitle, role: confirmation.confirmRole) {
                 performDependencyAction(confirmation.action)
             }
+        case .lastSessionNotice:
+            Button(AppStrings.Alerts.reviewProblems) {
+                presentation.dismissAlert()
+                presentation.sheet = .problems
+                Task {
+                    await viewModel.dismissLastSessionNotice()
+                }
+            }
+
+            Button(AppStrings.Alerts.notNow, role: .cancel) {
+                presentation.dismissAlert()
+                Task {
+                    await viewModel.dismissLastSessionNotice()
+                }
+            }
         }
     }
 
     @ViewBuilder
-    private func alertMessage(for alert: ModManagerAlert) -> some View {
+    private func alertMessage(
+        for alert: ModManagerAlert,
+        presentationState: ModManagerPresentationState
+    ) -> some View {
         switch alert {
         case .deleteMod(let mod):
             Text(AppStrings.Alerts.deleteModMessage(
@@ -241,13 +314,26 @@ struct ModManagerView: View {
             Text(AppStrings.Alerts.deleteModSetMessage(set.name))
         case .dependency(let confirmation):
             Text(confirmation.message)
+        case .lastSessionNotice(let notice):
+            Text(lastSessionNoticeMessage(for: notice))
         }
     }
 
-    private var content: some View {
+    private func lastSessionNoticeMessage(for notice: LastSessionNotice) -> String {
+        var sentences: [String] = []
+        if notice.skippedModCount > 0 {
+            sentences.append(AppStrings.Alerts.lastSessionSkippedMods(count: notice.skippedModCount))
+        }
+        if notice.erroringModCount > 0 {
+            sentences.append(AppStrings.Alerts.lastSessionErroringMods(count: notice.erroringModCount))
+        }
+        return sentences.joined(separator: " ")
+    }
+
+    private func content(_ presentationState: ModManagerPresentationState) -> some View {
         VStack(spacing: 0) {
             if presentationState.canManageMods {
-                managedContent
+                managedContent(presentationState)
             } else {
                 SetupEmptyState(
                     readiness: presentationState.readiness,
@@ -259,18 +345,26 @@ struct ModManagerView: View {
 
             if !presentationState.statusLineMessage.isEmpty {
                 Divider()
-                Text(presentationState.statusLineMessage)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 10)
+                HStack(spacing: 6) {
+                    if presentationState.statusLineSeverity == .error {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                            .accessibilityLabel(AppStrings.Problems.title)
+                    }
+
+                    Text(presentationState.statusLineMessage)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 10)
             }
         }
     }
 
-    private var managedContent: some View {
+    private func managedContent(_ presentationState: ModManagerPresentationState) -> some View {
         HStack(spacing: 0) {
             ModList(
                 mods: presentationState.filteredMods,
@@ -278,6 +372,7 @@ struct ModManagerView: View {
                 modFolderName: viewModel.modFolderName,
                 selectedModIDs: $selectedModIDs,
                 selectedMod: presentationState.selection.mod,
+                availableUpdate: presentationState.state.availableUpdate(for:),
                 addMods: addMods,
                 requestSetModEnabled: requestSetModEnabled,
                 revealSelectedMod: revealSelectedMod,
@@ -293,6 +388,9 @@ struct ModManagerView: View {
                     previousArchivedVersion: presentationState.selection.previousArchivedVersion,
                     archivedVersions: presentationState.selection.archivedVersions,
                     duplicateGroups: presentationState.selection.duplicateGroups,
+                    availableUpdate: presentationState.selection.availableUpdate,
+                    dependencyPageURLs: presentationState.selection.dependencyPageURLs,
+                    lastSessionIssue: presentationState.selection.lastSessionIssue,
                     archiveSummary: presentationState.archiveSummary,
                     restorePreviousVersion: restorePreviousVersion,
                     showRestoreHistory: {
@@ -307,7 +405,7 @@ struct ModManagerView: View {
     }
 
     @ViewBuilder
-    private var dropOverlay: some View {
+    private func dropOverlay(_ presentationState: ModManagerPresentationState) -> some View {
         if presentation.isDropTargeted && presentationState.canManageMods {
             Rectangle()
                 .fill(Color.accentColor.opacity(0.08))
@@ -324,6 +422,11 @@ struct ModManagerView: View {
             get: { presentation.alert != nil },
             set: { isPresented in
                 if !isPresented {
+                    if case .lastSessionNotice = presentation.alert {
+                        Task {
+                            await viewModel.dismissLastSessionNotice()
+                        }
+                    }
                     presentation.dismissAlert()
                 }
             }
