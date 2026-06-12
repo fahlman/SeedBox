@@ -33,6 +33,7 @@ struct SeedBoxApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         UserNotificationModFolderChangeNotifier.shared.requestAuthorization()
+        CrashDiagnosticsCollector.shared.start()
     }
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {

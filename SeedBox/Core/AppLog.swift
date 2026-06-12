@@ -19,4 +19,5 @@ enum AppLog {
     static let logInsights = Logger(subsystem: subsystem, category: "LogInsights")
     static let monitor = Logger(subsystem: subsystem, category: "Monitor")
     static let bisection = Logger(subsystem: subsystem, category: "Bisection")
+    static let diagnostics = Logger(subsystem: subsystem, category: "Diagnostics")
 }
