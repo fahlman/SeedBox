@@ -117,3 +117,7 @@ xcodebuild test -project SeedBox.xcodeproj -scheme "Seed Box" -destination "plat
 
 Local builds use the project signing settings. Distribution should use a
 Developer ID certificate and notarization.
+
+## Roadmap
+
+Planned release work and larger feature ideas live in [ROADMAP.md](ROADMAP.md).
