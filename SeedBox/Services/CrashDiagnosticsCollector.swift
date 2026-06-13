@@ -42,8 +42,14 @@ final class CrashDiagnosticsCollector: NSObject, MXMetricManagerSubscriber, @unc
                 withIntermediateDirectories: true
             )
             let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withDashSeparatorInDate]
-            let name = "Diagnostic \(formatter.string(from: date).replacingOccurrences(of: ":", with: "-")).json"
+            formatter.formatOptions = [
+                .withInternetDateTime,
+                .withDashSeparatorInDate,
+                .withFractionalSeconds
+            ]
+            let timestamp = formatter.string(from: date)
+                .replacingOccurrences(of: ":", with: "-")
+            let name = "Diagnostic \(timestamp) \(UUID().uuidString).json"
             try payloadData.write(to: diagnosticsDirectory.appendingPathComponent(name))
             AppLog.diagnostics.error("Received a diagnostic payload from MetricKit; stored for review (\(payloadData.count, privacy: .public) bytes).")
         } catch {

@@ -7,8 +7,9 @@ final class CrashDiagnosticsCollectorTests: SeedBoxTestCase {
         let collector = CrashDiagnosticsCollector(diagnosticsDirectory: diagnosticsDirectory)
         let payload = Data(#"{"crashDiagnostics": []}"#.utf8)
 
-        collector.store(payload, receivedAt: Date(timeIntervalSince1970: 1_750_000_000))
-        collector.store(payload, receivedAt: Date(timeIntervalSince1970: 1_750_000_060))
+        let receivedAt = Date(timeIntervalSince1970: 1_750_000_000)
+        collector.store(payload, receivedAt: receivedAt)
+        collector.store(payload, receivedAt: receivedAt)
 
         let storedFiles = try FileManager.default.contentsOfDirectory(atPath: diagnosticsDirectory.path)
             .sorted()

@@ -296,9 +296,6 @@ enum ModSetStore {
         let encoder = PropertyListEncoder()
         encoder.outputFormat = .xml
         let data = try encoder.encode(storedSet)
-        if fileManager.fileExists(atPath: url.path) {
-            try fileManager.removeItem(at: url)
-        }
         try data.write(to: url, options: .atomic)
     }
 

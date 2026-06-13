@@ -138,9 +138,6 @@ enum AuditLogStore {
         let encoder = PropertyListEncoder()
         encoder.outputFormat = .xml
         let data = try encoder.encode(StoredAuditLog(entries: entries))
-        if fileManager.fileExists(atPath: logURL.path) {
-            try fileManager.removeItem(at: logURL)
-        }
         try data.write(to: logURL, options: .atomic)
     }
 

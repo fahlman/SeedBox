@@ -22,6 +22,10 @@ launch the game.
 - Archives deleted or replaced mods so previous versions can be restored.
 - Watches the Mods folder and reconciles changes made outside the app.
 - Records an audit trail for mod and mod-set actions.
+- Can opt in to SMAPI mod update checks through `api.smapi.io`.
+- Can read SMAPI's latest log, surface last-session mod problems, and start
+  problem-mod bisection.
+- Stores local-only MetricKit diagnostic payloads for crash-awareness support.
 - Includes localized app strings in the string catalog.
 
 ## Mod Sets
@@ -62,6 +66,7 @@ Seed Box stores:
 - mod-set plists in `Application Support/Seed Box/Mod Sets`
 - archived deleted/replaced mods in `Application Support/Seed Box/Archived Mods`
 - the audit log at `Application Support/Seed Box/Audit Log.plist`
+- MetricKit diagnostic payloads in `Application Support/Seed Box/Diagnostics`
 
 The selected Stardew Valley `Mods` folder remains the only place Seed Box puts
 active mods.
