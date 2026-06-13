@@ -147,6 +147,7 @@ struct SeedBoxCommands: Commands {
             Button(AppStrings.Commands.deleteModSet, role: .destructive) {
                 context?.actions.deleteSelectedModSet()
             }
+            .keyboardShortcut(.delete, modifiers: [.command, .shift])
             .disabled(!canManageMods || !selection.selectedSetCanBeDeleted || context == nil)
         }
     }
