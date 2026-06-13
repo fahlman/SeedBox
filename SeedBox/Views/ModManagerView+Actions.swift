@@ -15,6 +15,7 @@ extension ModManagerView {
     func commandContext(_ presentationState: ModManagerPresentationState) -> ModManagerCommandContext {
         ModManagerCommandContext(
             presentationState: presentationState,
+            isShowingModInspector: presentation.isShowingModInspector,
             actions: actions
         )
     }

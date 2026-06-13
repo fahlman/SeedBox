@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ModManagerCommandContext {
     var presentationState: ModManagerPresentationState
+    var isShowingModInspector: Bool
     var actions: ModManagerActions
 
     var selectedMod: ModInfo? {

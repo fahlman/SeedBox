@@ -77,7 +77,7 @@ struct SeedBoxCommands: Commands {
 
             Divider()
 
-            Button(AppStrings.Commands.showModDetails) {
+            Button(modInspectorCommandTitle) {
                 context?.actions.showModInspector()
             }
             .keyboardShortcut("i", modifiers: [.command])
@@ -96,6 +96,7 @@ struct SeedBoxCommands: Commands {
             Button(AppStrings.Commands.revealSelectedModInFinder) {
                 context?.actions.revealSelectedMod()
             }
+            .keyboardShortcut("f", modifiers: [.command, .shift])
             .disabled(context == nil || !canRevealSelectedMod)
 
             Button(AppStrings.Commands.revealModsFolderInFinder) {
@@ -111,6 +112,7 @@ struct SeedBoxCommands: Commands {
             Button(AppStrings.Commands.pruneExpiredArchives) {
                 context?.actions.pruneExpiredArchives()
             }
+            .keyboardShortcut("p", modifiers: [.command, .option])
             .disabled(context == nil || !canPruneExpiredArchives)
 
             Divider()
@@ -140,6 +142,7 @@ struct SeedBoxCommands: Commands {
             Button(AppStrings.Commands.renameModSet) {
                 context?.actions.renameSelectedModSet()
             }
+            .keyboardShortcut(.return, modifiers: [])
             .disabled(!canManageMods || !selection.selectedSetCanBeRenamed || context == nil)
 
             Divider()
@@ -182,6 +185,12 @@ struct SeedBoxCommands: Commands {
 
     private var canShowModInspector: Bool {
         context?.canShowModInspector ?? false
+    }
+
+    private var modInspectorCommandTitle: String {
+        context?.isShowingModInspector == true
+            ? AppStrings.Toolbar.hideDetails
+            : AppStrings.Commands.showModDetails
     }
 
     private var canRevealSelectedMod: Bool {
