@@ -134,7 +134,7 @@ struct SeedBoxCommands: Commands {
             Button(AppStrings.Commands.duplicateModSet) {
                 context?.actions.duplicateSelectedModSet()
             }
-            .keyboardShortcut("d", modifiers: [.command, .shift])
+            .keyboardShortcut("d", modifiers: [.command])
             .disabled(!canManageMods || selection.selectedSet == nil || context == nil)
 
             Button(AppStrings.Commands.renameModSet) {
