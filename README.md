@@ -121,3 +121,8 @@ Developer ID certificate and notarization.
 ## Roadmap
 
 Planned release work and larger feature ideas live in [ROADMAP.md](ROADMAP.md).
+
+## Third-Party Notices
+
+Open-source dependency notices live in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
