@@ -20,11 +20,6 @@ enum ModManagerCommand {
     case showProblems
     case showRestoreHistory
 
-    enum Placement {
-        case menu
-        case toolbar
-    }
-
     struct Shortcut {
         var key: KeyEquivalent
         var modifiers: EventModifiers
@@ -124,18 +119,10 @@ enum ModManagerCommand {
         }
     }
 
-    func title(
-        for placement: Placement,
-        isShowingModInspector: Bool = false
-    ) -> String {
+    func title(isShowingModInspector: Bool = false) -> String {
         switch self {
         case .addMods:
-            switch placement {
-            case .menu:
-                AppStrings.Commands.addMods
-            case .toolbar:
-                AppStrings.Toolbar.addMods
-            }
+            AppStrings.Commands.addMods
         case .chooseModsFolder:
             AppStrings.Commands.chooseModsFolder
         case .compareModSet:
@@ -143,37 +130,17 @@ enum ModManagerCommand {
         case .createModSet:
             AppStrings.Commands.newModSet
         case .deleteModSet:
-            switch placement {
-            case .menu:
-                AppStrings.Commands.deleteModSet
-            case .toolbar:
-                AppStrings.Toolbar.deleteSet
-            }
+            AppStrings.Commands.deleteModSet
         case .deleteSelectedMod:
-            switch placement {
-            case .menu:
-                AppStrings.Commands.deleteSelectedMod
-            case .toolbar:
-                AppStrings.Toolbar.deleteMod
-            }
+            AppStrings.Commands.deleteSelectedMod
         case .duplicateModSet:
-            switch placement {
-            case .menu:
-                AppStrings.Commands.duplicateModSet
-            case .toolbar:
-                AppStrings.Toolbar.duplicateSet
-            }
+            AppStrings.Commands.duplicateModSet
         case .pruneExpiredArchives:
             AppStrings.Commands.pruneExpiredArchives
         case .refreshModsFolder:
             AppStrings.Commands.refreshModsFolder
         case .renameModSet:
-            switch placement {
-            case .menu:
-                AppStrings.Commands.renameModSet
-            case .toolbar:
-                AppStrings.Toolbar.renameSet
-            }
+            AppStrings.Commands.renameModSet
         case .restorePreviousVersion:
             AppStrings.Commands.restorePreviousVersion
         case .revealArchivedModsFolder:
@@ -181,24 +148,14 @@ enum ModManagerCommand {
         case .revealModsFolder:
             AppStrings.Commands.revealModsFolderInFinder
         case .revealSelectedMod:
-            switch placement {
-            case .menu:
-                AppStrings.Commands.revealSelectedModInFinder
-            case .toolbar:
-                AppStrings.Toolbar.revealInFinder
-            }
+            AppStrings.Commands.revealSelectedModInFinder
         case .showActivity:
             AppStrings.Toolbar.activity
         case .showModInspector:
             if isShowingModInspector {
                 AppStrings.Toolbar.hideDetails
             } else {
-                switch placement {
-                case .menu:
-                    AppStrings.Commands.showModDetails
-                case .toolbar:
-                    AppStrings.Toolbar.showDetails
-                }
+                AppStrings.Commands.showModDetails
             }
         case .showProblems:
             AppStrings.Toolbar.problems
@@ -294,12 +251,9 @@ enum ModManagerCommand {
     }
 
     @ViewBuilder
-    func label(
-        for placement: Placement,
-        isShowingModInspector: Bool = false
-    ) -> some View {
+    func label(isShowingModInspector: Bool = false) -> some View {
         Label(
-            title(for: placement, isShowingModInspector: isShowingModInspector),
+            title(isShowingModInspector: isShowingModInspector),
             systemImage: systemImage
         )
     }

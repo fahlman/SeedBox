@@ -59,13 +59,11 @@ struct ModManagerToolbar: ToolbarContent {
             command.perform(with: actions)
         } label: {
             command.label(
-                for: .toolbar,
                 isShowingModInspector: isShowingModInspector
             )
         }
         .modManagerToolbarLabelStyle(showsTitle: showsTitle)
         .help(command.title(
-            for: .toolbar,
             isShowingModInspector: isShowingModInspector
         ))
         .disabled(!command.isEnabled(in: presentationState))

@@ -26,43 +26,30 @@ final class ModManagerCommandTests: XCTestCase {
         }
     }
 
-    func testPlacementSpecificTitlesPreserveMenuAndToolbarWording() {
+    func testCommandTitlesStayCentralized() {
         XCTAssertEqual(
-            ModManagerCommand.addMods.title(for: .menu),
+            ModManagerCommand.addMods.title(),
             AppStrings.Commands.addMods
         )
         XCTAssertEqual(
-            ModManagerCommand.addMods.title(for: .toolbar),
-            AppStrings.Toolbar.addMods
-        )
-        XCTAssertEqual(
-            ModManagerCommand.duplicateModSet.title(for: .menu),
+            ModManagerCommand.duplicateModSet.title(),
             AppStrings.Commands.duplicateModSet
         )
         XCTAssertEqual(
-            ModManagerCommand.duplicateModSet.title(for: .toolbar),
-            AppStrings.Toolbar.duplicateSet
-        )
-        XCTAssertEqual(
-            ModManagerCommand.showModInspector.title(
-                for: .menu,
-                isShowingModInspector: false
-            ),
+            ModManagerCommand.showModInspector.title(isShowingModInspector: false),
             AppStrings.Commands.showModDetails
         )
         XCTAssertEqual(
-            ModManagerCommand.showModInspector.title(
-                for: .toolbar,
-                isShowingModInspector: false
-            ),
-            AppStrings.Toolbar.showDetails
+            ModManagerCommand.showModInspector.title(isShowingModInspector: true),
+            AppStrings.Toolbar.hideDetails
         )
         XCTAssertEqual(
-            ModManagerCommand.showModInspector.title(
-                for: .menu,
-                isShowingModInspector: true
-            ),
-            AppStrings.Toolbar.hideDetails
+            ModManagerCommand.revealSelectedMod.title(),
+            AppStrings.Commands.revealSelectedModInFinder
+        )
+        XCTAssertEqual(
+            ModManagerCommand.deleteSelectedMod.title(),
+            AppStrings.Commands.deleteSelectedMod
         )
     }
 

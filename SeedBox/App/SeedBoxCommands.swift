@@ -93,7 +93,6 @@ struct SeedBoxCommands: Commands {
             command.perform(with: context.actions)
         } label: {
             command.label(
-                for: .menu,
                 isShowingModInspector: context?.isShowingModInspector == true
             )
         }

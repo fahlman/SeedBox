@@ -96,21 +96,12 @@ enum AppStrings {
     enum Toolbar {
         static let activity = String(localized: "Activity")
         static let addMods = String(localized: "Add Mods")
-        static let compareModSet = String(localized: "Compare Mod Set")
         static let deleteMod = String(localized: "Delete Mod")
-        static let deleteSet = String(localized: "Delete Set")
-        static let duplicateSet = String(localized: "Duplicate Set")
         static let hideDetails = String(localized: "Hide Details")
         static let modSet = String(localized: "Mod Set")
-        static let newModSet = String(localized: "New Mod Set")
         static let problems = String(localized: "Problems")
-        static let pruneExpiredArchives = String(localized: "Prune Expired Archives")
-        static let renameSet = String(localized: "Rename Set")
-        static let restoreHistory = String(localized: "Restore History")
-        static let restorePreviousVersion = String(localized: "Restore Previous Version")
         static let revealInFinder = String(localized: "Reveal in Finder")
         static let settings = String(localized: "Settings")
-        static let showDetails = String(localized: "Show Details")
     }
 
     enum Settings {
