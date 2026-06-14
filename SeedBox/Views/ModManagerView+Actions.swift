@@ -7,7 +7,6 @@ extension ModManagerView {
         ModManagerToolbar(
             presentationState: presentationState,
             isShowingModInspector: presentation.isShowingModInspector,
-            selectModSet: requestSelectModSet,
             actions: actions
         )
     }
@@ -129,9 +128,39 @@ extension ModManagerView {
         selectModSet(id: id)
     }
 
+    func selectLibraryItem(id: String) {
+        let resolvedID = ModLibrarySelection.resolvedID(id, in: presentationState.state)
+        let selection = ModLibrarySelection(id: resolvedID)
+
+        switch selection {
+        case .smart:
+            selectedLibraryItemID = resolvedID
+            selectedModIDs = []
+        case .modSet(let id):
+            if presentationState.modSetIsAlreadyApplied(id) {
+                selectedLibraryItemID = resolvedID
+                selectedModIDs = []
+                return
+            }
+            requestSelectModSet(id: id)
+        }
+    }
+
     func selectModSet(id: String) {
+        selectedLibraryItemID = ModLibrarySelection.modSetID(id)
+        selectedModIDs = []
         Task {
             await viewModel.selectModSet(id: id)
+        }
+    }
+
+    func syncLibrarySelection(_ presentationState: ModManagerPresentationState) {
+        let resolvedID = ModLibrarySelection.resolvedID(
+            selectedLibraryItemID,
+            in: presentationState.state
+        )
+        if selectedLibraryItemID != resolvedID {
+            selectedLibraryItemID = resolvedID
         }
     }
 

@@ -58,6 +58,20 @@ enum AppStrings {
         static let prompt = String(localized: "Search Mods")
     }
 
+    enum Library {
+        static let allMods = String(localized: "All Mods")
+        static let contentPatcherMods = String(localized: "Content Patcher Mods")
+        static let library = String(localized: "Library")
+        static let noMatchingMods = String(localized: "No Matching Mods")
+        static let noRecentlyDeletedMods = String(localized: "No Recently Deleted Mods")
+        static let recentlyAdded = String(localized: "Recently Added")
+        static let recentlyDeleted = String(localized: "Recently Deleted")
+        static let recentlyUpdated = String(localized: "Recently Updated")
+        static let smartModSets = String(localized: "Smart Mod Sets")
+        static let smapiMods = String(localized: "SMAPI Mods")
+        static let updatesAvailable = String(localized: "Updates Available")
+    }
+
     enum Common {
         static let cancel = String(localized: "Cancel")
         static let delete = String(localized: "Delete")

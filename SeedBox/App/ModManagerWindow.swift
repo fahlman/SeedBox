@@ -3,7 +3,7 @@ import SwiftUI
 
 struct ModManagerWindow: View {
     private let viewModel = ModManagerViewModel.shared
-    @SceneStorage("modManager.selectedModSetID") private var selectedModSetID = ModSetStore.defaultSetID
+    @SceneStorage("modManager.selectedLibraryItemID") private var selectedLibraryItemID = ModLibrarySelection.defaultID
     @SceneStorage("modManager.searchText") private var searchText = ""
     @SceneStorage("modManager.selectedModIDs") private var selectedModIDsStorage = "[]"
     @State private var restoredWindowState = false
@@ -12,6 +12,7 @@ struct ModManagerWindow: View {
         ModManagerView(
             viewModel: viewModel,
             searchText: $searchText,
+            selectedLibraryItemID: $selectedLibraryItemID,
             selectedModIDs: selectedModIDsBinding
         )
         .navigationTitle(windowTitle)
@@ -31,7 +32,7 @@ struct ModManagerWindow: View {
             }
         }
         .onChange(of: viewModel.state.selectedModSetID) { _, selectedModSetID in
-            self.selectedModSetID = selectedModSetID
+            selectedLibraryItemID = ModLibrarySelection.modSetID(selectedModSetID)
         }
         .onChange(of: viewModel.state.modSets) {
             synchronizeSelectedModSetWithAvailableSets()
@@ -39,7 +40,11 @@ struct ModManagerWindow: View {
     }
 
     private var windowTitle: String {
-        viewModel.state.modSetSelection.selectedSet?.name ?? AppStrings.App.name
+        let resolvedID = ModLibrarySelection.resolvedID(
+            selectedLibraryItemID,
+            in: viewModel.state
+        )
+        return ModLibrarySelection(id: resolvedID).title(in: viewModel.state)
     }
 
     private func restoreWindowStateIfNeeded() async {
@@ -47,22 +52,28 @@ struct ModManagerWindow: View {
             return
         }
 
-        await viewModel.restoreSelectedModSet(id: selectedModSetID)
+        if let selectedModSetID = ModLibrarySelection(id: selectedLibraryItemID).selectedModSetID {
+            await viewModel.restoreSelectedModSet(id: selectedModSetID)
+        }
         restoredWindowState = true
     }
 
     private func synchronizeSelectedModSetWithAvailableSets() {
         let availableIDs = Set(viewModel.state.modSets.map(\.id))
-        guard !availableIDs.isEmpty, !availableIDs.contains(selectedModSetID) else {
+        guard !availableIDs.isEmpty else {
             return
         }
 
-        selectedModSetID = availableIDs.contains(ModSetStore.defaultSetID)
-            ? ModSetStore.defaultSetID
-            : viewModel.state.modSets.first?.id ?? ModSetStore.defaultSetID
-        let restoredID = selectedModSetID
-        Task {
-            await viewModel.restoreSelectedModSet(id: restoredID)
+        let resolvedID = ModLibrarySelection.resolvedID(selectedLibraryItemID, in: viewModel.state)
+        guard selectedLibraryItemID != resolvedID else {
+            return
+        }
+
+        selectedLibraryItemID = resolvedID
+        if let restoredID = ModLibrarySelection(id: resolvedID).selectedModSetID {
+            Task {
+                await viewModel.restoreSelectedModSet(id: restoredID)
+            }
         }
     }
 

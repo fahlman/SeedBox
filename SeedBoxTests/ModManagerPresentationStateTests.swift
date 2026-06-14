@@ -64,6 +64,129 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         XCTAssertFalse(presentationState.canShowModInspector)
     }
 
+    func testSmartModSetFiltersContentPatcherPacksAndRegularMods() throws {
+        let install = try makeInstall()
+        let contentPatcherURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
+        let contentPackURL = install.modDirectoryURL.appendingPathComponent("FarmVisuals")
+
+        try FileManager.default.createDirectory(at: contentPatcherURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: contentPackURL, withIntermediateDirectories: true)
+        try writeManifest(
+            name: "Content Patcher",
+            to: contentPatcherURL,
+            uniqueID: "Pathoschild.ContentPatcher"
+        )
+        try writeManifest(
+            name: "Farm Visuals",
+            to: contentPackURL,
+            uniqueID: "Example.FarmVisuals",
+            contentPackForUniqueID: "Pathoschild.ContentPatcher"
+        )
+
+        let mods = try ModLibrary.scan(install: install)
+        let state = makeState(install: install, mods: mods)
+
+        let contentPackState = ModManagerPresentationState(
+            state: state,
+            searchText: "",
+            selectedModIDs: [],
+            selectedLibraryItemID: ModLibrarySelection.smartID(.contentPatcherMods)
+        )
+        let regularModState = ModManagerPresentationState(
+            state: state,
+            searchText: "",
+            selectedModIDs: [],
+            selectedLibraryItemID: ModLibrarySelection.smartID(.smapiMods)
+        )
+
+        XCTAssertEqual(contentPackState.filteredMods.map(\.displayName), ["Farm Visuals"])
+        XCTAssertEqual(regularModState.filteredMods.map(\.displayName), ["Content Patcher"])
+    }
+
+    func testSmartModSetFiltersUpdatesAvailable() throws {
+        let install = try makeInstall()
+        let updatedURL = install.modDirectoryURL.appendingPathComponent("UpdateMe")
+        let currentURL = install.modDirectoryURL.appendingPathComponent("AlreadyCurrent")
+
+        try FileManager.default.createDirectory(at: updatedURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: currentURL, withIntermediateDirectories: true)
+        try writeManifest(
+            name: "Update Me",
+            to: updatedURL,
+            version: "1.0.0",
+            uniqueID: "Example.UpdateMe"
+        )
+        try writeManifest(
+            name: "Already Current",
+            to: currentURL,
+            version: "1.0.0",
+            uniqueID: "Example.AlreadyCurrent"
+        )
+
+        let mods = try ModLibrary.scan(install: install)
+        var state = makeState(install: install, mods: mods)
+        state.availableUpdates = [
+            ModAvailableUpdate(
+                modID: "Example.UpdateMe".normalizedDependencyID,
+                displayName: "Update Me",
+                installedVersion: "1.0.0",
+                latestVersion: "2.0.0",
+                downloadURL: nil
+            ),
+            ModAvailableUpdate(
+                modID: "Example.AlreadyCurrent".normalizedDependencyID,
+                displayName: "Already Current",
+                installedVersion: "1.0.0",
+                latestVersion: "1.0.0",
+                downloadURL: nil
+            )
+        ]
+
+        let presentationState = ModManagerPresentationState(
+            state: state,
+            searchText: "",
+            selectedModIDs: [],
+            selectedLibraryItemID: ModLibrarySelection.smartID(.updatesAvailable)
+        )
+
+        XCTAssertEqual(presentationState.filteredMods.map(\.displayName), ["Update Me"])
+    }
+
+    func testSmartModSetSelectionDisablesModSetCommands() throws {
+        let install = try makeInstall()
+        let modURL = install.modDirectoryURL.appendingPathComponent("SomeMod")
+
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Some Mod", to: modURL)
+
+        let mods = try ModLibrary.scan(install: install)
+        let selectedUserSet = ModSetStore.snapshotSet(
+            id: "favorites",
+            name: "Favorites",
+            from: mods,
+            isDefault: false,
+            isIncluded: false
+        )
+        var state = makeState(install: install, mods: mods, modSets: [selectedUserSet])
+        state.selectedModSetID = selectedUserSet.id
+        state.appliedModSetID = selectedUserSet.id
+
+        let presentationState = ModManagerPresentationState(
+            state: state,
+            searchText: "",
+            selectedModIDs: [],
+            selectedLibraryItemID: ModLibrarySelection.smartID(.allMods)
+        )
+
+        XCTAssertNil(presentationState.selectedSet)
+        XCTAssertNil(presentationState.selectedRenamableSet)
+        XCTAssertNil(presentationState.selectedDeletableSet)
+        XCTAssertFalse(ModManagerCommand.compareModSet.isEnabled(in: presentationState))
+        XCTAssertFalse(ModManagerCommand.duplicateModSet.isEnabled(in: presentationState))
+        XCTAssertFalse(ModManagerCommand.renameModSet.isEnabled(in: presentationState))
+        XCTAssertFalse(ModManagerCommand.deleteModSet.isEnabled(in: presentationState))
+    }
+
     private func makeState(
         install: StardewInstall,
         mods: [ModInfo],

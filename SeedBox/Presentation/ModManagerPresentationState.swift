@@ -4,6 +4,7 @@ struct ModManagerPresentationState {
     var state: ModManagerState
     var searchText: String
     var selectedModIDs: Set<String>
+    var librarySelection: ModLibrarySelection
     var dependencyGraph: ModDependencyGraph
     var filteredMods: [ModInfo]
     var selection: ModSelectionState
@@ -11,22 +12,28 @@ struct ModManagerPresentationState {
     init(
         state: ModManagerState,
         searchText: String,
-        selectedModIDs: Set<String>
+        selectedModIDs: Set<String>,
+        selectedLibraryItemID: String = ModLibrarySelection.defaultID
     ) {
         let dependencyGraph = ModDependencyGraph(mods: state.mods)
+        let librarySelection = ModLibrarySelection(
+            id: ModLibrarySelection.resolvedID(selectedLibraryItemID, in: state)
+        )
         let query = ModSearchQuery(searchText)
         let filteredMods = state.mods.filter { mod in
-            query.matches(
-                mod,
-                in: dependencyGraph,
-                hasAvailableUpdate: state.availableUpdate(for: mod) != nil
-            )
+            librarySelection.includes(mod, in: state)
+                && query.matches(
+                    mod,
+                    in: dependencyGraph,
+                    hasAvailableUpdate: state.availableUpdate(for: mod) != nil
+                )
         }
         let selectedMod = Self.selectedMod(in: filteredMods, selectedModIDs: selectedModIDs)
 
         self.state = state
         self.searchText = searchText
         self.selectedModIDs = selectedModIDs
+        self.librarySelection = librarySelection
         self.dependencyGraph = dependencyGraph
         self.filteredMods = filteredMods
         selection = ModSelectionState(
@@ -80,15 +87,23 @@ struct ModManagerPresentationState {
     }
 
     var selectedSet: ModSet? {
-        modSetSelection.selectedSet
+        guard let selectedModSetID = librarySelection.selectedModSetID else {
+            return nil
+        }
+
+        return modSet(withID: selectedModSetID)
     }
 
     var selectedRenamableSet: ModSet? {
-        modSetSelection.selectedRenamableSet
+        guard let selectedSet, selectedSet.isUserEditable else {
+            return nil
+        }
+
+        return selectedSet
     }
 
     var selectedDeletableSet: ModSet? {
-        modSetSelection.selectedDeletableSet
+        selectedRenamableSet
     }
 
     var canManageMods: Bool {
@@ -104,7 +119,7 @@ struct ModManagerPresentationState {
     }
 
     var canCompareSelectedModSet: Bool {
-        state.modSetSelection.selectedSet != nil && canManageMods
+        selectedSet != nil && canManageMods
     }
 
     var canPruneExpiredArchives: Bool {

@@ -173,15 +173,15 @@ enum ModManagerCommand {
         case .compareModSet:
             state.canCompareSelectedModSet
         case .deleteModSet:
-            state.canManageMods && state.modSetSelection.selectedSetCanBeDeleted
+            state.canManageMods && state.selectedDeletableSet != nil
         case .deleteSelectedMod:
             state.canDeleteSelectedMod
         case .duplicateModSet:
-            state.canManageMods && state.modSetSelection.selectedSet != nil
+            state.canManageMods && state.selectedSet != nil
         case .pruneExpiredArchives:
             state.canPruneExpiredArchives
         case .renameModSet:
-            state.canManageMods && state.modSetSelection.selectedSetCanBeRenamed
+            state.canManageMods && state.selectedRenamableSet != nil
         case .restorePreviousVersion:
             state.canRestorePreviousVersion
         case .revealArchivedModsFolder:

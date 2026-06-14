@@ -3,26 +3,10 @@ import SwiftUI
 struct ModManagerToolbar: ToolbarContent {
     var presentationState: ModManagerPresentationState
     var isShowingModInspector: Bool
-    var selectModSet: (String) -> Void
     var actions: ModManagerActions
 
     var body: some ToolbarContent {
         ToolbarItemGroup {
-            Picker(AppStrings.Toolbar.modSet, selection: Binding(
-                get: { selection.selectedSetID },
-                set: { selectedID in
-                    selectModSet(selectedID)
-                }
-            )) {
-                ForEach(selection.sets) { set in
-                    Text(set.name)
-                        .tag(set.id)
-                }
-            }
-            .pickerStyle(.menu)
-            .help(AppStrings.Toolbar.modSet)
-            .disabled(selection.sets.isEmpty || !presentationState.canManageMods)
-
             toolbarButton(.createModSet)
             toolbarButton(.duplicateModSet)
             toolbarButton(.renameModSet)
@@ -45,10 +29,6 @@ struct ModManagerToolbar: ToolbarContent {
                 Label(AppStrings.Toolbar.settings, systemImage: "gearshape")
             }
         }
-    }
-
-    private var selection: ModSetSelectionState {
-        presentationState.modSetSelection
     }
 
     private func toolbarButton(

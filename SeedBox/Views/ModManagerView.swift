@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct ModManagerView: View {
     var viewModel: ModManagerViewModel
     @Binding var searchText: String
+    @Binding var selectedLibraryItemID: String
     @Binding var selectedModIDs: Set<String>
     @State var presentation = ModManagerViewPresentation()
 
@@ -19,7 +20,8 @@ struct ModManagerView: View {
         ModManagerPresentationState(
             state: viewModel.state,
             searchText: searchText,
-            selectedModIDs: selectedModIDs
+            selectedModIDs: selectedModIDs,
+            selectedLibraryItemID: selectedLibraryItemID
         )
     }
 
@@ -92,7 +94,11 @@ struct ModManagerView: View {
             .onChange(of: presentationState.state.pendingLastSessionNotice?.id) {
                 syncLastSessionNotice()
             }
+            .onChange(of: presentationState.state.modSets) {
+                syncLibrarySelection(presentationState)
+            }
             .onAppear {
+                syncLibrarySelection(presentationState)
                 syncSourceCleanupOffer()
                 syncBisectionSheet()
                 syncLastSessionNotice()
@@ -333,7 +339,7 @@ struct ModManagerView: View {
     private func content(_ presentationState: ModManagerPresentationState) -> some View {
         VStack(spacing: 0) {
             if presentationState.canManageMods {
-                managedContent(presentationState)
+                managedLibraryContent(presentationState)
             } else {
                 SetupEmptyState(
                     readiness: presentationState.readiness,
@@ -364,7 +370,36 @@ struct ModManagerView: View {
         }
     }
 
+    private func managedLibraryContent(_ presentationState: ModManagerPresentationState) -> some View {
+        NavigationSplitView {
+            ModLibrarySidebar(
+                presentationState: presentationState,
+                selectedItemID: $selectedLibraryItemID,
+                selectItem: selectLibraryItem(id:)
+            )
+        } detail: {
+            managedContent(presentationState)
+        }
+    }
+
+    @ViewBuilder
     private func managedContent(_ presentationState: ModManagerPresentationState) -> some View {
+        if presentationState.librarySelection.smartSet == .recentlyDeleted {
+            RecentlyDeletedModsView(
+                archivedMods: ModLibrarySelection.recentlyDeletedArchivedMods(in: presentationState.state),
+                currentMods: presentationState.state.mods,
+                restore: restoreArchivedMods,
+                revealInFinder: viewModel.revealArchivedModsFolder,
+                pruneExpiredArchives: pruneExpiredArchives
+            )
+        } else if presentationState.librarySelection.smartSet != nil && presentationState.filteredMods.isEmpty {
+            SmartModSetEmptyState(selection: presentationState.librarySelection)
+        } else {
+            modListContent(presentationState)
+        }
+    }
+
+    private func modListContent(_ presentationState: ModManagerPresentationState) -> some View {
         HStack(spacing: 0) {
             ModList(
                 mods: presentationState.filteredMods,
