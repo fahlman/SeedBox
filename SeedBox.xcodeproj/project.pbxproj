@@ -22,6 +22,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		94174AFA2FD45E4900CC009E /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		94174AFB2FD45E4A00CC009E /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
 		94174AFD2FD45E5800CC009E /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		94174AFE2FD45E5900CC009E /* ROADMAP.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ROADMAP.md; sourceTree = "<group>"; };
@@ -75,6 +76,7 @@
 		G00000000000000000000001 = {
 			isa = PBXGroup;
 			children = (
+				94174AFA2FD45E4900CC009E /* .gitignore */,
 				94174AFD2FD45E5800CC009E /* README.md */,
 				94174AFB2FD45E4A00CC009E /* LICENSE */,
 				94174AFE2FD45E5900CC009E /* ROADMAP.md */,
