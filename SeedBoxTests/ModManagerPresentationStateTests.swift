@@ -152,6 +152,63 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         XCTAssertEqual(presentationState.filteredMods.map(\.displayName), ["Update Me"])
     }
 
+    func testSmartModSetSplitsWarningsFromErrors() throws {
+        let install = try makeInstall()
+        let optionalOnlyURL = install.modDirectoryURL.appendingPathComponent("OptionalOnly")
+        let requiredURL = install.modDirectoryURL.appendingPathComponent("RequiredMissing")
+        let mixedURL = install.modDirectoryURL.appendingPathComponent("MixedProblems")
+        let cleanURL = install.modDirectoryURL.appendingPathComponent("CleanMod")
+
+        try FileManager.default.createDirectory(at: optionalOnlyURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: requiredURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: mixedURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: cleanURL, withIntermediateDirectories: true)
+        try writeManifest(
+            name: "Optional Only",
+            to: optionalOnlyURL,
+            dependencies: [(uniqueID: "Example.OptionalDependency", isRequired: false)]
+        )
+        try writeManifest(
+            name: "Required Missing",
+            to: requiredURL,
+            dependencies: [(uniqueID: "Example.RequiredDependency", isRequired: true)]
+        )
+        try writeManifest(
+            name: "Mixed Problems",
+            to: mixedURL,
+            dependencies: [
+                (uniqueID: "Example.RequiredDependency", isRequired: true),
+                (uniqueID: "Example.OptionalDependency", isRequired: false)
+            ]
+        )
+        try writeManifest(name: "Clean Mod", to: cleanURL)
+
+        let mods = try ModLibrary.scan(install: install)
+        let state = makeState(install: install, mods: mods)
+        let warningState = ModManagerPresentationState(
+            state: state,
+            searchText: "",
+            selectedModIDs: [],
+            selectedLibraryItemID: ModLibrarySelection.smartID(.warnings)
+        )
+        let errorState = ModManagerPresentationState(
+            state: state,
+            searchText: "",
+            selectedModIDs: [],
+            selectedLibraryItemID: ModLibrarySelection.smartID(.errors)
+        )
+
+        XCTAssertEqual(Set(warningState.filteredMods.map(\.displayName)), ["Optional Only"])
+        XCTAssertEqual(Set(errorState.filteredMods.map(\.displayName)), ["Required Missing", "Mixed Problems"])
+    }
+
+    func testLegacyProblemsSmartModSetSelectionMigratesToErrors() {
+        XCTAssertEqual(
+            ModLibrarySelection(id: "smart:problems"),
+            .smart(.errors)
+        )
+    }
+
     func testSmartModSetSelectionDisablesModSetCommands() throws {
         let install = try makeInstall()
         let modURL = install.modDirectoryURL.appendingPathComponent("SomeMod")

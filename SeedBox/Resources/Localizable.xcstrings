@@ -12287,6 +12287,21 @@
         }
       }
     },
+    "Errors" : {
+      "comment" : "Sidebar smart mod set for mods with required dependency failures or other blocking problems.",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "new", "value" : "Errors" } },
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Errors" } },
+        "es" : { "stringUnit" : { "state" : "new", "value" : "Errors" } },
+        "fr" : { "stringUnit" : { "state" : "new", "value" : "Errors" } },
+        "it" : { "stringUnit" : { "state" : "new", "value" : "Errors" } },
+        "ja" : { "stringUnit" : { "state" : "new", "value" : "Errors" } },
+        "ko" : { "stringUnit" : { "state" : "new", "value" : "Errors" } },
+        "nl" : { "stringUnit" : { "state" : "new", "value" : "Errors" } },
+        "pt-BR" : { "stringUnit" : { "state" : "new", "value" : "Errors" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "new", "value" : "Errors" } }
+      }
+    },
     "Everything Seed Box does happens on your Mac. Nothing leaves your computer unless you turn on update checks in Settings — and then the only thing ever sent is each mod's ID, version, and update keys, to smapi.io, only when a check runs. No accounts, no analytics, no tracking." : {
       "comment" : "The app's privacy statement, shown in the help window. smapi.io is a service name; keep it as is.",
       "localizations" : {
@@ -27379,6 +27394,21 @@
             "value" : "查看更新页面"
           }
         }
+      }
+    },
+    "Warnings" : {
+      "comment" : "Sidebar smart mod set for non-blocking mod warnings, such as missing optional dependencies.",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "new", "value" : "Warnings" } },
+        "en" : { "stringUnit" : { "state" : "new", "value" : "Warnings" } },
+        "es" : { "stringUnit" : { "state" : "new", "value" : "Warnings" } },
+        "fr" : { "stringUnit" : { "state" : "new", "value" : "Warnings" } },
+        "it" : { "stringUnit" : { "state" : "new", "value" : "Warnings" } },
+        "ja" : { "stringUnit" : { "state" : "new", "value" : "Warnings" } },
+        "ko" : { "stringUnit" : { "state" : "new", "value" : "Warnings" } },
+        "nl" : { "stringUnit" : { "state" : "new", "value" : "Warnings" } },
+        "pt-BR" : { "stringUnit" : { "state" : "new", "value" : "Warnings" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "new", "value" : "Warnings" } }
       }
     },
     "When Something Breaks" : {

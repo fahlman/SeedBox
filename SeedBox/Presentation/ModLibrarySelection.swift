@@ -5,7 +5,8 @@ enum SmartModSet: String, CaseIterable, Identifiable, Sendable {
     case smapiMods
     case contentPatcherMods
     case updatesAvailable
-    case problems
+    case errors
+    case warnings
     case recentlyAdded
     case recentlyUpdated
     case recentlyDeleted
@@ -24,8 +25,10 @@ enum SmartModSet: String, CaseIterable, Identifiable, Sendable {
             AppStrings.Library.contentPatcherMods
         case .updatesAvailable:
             AppStrings.Library.updatesAvailable
-        case .problems:
-            AppStrings.Toolbar.problems
+        case .errors:
+            AppStrings.Library.errors
+        case .warnings:
+            AppStrings.Library.warnings
         case .recentlyAdded:
             AppStrings.Library.recentlyAdded
         case .recentlyUpdated:
@@ -45,7 +48,9 @@ enum SmartModSet: String, CaseIterable, Identifiable, Sendable {
             "paintpalette"
         case .updatesAvailable:
             "arrow.up.circle"
-        case .problems:
+        case .errors:
+            "exclamationmark.octagon"
+        case .warnings:
             "exclamationmark.triangle"
         case .recentlyAdded:
             "plus.circle"
@@ -77,8 +82,10 @@ enum SmartModSet: String, CaseIterable, Identifiable, Sendable {
             return mod.isContentPatcherContentPack
         case .updatesAvailable:
             return state.availableUpdate(for: mod) != nil
-        case .problems:
-            return Self.problemModIDs(in: state).contains(mod.id)
+        case .errors:
+            return Self.errorModIDs(in: state).contains(mod.id)
+        case .warnings:
+            return Self.warningModIDs(in: state).contains(mod.id)
         case .recentlyAdded:
             return Self.recentModIDs(for: [.modsAdded], in: state).contains(mod.id)
         case .recentlyUpdated:
@@ -88,14 +95,29 @@ enum SmartModSet: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    private static func problemModIDs(in state: ModManagerState) -> Set<String> {
-        var ids = Set(state.dependencyIssues.map(\.id))
+    private static func errorModIDs(in state: ModManagerState) -> Set<String> {
+        var ids = Set(
+            state.mods
+                .filter(\.hasMissingRequiredDependencies)
+                .map(\.id)
+        )
         ids.formUnion(state.smapiVersionIssues.map(\.id))
         ids.formUnion(state.lastSessionIssues.map(\.mod.id))
         for duplicateGroup in state.duplicateGroups {
             ids.formUnion(duplicateGroup.mods.map(\.id))
         }
         return ids
+    }
+
+    private static func warningModIDs(in state: ModManagerState) -> Set<String> {
+        let errorIDs = errorModIDs(in: state)
+        return Set(
+            state.mods
+                .filter { mod in
+                    mod.hasMissingOptionalDependencies && !errorIDs.contains(mod.id)
+                }
+                .map(\.id)
+        )
     }
 
     private static func recentlyUpdatedModIDs(in state: ModManagerState) -> Set<String> {
@@ -163,7 +185,11 @@ enum ModLibrarySelection: Hashable, Sendable {
     init(id: String) {
         if id.hasPrefix(Self.smartPrefix) {
             let rawValue = String(id.dropFirst(Self.smartPrefix.count))
-            self = SmartModSet(rawValue: rawValue).map(Self.smart) ?? .smart(.allMods)
+            if rawValue == "problems" {
+                self = .smart(.errors)
+            } else {
+                self = SmartModSet(rawValue: rawValue).map(Self.smart) ?? .smart(.allMods)
+            }
         } else if id.hasPrefix(Self.modSetPrefix) {
             self = .modSet(String(id.dropFirst(Self.modSetPrefix.count)))
         } else if id.isEmpty {
