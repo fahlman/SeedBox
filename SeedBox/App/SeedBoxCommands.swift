@@ -7,28 +7,36 @@ struct SeedBoxCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
-            Button(AppStrings.Commands.aboutSeedBox) {
+            Button {
                 NSApplication.shared.orderFrontStandardAboutPanel(nil)
+            } label: {
+                Label(AppStrings.Commands.aboutSeedBox, systemImage: "info.circle")
             }
         }
 
         CommandGroup(replacing: .newItem) {
-            Button(AppStrings.Commands.newModSet) {
+            Button {
                 context?.actions.createModSet()
+            } label: {
+                Label(AppStrings.Commands.newModSet, systemImage: "folder.badge.plus")
             }
             .keyboardShortcut("n", modifiers: [.command])
             .disabled(!canManageMods || context == nil)
         }
 
         CommandGroup(replacing: .importExport) {
-            Button(AppStrings.Commands.addMods) {
+            Button {
                 context?.actions.addMods()
+            } label: {
+                Label(AppStrings.Commands.addMods, systemImage: "square.and.arrow.down")
             }
             .keyboardShortcut("o", modifiers: [.command])
             .disabled(!canManageMods || context == nil)
 
-            Button(AppStrings.Commands.chooseModsFolder) {
+            Button {
                 context?.actions.chooseModsFolder()
+            } label: {
+                Label(AppStrings.Commands.chooseModsFolder, systemImage: "folder")
             }
             .keyboardShortcut("o", modifiers: [.command, .option])
             .disabled(context == nil)
@@ -37,8 +45,10 @@ struct SeedBoxCommands: Commands {
         CommandGroup(replacing: .printItem) {}
 
         CommandGroup(replacing: .sidebar) {
-            Button(AppStrings.Commands.refreshModsFolder) {
+            Button {
                 context?.actions.refresh()
+            } label: {
+                Label(AppStrings.Commands.refreshModsFolder, systemImage: "arrow.clockwise")
             }
             .keyboardShortcut("r", modifiers: [.command])
             .disabled(!canManageMods || context == nil)
@@ -46,109 +56,141 @@ struct SeedBoxCommands: Commands {
 
         CommandGroup(replacing: .toolbar) {}
         CommandGroup(replacing: .help) {
-            Button(AppStrings.Help.menuItem) {
+            Button {
                 openWindow(id: "help")
+            } label: {
+                Label(AppStrings.Help.menuItem, systemImage: "questionmark.circle")
             }
             .keyboardShortcut("?", modifiers: [.command])
 
-            Button(AppStrings.Help.reportAProblem) {
+            Button {
                 NSWorkspace.shared.open(HelpView.issuesURL)
+            } label: {
+                Label(AppStrings.Help.reportAProblem, systemImage: "exclamationmark.bubble")
             }
         }
 
         CommandMenu(AppStrings.Commands.modsMenu) {
-            Button(AppStrings.Toolbar.problems) {
+            Button {
                 context?.actions.showProblems()
+            } label: {
+                Label(AppStrings.Toolbar.problems, systemImage: "exclamationmark.triangle")
             }
             .keyboardShortcut("0", modifiers: [.command, .shift])
             .disabled(context == nil || !canShowProblems)
 
-            Button(AppStrings.Toolbar.activity) {
+            Button {
                 context?.actions.showActivity()
+            } label: {
+                Label(AppStrings.Toolbar.activity, systemImage: "clock")
             }
             .keyboardShortcut("l", modifiers: [.command, .option])
             .disabled(context == nil || !canShowActivity)
 
-            Button(AppStrings.Commands.restoreHistory) {
+            Button {
                 context?.actions.showRestoreHistory()
+            } label: {
+                Label(AppStrings.Commands.restoreHistory, systemImage: "clock.arrow.circlepath")
             }
             .keyboardShortcut("r", modifiers: [.command, .shift])
             .disabled(context == nil || !canShowRestoreHistory)
 
             Divider()
 
-            Button(modInspectorCommandTitle) {
+            Button {
                 context?.actions.showModInspector()
+            } label: {
+                Label(modInspectorCommandTitle, systemImage: "info.circle")
             }
             .keyboardShortcut("i", modifiers: [.command])
             .disabled(context == nil || !canShowModInspector)
 
             Divider()
 
-            Button(AppStrings.Commands.restorePreviousVersion) {
+            Button {
                 context?.actions.restorePreviousVersion()
+            } label: {
+                Label(AppStrings.Commands.restorePreviousVersion, systemImage: "arrow.uturn.backward")
             }
             .keyboardShortcut("r", modifiers: [.command, .option])
             .disabled(!canManageMods || !canRestorePreviousVersion || context == nil)
 
             Divider()
 
-            Button(AppStrings.Commands.revealSelectedModInFinder) {
+            Button {
                 context?.actions.revealSelectedMod()
+            } label: {
+                Label(AppStrings.Commands.revealSelectedModInFinder, systemImage: "eye")
             }
             .keyboardShortcut("f", modifiers: [.command, .shift])
             .disabled(context == nil || !canRevealSelectedMod)
 
-            Button(AppStrings.Commands.revealModsFolderInFinder) {
+            Button {
                 context?.actions.revealModsFolder()
+            } label: {
+                Label(AppStrings.Commands.revealModsFolderInFinder, systemImage: "folder")
             }
             .disabled(!canManageMods)
 
-            Button(AppStrings.Commands.revealArchivedModsInFinder) {
+            Button {
                 context?.actions.revealArchivedModsFolder()
+            } label: {
+                Label(AppStrings.Commands.revealArchivedModsInFinder, systemImage: "archivebox")
             }
             .disabled(context == nil)
 
-            Button(AppStrings.Commands.pruneExpiredArchives) {
+            Button {
                 context?.actions.pruneExpiredArchives()
+            } label: {
+                Label(AppStrings.Commands.pruneExpiredArchives, systemImage: "archivebox")
             }
             .keyboardShortcut("p", modifiers: [.command, .option])
             .disabled(context == nil || !canPruneExpiredArchives)
 
             Divider()
 
-            Button(AppStrings.Commands.deleteSelectedMod, role: .destructive) {
+            Button(role: .destructive) {
                 context?.actions.deleteSelectedMod()
+            } label: {
+                Label(AppStrings.Commands.deleteSelectedMod, systemImage: "trash")
             }
             .keyboardShortcut(.delete, modifiers: [.command])
             .disabled(context == nil || !canDeleteSelectedMod)
         }
 
         CommandMenu(AppStrings.Commands.modSetMenu) {
-            Button(AppStrings.Commands.compareModSet) {
+            Button {
                 context?.actions.compareSelectedModSet()
+            } label: {
+                Label(AppStrings.Commands.compareModSet, systemImage: "rectangle.split.2x1")
             }
             .keyboardShortcut("c", modifiers: [.command, .shift])
             .disabled(!canManageMods || !canCompareSelectedModSet || context == nil)
 
             Divider()
 
-            Button(AppStrings.Commands.duplicateModSet) {
+            Button {
                 context?.actions.duplicateSelectedModSet()
+            } label: {
+                Label(AppStrings.Commands.duplicateModSet, systemImage: "doc.on.doc")
             }
             .keyboardShortcut("d", modifiers: [.command])
             .disabled(!canManageMods || selection.selectedSet == nil || context == nil)
 
-            Button(AppStrings.Commands.renameModSet) {
+            Button {
                 context?.actions.renameSelectedModSet()
+            } label: {
+                Label(AppStrings.Commands.renameModSet, systemImage: "pencil")
             }
             .keyboardShortcut(.return, modifiers: [])
             .disabled(!canManageMods || !selection.selectedSetCanBeRenamed || context == nil)
 
             Divider()
 
-            Button(AppStrings.Commands.deleteModSet, role: .destructive) {
+            Button(role: .destructive) {
                 context?.actions.deleteSelectedModSet()
+            } label: {
+                Label(AppStrings.Commands.deleteModSet, systemImage: "folder.badge.minus")
             }
             .keyboardShortcut(.delete, modifiers: [.command, .shift])
             .disabled(!canManageMods || !selection.selectedSetCanBeDeleted || context == nil)
