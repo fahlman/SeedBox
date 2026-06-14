@@ -1,13 +1,18 @@
 # Third-Party Notices
 
-Seed Box uses the following third-party open-source projects. License text is
-reproduced from the versions pinned by the Swift Package Manager lockfile.
+Seed Box directly depends on the following third-party open-source projects.
+License text is reproduced from the versions pinned by the Swift Package
+Manager lockfile.
 
 ## Sparkle
 
 - Website: https://sparkle-project.org
 - Source: https://github.com/sparkle-project/Sparkle
 - License: MIT-style license with additional external notices
+
+Seed Box depends on Sparkle directly. Sparkle's license file also includes
+external notices for code bundled by Sparkle, so those notices are reproduced
+here as part of Sparkle's notice.
 
 ```text
 Copyright (c) 2006-2013 Andy Matuschak.
