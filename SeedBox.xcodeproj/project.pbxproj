@@ -24,6 +24,8 @@
 /* Begin PBXFileReference section */
 		94174AFB2FD45E4A00CC009E /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
 		94174AFD2FD45E5800CC009E /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		94174AFE2FD45E5900CC009E /* ROADMAP.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ROADMAP.md; sourceTree = "<group>"; };
+		94174AFF2FD45E5A00CC009E /* THIRD_PARTY_NOTICES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = THIRD_PARTY_NOTICES.md; sourceTree = "<group>"; };
 		F00300000000000000000001 /* Seed Box Mod Manager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Seed Box Mod Manager.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F00300000000000000000002 /* SeedBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SeedBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -75,6 +77,8 @@
 			children = (
 				94174AFD2FD45E5800CC009E /* README.md */,
 				94174AFB2FD45E4A00CC009E /* LICENSE */,
+				94174AFE2FD45E5900CC009E /* ROADMAP.md */,
+				94174AFF2FD45E5A00CC009E /* THIRD_PARTY_NOTICES.md */,
 				G00100000000000000000001 /* SeedBox */,
 				G00200000000000000000001 /* SeedBoxTests */,
 				G00300000000000000000001 /* Products */,
