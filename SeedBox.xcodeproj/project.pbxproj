@@ -27,6 +27,8 @@
 		94174AFD2FD45E5800CC009E /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		94174AFE2FD45E5900CC009E /* ROADMAP.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ROADMAP.md; sourceTree = "<group>"; };
 		94174AFF2FD45E5A00CC009E /* THIRD_PARTY_NOTICES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = THIRD_PARTY_NOTICES.md; sourceTree = "<group>"; };
+		94174B012FD6000000CC009E /* Release.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Release.md; sourceTree = "<group>"; };
+		94174B032FD6000000CC009E /* release-zip.zsh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "release-zip.zsh"; sourceTree = "<group>"; };
 		F00300000000000000000001 /* Seed Box Mod Manager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Seed Box Mod Manager.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F00300000000000000000002 /* SeedBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SeedBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -81,10 +83,28 @@
 				94174AFB2FD45E4A00CC009E /* LICENSE */,
 				94174AFE2FD45E5900CC009E /* ROADMAP.md */,
 				94174AFF2FD45E5A00CC009E /* THIRD_PARTY_NOTICES.md */,
+				94174B002FD6000000CC009E /* Docs */,
+				94174B022FD6000000CC009E /* Scripts */,
 				G00100000000000000000001 /* SeedBox */,
 				G00200000000000000000001 /* SeedBoxTests */,
 				G00300000000000000000001 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		94174B002FD6000000CC009E /* Docs */ = {
+			isa = PBXGroup;
+			children = (
+				94174B012FD6000000CC009E /* Release.md */,
+			);
+			path = Docs;
+			sourceTree = "<group>";
+		};
+		94174B022FD6000000CC009E /* Scripts */ = {
+			isa = PBXGroup;
+			children = (
+				94174B032FD6000000CC009E /* release-zip.zsh */,
+			);
+			path = Scripts;
 			sourceTree = "<group>";
 		};
 		G00300000000000000000001 /* Products */ = {

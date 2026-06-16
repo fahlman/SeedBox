@@ -118,6 +118,15 @@ xcodebuild test -project SeedBox.xcodeproj -scheme "Seed Box" -destination "plat
 Local builds use the project signing settings. Distribution should use a
 Developer ID certificate and notarization.
 
+## Release
+
+Seed Box uses Apple's Developer ID signing and notarization flow for public
+macOS releases. The scripted release path archives with Xcode, exports a
+Developer ID signed app, submits it for notarization, staples the ticket,
+packages a ZIP, and runs Gatekeeper checks.
+
+See [Docs/Release.md](Docs/Release.md).
+
 ## Roadmap
 
 Planned release work and larger feature ideas live in [ROADMAP.md](ROADMAP.md).

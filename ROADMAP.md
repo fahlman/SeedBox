@@ -8,34 +8,15 @@ task.
 
 ### Release trust and updates
 
-- Set up Developer ID signing and notarization.
-- Confirm Gatekeeper behavior with a downloaded app archive.
+- Run the first Developer ID signing and notarization pass with
+  `Scripts/release-zip.zsh`.
+- Confirm Gatekeeper behavior with a downloaded app archive after the first
+  hosted release artifact exists.
 - Wire Sparkle into the app after the signed/notarized release path is proven.
 - Add Sparkle feed generation and update-check UI using the existing Sparkle
   dependency.
 
 ## Next Product Features
-
-### Sidebar navigation
-
-Replace the mod-set popup with a native macOS source-list style sidebar inspired
-by Photos and Music.
-
-- Use `NavigationSplitView` and a sidebar `List`.
-- Keep the main mod table as the primary content area.
-- Move regular mod sets into a `Mod Sets` sidebar section.
-- Add a `Library` section for built-in views.
-- Keep toolbar actions focused on common actions instead of navigation.
-
-Initial built-in library views:
-
-- All Mods
-- Recently Added
-- Recently Updated
-- Recently Deleted
-- Updates Available
-- Problems
-- Disabled Mods
 
 ### Smart Mod Sets
 
@@ -54,7 +35,8 @@ Example Smart Mod Sets:
 - SMAPI Mods
 - Content Patcher Mods
 - Updates Available
-- Problems
+- Errors
+- Warnings
 - Disabled Mods
 
 ### Dependent mod sets
