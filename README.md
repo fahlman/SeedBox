@@ -118,6 +118,14 @@ xcodebuild test -project SeedBox.xcodeproj -scheme "Seed Box" -destination "plat
 Local builds use the project signing settings. Public distribution is planned
 for the Mac App Store.
 
+## Development Workflow
+
+Seed Box uses feature branches and pull requests for meaningful changes. Keep
+`main` stable, avoid a permanent `develop` branch, and squash merge completed
+pull requests.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Release
 
 Seed Box's primary public release path is the Mac App Store through Xcode
