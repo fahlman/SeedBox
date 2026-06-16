@@ -104,6 +104,8 @@ The full release flow verifies:
   team;
 - the sandbox, security-scoped bookmark, user-selected file access, and network
   client entitlements are present;
+- direct Downloads folder access is absent because imports use user-selected
+  file access;
 - debug signing entitlements are absent;
 - the executable is universal (`arm64` and `x86_64`);
 - notarization succeeds;
