@@ -3,10 +3,18 @@
 Seed Box ships outside the Mac App Store, so public builds should use Apple's
 Developer ID signing and notarization flow.
 
-The release script uses the native Xcode archive and Developer ID export path.
-That lets Xcode sign the app bundle, Swift runtime, SwiftPM frameworks, and
-entitlements before the script submits the exported app to Apple's notary
-service.
+Seed Box should not hand-roll signing, notarization, stapling, or Gatekeeper
+validation. Use Apple's native tools for those jobs:
+
+- Xcode Organizer for manual releases and first-time account setup checks.
+- `xcodebuild archive` and `xcodebuild -exportArchive` for repeatable release
+  automation.
+- `notarytool`, `stapler`, and `spctl` for notarization, ticket stapling, and
+  Gatekeeper assessment.
+
+The release script is a repeatable wrapper around those Apple tools. It lets
+Xcode sign the app bundle, Swift runtime, SwiftPM frameworks, and entitlements
+before submitting the exported app to Apple's notary service.
 
 ## Prerequisites
 
@@ -30,7 +38,23 @@ Use an app-specific password, not the Apple ID account password. Do not commit
 notary credentials, app-specific passwords, exported certificates, or keychain
 files.
 
-## Build A Release ZIP
+## Native Xcode Flow
+
+Use this path first when setting up Developer ID signing on a new Mac:
+
+1. Open `SeedBox.xcodeproj`.
+2. Choose the **Seed Box** scheme.
+3. Choose **Product > Archive**.
+4. In Organizer, choose **Distribute App**.
+5. Choose **Developer ID** distribution.
+6. Let Xcode sign and notarize the app.
+
+This is the clearest way to confirm the Apple ID, team, certificate, and Xcode
+account setup are healthy.
+
+## Automated Release ZIP
+
+Use this path for repeatable releases after the native Xcode flow works.
 
 Run the full release flow:
 
@@ -41,7 +65,7 @@ SEEDBOX_NOTARY_PROFILE=seedbox-notary Scripts/release-zip.zsh
 The full flow uploads the zipped app bundle to Apple's notarization service.
 That upload is required for Developer ID notarization.
 
-For a Developer ID export check without submitting to Apple:
+For a Developer ID export and packaging check without submitting to Apple:
 
 ```sh
 Scripts/release-zip.zsh --skip-notarization

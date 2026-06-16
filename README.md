@@ -121,9 +121,9 @@ Developer ID certificate and notarization.
 ## Release
 
 Seed Box uses Apple's Developer ID signing and notarization flow for public
-macOS releases. The scripted release path archives with Xcode, exports a
-Developer ID signed app, submits it for notarization, staples the ticket,
-packages a ZIP, and runs Gatekeeper checks.
+macOS releases. Use Xcode Organizer for first-time native setup checks, then
+use the release script for repeatable automation around Apple's own archive,
+export, notarization, stapling, packaging, and Gatekeeper tools.
 
 See [Docs/Release.md](Docs/Release.md).
 
