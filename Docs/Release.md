@@ -3,8 +3,7 @@
 Seed Box ships outside the Mac App Store, so public builds should use Apple's
 Developer ID signing and notarization flow.
 
-Seed Box should not hand-roll signing, notarization, stapling, or Gatekeeper
-validation. Use Apple's native tools for those jobs:
+Seed Box's release path is built on Apple's native distribution tools:
 
 - Xcode Organizer for manual releases and first-time account setup checks.
 - `xcodebuild archive` and `xcodebuild -exportArchive` for repeatable release
@@ -12,9 +11,9 @@ validation. Use Apple's native tools for those jobs:
 - `notarytool`, `stapler`, and `spctl` for notarization, ticket stapling, and
   Gatekeeper assessment.
 
-The release script is a repeatable wrapper around those Apple tools. It lets
-Xcode sign the app bundle, Swift runtime, SwiftPM frameworks, and entitlements
-before submitting the exported app to Apple's notary service.
+The release script keeps that flow repeatable. It lets Xcode sign the app
+bundle, Swift runtime, SwiftPM frameworks, and entitlements before submitting
+the exported app to Apple's notary service.
 
 ## Prerequisites
 
@@ -34,9 +33,9 @@ xcrun notarytool store-credentials seedbox-notary \
   --password "app-specific-password"
 ```
 
-Use an app-specific password, not the Apple ID account password. Do not commit
-notary credentials, app-specific passwords, exported certificates, or keychain
-files.
+Use an app-specific password for notarization. Keep notary credentials,
+app-specific passwords, exported certificates, and keychain files in Keychain or
+secret storage outside the repository.
 
 ## Native Xcode Flow
 
