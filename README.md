@@ -77,9 +77,11 @@ The app target is sandboxed and uses:
 
 - app-scoped security bookmarks
 - user-selected read/write file access
+- network client access for optional SMAPI update checks
 
 The user must choose the Stardew Valley `Mods` folder before Seed Box can manage
-mods there.
+mods there. Seed Box does not request direct Downloads folder access; imports
+use user-selected file access instead.
 
 ## Project Layout
 
