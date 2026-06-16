@@ -1,28 +1,31 @@
 # Release Process
 
-Seed Box ships outside the Mac App Store, so public builds should use Apple's
-Developer ID signing and notarization flow.
+Seed Box's primary public release path is the Mac App Store. The optional
+Developer ID path remains available for direct-download testing or a future
+non-App-Store release.
 
 Seed Box's release path is built on Apple's native distribution tools:
 
-- Xcode Organizer for manual releases and first-time account setup checks.
-- `xcodebuild archive` and `xcodebuild -exportArchive` for repeatable release
-  automation.
-- `notarytool`, `stapler`, and `spctl` for notarization, ticket stapling, and
-  Gatekeeper assessment.
+- Xcode Organizer and App Store Connect for Mac App Store uploads.
+- Xcode Organizer for first-time account, certificate, and distribution checks.
+- `xcodebuild archive` and `xcodebuild -exportArchive` for repeatable Developer
+  ID automation.
+- `notarytool`, `stapler`, and `spctl` for optional direct-download
+  notarization, ticket stapling, and Gatekeeper assessment.
 
-The release script keeps that flow repeatable. It lets Xcode sign the app
-bundle, Swift runtime, SwiftPM frameworks, and entitlements before submitting
-the exported app to Apple's notary service.
+The Developer ID release script keeps the direct-download flow repeatable. It
+lets Xcode sign the app bundle, Swift runtime, SwiftPM frameworks, and
+entitlements before submitting the exported app to Apple's notary service.
 
 ## Prerequisites
 
 - Apple Developer Program membership for team `PUT2KYMV2W`.
-- A valid **Developer ID Application** certificate installed in the login
-  keychain.
 - Xcode signed in to the Apple ID that can use that team.
-- A `notarytool` keychain profile or notary credentials supplied through
-  environment variables.
+- An App Store Connect app record before the first Mac App Store upload.
+- A valid **Developer ID Application** certificate only for direct-download
+  builds.
+- A `notarytool` keychain profile or notary credentials only for direct-download
+  notarization.
 
 Create the local notary profile once:
 
@@ -37,9 +40,23 @@ Use an app-specific password for notarization. Keep notary credentials,
 app-specific passwords, exported certificates, and keychain files in Keychain or
 secret storage outside the repository.
 
-## Native Xcode Flow
+## Mac App Store Flow
 
-Use this path first when setting up Developer ID signing on a new Mac:
+Use this path for public releases:
+
+1. Open `SeedBox.xcodeproj`.
+2. Choose the **Seed Box** scheme.
+3. Choose **Product > Archive**.
+4. In Organizer, choose **Distribute App**.
+5. Choose **App Store Connect** distribution.
+6. Upload the archive and finish release setup in App Store Connect.
+
+The App Store handles public update delivery for this distribution path.
+
+## Developer ID Flow
+
+Use this path only for direct-download testing or a future non-App-Store
+release:
 
 1. Open `SeedBox.xcodeproj`.
 2. Choose the **Seed Box** scheme.
@@ -48,12 +65,13 @@ Use this path first when setting up Developer ID signing on a new Mac:
 5. Choose **Developer ID** distribution.
 6. Let Xcode sign and notarize the app.
 
-This is the clearest way to confirm the Apple ID, team, certificate, and Xcode
-account setup are healthy.
+This is the clearest way to confirm the Developer ID certificate and
+notarization setup are healthy.
 
-## Automated Release ZIP
+## Automated Developer ID ZIP
 
-Use this path for repeatable releases after the native Xcode flow works.
+Use this path for repeatable direct-download builds after the Developer ID flow
+works.
 
 Run the full release flow:
 

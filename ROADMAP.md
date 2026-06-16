@@ -8,13 +8,12 @@ task.
 
 ### Release trust and updates
 
-- Run the first Developer ID signing and notarization pass with
-  `Scripts/release-zip.zsh`.
-- Confirm Gatekeeper behavior with a downloaded app archive after the first
-  hosted release artifact exists.
-- Wire Sparkle into the app after the signed/notarized release path is proven.
-- Add Sparkle feed generation and update-check UI using the existing Sparkle
-  dependency.
+- Prepare the Mac App Store release path in Xcode Organizer and App Store
+  Connect.
+- Keep the Developer ID ZIP release script available for direct-download testing
+  and possible non-App-Store distribution.
+- Confirm Gatekeeper behavior with a downloaded app archive only if a
+  direct-download release is shipped.
 
 ## Next Product Features
 
@@ -64,8 +63,8 @@ start with a baseline set and layer optional collections on top.
 ## Release Discipline
 
 - Decide the versioning policy before the first public release.
-- Keep `MARKETING_VERSION`, build numbers, Sparkle appcast entries, and release
-  tags in lockstep.
+- Keep `MARKETING_VERSION`, build numbers, App Store Connect versions, and
+  release tags in lockstep.
 - Discuss continuous integration after the release path is clearer.
 - Keep full test-suite verification as the default checkpoint before pushing
   behavior changes.

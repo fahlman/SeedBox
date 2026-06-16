@@ -115,15 +115,14 @@ Command-line verification:
 xcodebuild test -project SeedBox.xcodeproj -scheme "Seed Box" -destination "platform=macOS"
 ```
 
-Local builds use the project signing settings. Distribution should use a
-Developer ID certificate and notarization.
+Local builds use the project signing settings. Public distribution is planned
+for the Mac App Store.
 
 ## Release
 
-Seed Box uses Apple's Developer ID signing and notarization flow for public
-macOS releases. Use Xcode Organizer for first-time native setup checks, then
-use the release script for repeatable automation around Apple's own archive,
-export, notarization, stapling, packaging, and Gatekeeper tools.
+Seed Box's primary public release path is the Mac App Store through Xcode
+Organizer and App Store Connect. The Developer ID release script remains
+available for direct-download testing or a future non-App-Store release.
 
 See [Docs/Release.md](Docs/Release.md).
 

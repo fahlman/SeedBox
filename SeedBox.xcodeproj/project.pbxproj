@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		946852BC2FCE990200E94F9B /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 946852BB2FCE990200E94F9B /* Sparkle */; };
 		946852BF2FCE991A00E94F9B /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 946852BE2FCE991A00E94F9B /* ZIPFoundation */; };
 /* End PBXBuildFile section */
 
@@ -62,7 +61,6 @@
 		P00100000000000000000003 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
-				946852BC2FCE990200E94F9B /* Sparkle in Frameworks */,
 				946852BF2FCE991A00E94F9B /* ZIPFoundation in Frameworks */,
 			);
 		};
@@ -132,7 +130,6 @@
 			);
 			name = "Seed Box";
 			packageProductDependencies = (
-				946852BB2FCE990200E94F9B /* Sparkle */,
 				946852BE2FCE991A00E94F9B /* ZIPFoundation */,
 			);
 			productName = "Seed Box";
@@ -187,7 +184,6 @@
 			);
 			mainGroup = G00000000000000000000001;
 			packageReferences = (
-				946852BA2FCE990200E94F9B /* XCRemoteSwiftPackageReference "Sparkle" */,
 				946852BD2FCE991A00E94F9B /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 			);
 			preferredProjectObjectVersion = 100;
@@ -489,14 +485,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		946852BA2FCE990200E94F9B /* XCRemoteSwiftPackageReference "Sparkle" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sparkle-project/Sparkle";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.9.2;
-			};
-		};
 		946852BD2FCE991A00E94F9B /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/weichsel/ZIPFoundation";
@@ -508,11 +496,6 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		946852BB2FCE990200E94F9B /* Sparkle */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 946852BA2FCE990200E94F9B /* XCRemoteSwiftPackageReference "Sparkle" */;
-			productName = Sparkle;
-		};
 		946852BE2FCE991A00E94F9B /* ZIPFoundation */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 946852BD2FCE991A00E94F9B /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
