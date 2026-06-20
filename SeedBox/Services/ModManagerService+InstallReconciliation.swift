@@ -85,18 +85,11 @@ extension ModManagerService {
             nextState = refreshedState(from: nextState)
             record(changeMessage, severity: changeSeverity, in: &nextState)
 
-            let savedState: ModManagerState
-            if !installResult.installed.isEmpty {
-                savedState = saveCurrentStateToSelectedModSet(
-                    in: nextState,
-                    recordingSuccess: AppStrings.Status.updatedModSet(
-                        after: changeMessage,
-                        setName: nextState.modSetSelection.selectedSetName
-                    )
-                )
-            } else {
-                savedState = nextState
-            }
+            let savedState = saveSelectedModSetIfNeeded(
+                afterInstalling: installResult,
+                changeMessage: changeMessage,
+                in: nextState
+            )
 
             var auditedState = savedState
             var details = installDetails(
@@ -233,6 +226,24 @@ extension ModManagerService {
         }
 
         return sentences.joined(separator: " ")
+    }
+
+    func saveSelectedModSetIfNeeded(
+        afterInstalling installResult: ModInstallResult,
+        changeMessage: String,
+        in state: ModManagerState
+    ) -> ModManagerState {
+        guard !installResult.installed.isEmpty else {
+            return state
+        }
+
+        return saveCurrentStateToSelectedModSet(
+            in: state,
+            recordingSuccess: AppStrings.Status.updatedModSet(
+                after: changeMessage,
+                setName: state.modSetSelection.selectedSetName
+            )
+        )
     }
 
     func auditAction(for installResult: ModInstallResult) -> AuditLogAction {
