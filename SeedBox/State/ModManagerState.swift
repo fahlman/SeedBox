@@ -10,36 +10,256 @@ struct StatusEvent: Equatable, Sendable {
     var message: String
 }
 
-struct ModManagerState: Equatable, Sendable {
+struct ModManagerFolderState: Equatable, Sendable {
     var modsDirectoryPath: String
     var status: InstallationStatus
     var hasSavedFolderAccess: Bool
+}
+
+struct ModManagerInventoryState: Equatable, Sendable {
     var mods: [ModInfo]
     var invalidModFolders: [InvalidModFolder]
+    var hasLoadedMods: Bool
+}
+
+struct ModManagerArchiveState: Equatable, Sendable {
     var archivedMods: [ArchivedModInfo]
     var archiveSummary: ModArchiveSummary
     var archiveSettings: ArchiveSettings
-    var sourceCleanupSettings = SourceCleanupSettings(
-        moveModFilesToTrashAfterAddingMods: false,
-        suppressAddModsSuccessNotification: false
-    )
-    var checksForModUpdates = false
-    var availableUpdates: [ModAvailableUpdate] = []
+}
+
+struct ModManagerSourceCleanupState: Equatable, Sendable {
+    var settings: SourceCleanupSettings
+    var pendingOffer: SourceCleanupOffer?
+}
+
+struct ModManagerUpdateState: Equatable, Sendable {
+    var checksForModUpdates: Bool
+    var availableUpdates: [ModAvailableUpdate]
     var availableSMAPIUpdate: ModAvailableUpdate?
     /// Mod pages resolved during update checks, keyed by normalized unique ID.
     /// Powers "Get Mod" links for missing dependencies.
-    var knownModPageURLs: [String: URL] = [:]
-    var hasLoadedMods: Bool
-    var modSets: [ModSet]
-    var selectedModSetID: String
-    var appliedModSetID: String?
-    var activityStatus: StatusEvent?
+    var knownModPageURLs: [String: URL]
+}
+
+struct ModManagerModSetState: Equatable, Sendable {
+    var sets: [ModSet]
+    var selectedSetID: String
+    var appliedSetID: String?
+}
+
+struct ModManagerTroubleshootingState: Equatable, Sendable {
     var bisectionSession: ModBisectionSession?
-    var hasSMAPILogFolderAccess = false
+    var hasSMAPILogFolderAccess: Bool
     var lastSessionReport: SMAPILogReport?
     var pendingLastSessionNotice: LastSessionNotice?
+}
+
+struct ModManagerActivityState: Equatable, Sendable {
+    var activityStatus: StatusEvent?
     var auditTrail: AuditTrailState
-    var pendingSourceCleanupOffer: SourceCleanupOffer?
+}
+
+struct ModManagerState: Equatable, Sendable {
+    var folder: ModManagerFolderState
+    var inventory: ModManagerInventoryState
+    var archive: ModManagerArchiveState
+    var sourceCleanup: ModManagerSourceCleanupState
+    var updates: ModManagerUpdateState
+    var modSetsState: ModManagerModSetState
+    var troubleshooting: ModManagerTroubleshootingState
+    var activity: ModManagerActivityState
+
+    init(
+        modsDirectoryPath: String,
+        status: InstallationStatus,
+        hasSavedFolderAccess: Bool,
+        mods: [ModInfo],
+        invalidModFolders: [InvalidModFolder],
+        archivedMods: [ArchivedModInfo],
+        archiveSummary: ModArchiveSummary,
+        archiveSettings: ArchiveSettings,
+        sourceCleanupSettings: SourceCleanupSettings = SourceCleanupSettings(
+            moveModFilesToTrashAfterAddingMods: false,
+            suppressAddModsSuccessNotification: false
+        ),
+        checksForModUpdates: Bool = false,
+        availableUpdates: [ModAvailableUpdate] = [],
+        availableSMAPIUpdate: ModAvailableUpdate? = nil,
+        knownModPageURLs: [String: URL] = [:],
+        hasLoadedMods: Bool,
+        modSets: [ModSet],
+        selectedModSetID: String,
+        appliedModSetID: String?,
+        activityStatus: StatusEvent?,
+        bisectionSession: ModBisectionSession? = nil,
+        hasSMAPILogFolderAccess: Bool = false,
+        lastSessionReport: SMAPILogReport? = nil,
+        pendingLastSessionNotice: LastSessionNotice? = nil,
+        auditTrail: AuditTrailState,
+        pendingSourceCleanupOffer: SourceCleanupOffer?
+    ) {
+        folder = ModManagerFolderState(
+            modsDirectoryPath: modsDirectoryPath,
+            status: status,
+            hasSavedFolderAccess: hasSavedFolderAccess
+        )
+        inventory = ModManagerInventoryState(
+            mods: mods,
+            invalidModFolders: invalidModFolders,
+            hasLoadedMods: hasLoadedMods
+        )
+        archive = ModManagerArchiveState(
+            archivedMods: archivedMods,
+            archiveSummary: archiveSummary,
+            archiveSettings: archiveSettings
+        )
+        sourceCleanup = ModManagerSourceCleanupState(
+            settings: sourceCleanupSettings,
+            pendingOffer: pendingSourceCleanupOffer
+        )
+        updates = ModManagerUpdateState(
+            checksForModUpdates: checksForModUpdates,
+            availableUpdates: availableUpdates,
+            availableSMAPIUpdate: availableSMAPIUpdate,
+            knownModPageURLs: knownModPageURLs
+        )
+        modSetsState = ModManagerModSetState(
+            sets: modSets,
+            selectedSetID: selectedModSetID,
+            appliedSetID: appliedModSetID
+        )
+        troubleshooting = ModManagerTroubleshootingState(
+            bisectionSession: bisectionSession,
+            hasSMAPILogFolderAccess: hasSMAPILogFolderAccess,
+            lastSessionReport: lastSessionReport,
+            pendingLastSessionNotice: pendingLastSessionNotice
+        )
+        activity = ModManagerActivityState(
+            activityStatus: activityStatus,
+            auditTrail: auditTrail
+        )
+    }
+
+    var modsDirectoryPath: String {
+        get { folder.modsDirectoryPath }
+        set { folder.modsDirectoryPath = newValue }
+    }
+
+    var status: InstallationStatus {
+        get { folder.status }
+        set { folder.status = newValue }
+    }
+
+    var hasSavedFolderAccess: Bool {
+        get { folder.hasSavedFolderAccess }
+        set { folder.hasSavedFolderAccess = newValue }
+    }
+
+    var mods: [ModInfo] {
+        get { inventory.mods }
+        set { inventory.mods = newValue }
+    }
+
+    var invalidModFolders: [InvalidModFolder] {
+        get { inventory.invalidModFolders }
+        set { inventory.invalidModFolders = newValue }
+    }
+
+    var hasLoadedMods: Bool {
+        get { inventory.hasLoadedMods }
+        set { inventory.hasLoadedMods = newValue }
+    }
+
+    var archivedMods: [ArchivedModInfo] {
+        get { archive.archivedMods }
+        set { archive.archivedMods = newValue }
+    }
+
+    var archiveSummary: ModArchiveSummary {
+        get { archive.archiveSummary }
+        set { archive.archiveSummary = newValue }
+    }
+
+    var archiveSettings: ArchiveSettings {
+        get { archive.archiveSettings }
+        set { archive.archiveSettings = newValue }
+    }
+
+    var sourceCleanupSettings: SourceCleanupSettings {
+        get { sourceCleanup.settings }
+        set { sourceCleanup.settings = newValue }
+    }
+
+    var pendingSourceCleanupOffer: SourceCleanupOffer? {
+        get { sourceCleanup.pendingOffer }
+        set { sourceCleanup.pendingOffer = newValue }
+    }
+
+    var checksForModUpdates: Bool {
+        get { updates.checksForModUpdates }
+        set { updates.checksForModUpdates = newValue }
+    }
+
+    var availableUpdates: [ModAvailableUpdate] {
+        get { updates.availableUpdates }
+        set { updates.availableUpdates = newValue }
+    }
+
+    var availableSMAPIUpdate: ModAvailableUpdate? {
+        get { updates.availableSMAPIUpdate }
+        set { updates.availableSMAPIUpdate = newValue }
+    }
+
+    var knownModPageURLs: [String: URL] {
+        get { updates.knownModPageURLs }
+        set { updates.knownModPageURLs = newValue }
+    }
+
+    var modSets: [ModSet] {
+        get { modSetsState.sets }
+        set { modSetsState.sets = newValue }
+    }
+
+    var selectedModSetID: String {
+        get { modSetsState.selectedSetID }
+        set { modSetsState.selectedSetID = newValue }
+    }
+
+    var appliedModSetID: String? {
+        get { modSetsState.appliedSetID }
+        set { modSetsState.appliedSetID = newValue }
+    }
+
+    var bisectionSession: ModBisectionSession? {
+        get { troubleshooting.bisectionSession }
+        set { troubleshooting.bisectionSession = newValue }
+    }
+
+    var hasSMAPILogFolderAccess: Bool {
+        get { troubleshooting.hasSMAPILogFolderAccess }
+        set { troubleshooting.hasSMAPILogFolderAccess = newValue }
+    }
+
+    var lastSessionReport: SMAPILogReport? {
+        get { troubleshooting.lastSessionReport }
+        set { troubleshooting.lastSessionReport = newValue }
+    }
+
+    var pendingLastSessionNotice: LastSessionNotice? {
+        get { troubleshooting.pendingLastSessionNotice }
+        set { troubleshooting.pendingLastSessionNotice = newValue }
+    }
+
+    var activityStatus: StatusEvent? {
+        get { activity.activityStatus }
+        set { activity.activityStatus = newValue }
+    }
+
+    var auditTrail: AuditTrailState {
+        get { activity.auditTrail }
+        set { activity.auditTrail = newValue }
+    }
 
     var readiness: ModManagerReadiness {
         if !hasSavedFolderAccess {
