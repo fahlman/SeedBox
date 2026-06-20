@@ -26,6 +26,7 @@ enum ModDependencyPreflight {
         applying set: ModSet,
         to mods: [ModInfo]
     ) -> [ModDependencyIssue] {
-        ModDependencyGraph(mods: mods).issues(applying: set)
+        let resolvedSet = ModSetResolver.resolve(set)
+        return ModDependencyGraph(mods: mods).issues(applying: resolvedSet)
     }
 }

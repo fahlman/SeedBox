@@ -59,7 +59,8 @@ extension ModManagerService {
             isDefault: set.isDefault,
             isIncluded: set.isIncluded
         )
-        return currentSnapshot.disabledFolderTokens == set.disabledFolderTokens
+        return ModSetResolver.disabledFolderTokens(for: currentSnapshot)
+            == ModSetResolver.disabledFolderTokens(for: set)
     }
 
     func standardizedPath(for url: URL) -> String {

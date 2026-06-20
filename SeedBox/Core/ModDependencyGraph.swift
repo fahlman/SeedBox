@@ -243,10 +243,14 @@ struct ModDependencyGraph: Sendable {
     }
 
     func issues(applying set: ModSet) -> [ModDependencyIssue] {
-        let enabledModIDs = Set(mods.filter { isEnabled($0, applying: set) }.map(\.id))
+        issues(applying: ModSetResolver.resolve(set))
+    }
+
+    func issues(applying resolvedSet: ResolvedModSet) -> [ModDependencyIssue] {
+        let enabledModIDs = Set(mods.filter(resolvedSet.isEnabled).map(\.id))
 
         return mods
-            .filter { isEnabled($0, applying: set) }
+            .filter(resolvedSet.isEnabled)
             .compactMap { mod in
                 let issues = unsatisfiedRequirements(
                     mod.requiredDependencyRequirements,
@@ -359,9 +363,6 @@ struct ModDependencyGraph: Sendable {
         }
     }
 
-    private func isEnabled(_ mod: ModInfo, applying set: ModSet) -> Bool {
-        !set.disabledFolderTokens.contains(mod.enabledFolderName.normalizedFolderToken)
-    }
 }
 
 private extension ModDependencyProblem {

@@ -157,13 +157,11 @@ enum ModSetStore {
         fileManager: FileManager = .default
     ) throws -> Int {
         let mods = try ModLibrary.scan(install: install, fileManager: fileManager)
-        let disabledFolderNames = Set(
-            normalizeFolderNames(set.disabledFolderNames).map(\.normalizedFolderToken)
-        )
+        let resolvedSet = ModSetResolver.resolve(set)
 
         var changedCount = 0
         for mod in mods {
-            let shouldBeEnabled = !disabledFolderNames.contains(mod.enabledFolderName.normalizedFolderToken)
+            let shouldBeEnabled = resolvedSet.isEnabled(mod)
             guard mod.isEnabled != shouldBeEnabled else {
                 continue
             }

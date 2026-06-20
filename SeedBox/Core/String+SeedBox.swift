@@ -2,7 +2,10 @@ import Foundation
 
 extension String {
     var normalizedFolderToken: String {
-        trimmingPrefix(Character(".")).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingPrefix(Character("."))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
     }
 
     var normalizedDependencyID: String {
