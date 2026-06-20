@@ -8,12 +8,18 @@ task.
 
 ### Release trust and updates
 
-- Prepare the Mac App Store release path in Xcode Organizer and App Store
-  Connect.
-- Keep the Developer ID ZIP release script available for direct-download testing
-  and possible non-App-Store distribution.
-- Confirm Gatekeeper behavior with a downloaded app archive only if a
-  direct-download release is shipped.
+- Build the full product first; do not remove features from the App Store
+  candidate based only on guessed review outcomes.
+- Keep one codebase with separate sandboxed App Store-candidate and
+  non-sandboxed Steam release builds.
+- Prepare the App Store and Steam release paths in parallel so either channel can
+  ship the same product promise.
+- Keep the Developer ID ZIP release script available for Steam packaging,
+  direct-download testing, and notarization checks.
+- Confirm Gatekeeper behavior for Steam and any direct-download app archive.
+- Use GitHub issues labeled `store-readiness` for store validation and
+  storefront-specific decisions; keep feature implementation work in the
+  feature issues.
 
 ## Next Product Features
 

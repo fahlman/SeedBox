@@ -109,7 +109,9 @@ Development:
 
 ## Build And Test
 
-Open `SeedBox.xcodeproj` in Xcode and run the **Seed Box** scheme.
+Open `SeedBox.xcodeproj` in Xcode and run the **Seed Box** scheme for the
+sandboxed App Store candidate, or **Seed Box Steam** for the Steam-compatible
+build.
 
 Command-line verification:
 
@@ -118,7 +120,9 @@ xcodebuild test -project SeedBox.xcodeproj -scheme "Seed Box" -destination "plat
 ```
 
 Local builds use the project signing settings. Public distribution is planned
-for the Mac App Store.
+around one codebase with separate App Store-candidate and Steam release builds.
+The App Store candidate should stay the full product unless a confirmed review
+or policy blocker requires a channel-specific decision.
 
 ## Development Workflow
 
@@ -130,11 +134,14 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Release
 
-Seed Box's primary public release path is the Mac App Store through Xcode
-Organizer and App Store Connect. The Developer ID release script remains
-available for direct-download testing or a future non-App-Store release.
+Seed Box keeps one codebase and two release builds: a sandboxed Mac App Store
+candidate and a non-sandboxed Steam-compatible Developer ID build.
 
 See [Docs/Release.md](Docs/Release.md).
+
+Store-specific release validation is tracked in
+[Docs/StoreFeatureMatrix.md](Docs/StoreFeatureMatrix.md) and GitHub issues
+labeled `store-readiness`.
 
 ## Roadmap
 

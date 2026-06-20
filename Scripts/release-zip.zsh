@@ -3,10 +3,11 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT_PATH="$ROOT_DIR/SeedBox.xcodeproj"
-SCHEME="Seed Box"
-CONFIGURATION="Release"
+SCHEME="${SEEDBOX_RELEASE_SCHEME:-Seed Box}"
+CONFIGURATION="${SEEDBOX_RELEASE_CONFIGURATION:-Release}"
 APP_BUNDLE_NAME="Seed Box Mod Manager"
-RELEASE_NAME="SeedBox"
+RELEASE_NAME="${SEEDBOX_RELEASE_NAME:-SeedBox}"
+RELEASE_CHANNEL="${SEEDBOX_RELEASE_CHANNEL:-app-store-candidate}"
 TEAM_ID="${SEEDBOX_TEAM_ID:-PUT2KYMV2W}"
 NOTARY_PROFILE="${SEEDBOX_NOTARY_PROFILE:-}"
 NOTARY_APPLE_ID="${SEEDBOX_NOTARY_APPLE_ID:-}"
@@ -28,6 +29,7 @@ The archive/export steps use Xcode's Developer ID export path so Xcode handles
 the app bundle, Swift runtime, SwiftPM frameworks, signing, and entitlements.
 
 Options:
+  --steam                   Build the Steam-compatible Developer ID ZIP.
   --archive-path PATH       Reuse an existing .xcarchive instead of archiving.
   --skip-notarization       Export and package without submitting to Apple.
   --notary-profile NAME     notarytool keychain profile name.
@@ -36,6 +38,10 @@ Options:
   -h, --help                Show this help.
 
 Environment variables:
+  SEEDBOX_RELEASE_CHANNEL
+  SEEDBOX_RELEASE_CONFIGURATION
+  SEEDBOX_RELEASE_NAME
+  SEEDBOX_RELEASE_SCHEME
   SEEDBOX_TEAM_ID
   SEEDBOX_ARCHIVE_PATH
   SEEDBOX_NOTARY_PROFILE
@@ -67,6 +73,28 @@ require_value() {
         echo "ERROR: Missing required value: $name"
         exit 1
     fi
+}
+
+apply_release_channel_defaults() {
+    case "$RELEASE_CHANNEL" in
+        app-store-candidate)
+            ;;
+        steam)
+            if [[ -z "${SEEDBOX_RELEASE_SCHEME:-}" ]]; then
+                SCHEME="Seed Box Steam"
+            fi
+            if [[ -z "${SEEDBOX_RELEASE_CONFIGURATION:-}" ]]; then
+                CONFIGURATION="Release Steam"
+            fi
+            if [[ -z "${SEEDBOX_RELEASE_NAME:-}" ]]; then
+                RELEASE_NAME="SeedBox-Steam"
+            fi
+            ;;
+        *)
+            echo "ERROR: Unknown release channel: $RELEASE_CHANNEL"
+            exit 64
+            ;;
+    esac
 }
 
 refuse_unsafe_path() {
@@ -292,10 +320,19 @@ verify_signed_app() {
     fi
 
     codesign_entitlements "$app_path" "$entitlements_path"
-    assert_entitlement_present "$entitlements_path" "com.apple.security.app-sandbox"
-    assert_entitlement_present "$entitlements_path" "com.apple.security.files.bookmarks.app-scope"
-    assert_entitlement_present "$entitlements_path" "com.apple.security.files.user-selected.read-write"
-    assert_entitlement_present "$entitlements_path" "com.apple.security.network.client"
+    case "$RELEASE_CHANNEL" in
+        app-store-candidate)
+            assert_entitlement_present "$entitlements_path" "com.apple.security.app-sandbox"
+            assert_entitlement_present "$entitlements_path" "com.apple.security.files.bookmarks.app-scope"
+            assert_entitlement_present "$entitlements_path" "com.apple.security.files.user-selected.read-write"
+            assert_entitlement_present "$entitlements_path" "com.apple.security.network.client"
+            ;;
+        steam)
+            assert_entitlement_absent "$entitlements_path" "com.apple.security.app-sandbox"
+            assert_entitlement_present "$entitlements_path" "com.apple.security.cs.allow-dyld-environment-variables"
+            assert_entitlement_present "$entitlements_path" "com.apple.security.cs.disable-library-validation"
+            ;;
+    esac
     assert_entitlement_absent "$entitlements_path" "com.apple.security.get-task-allow"
     assert_entitlement_absent "$entitlements_path" "PRODUCT_BUNDLE_IDENTIFIER"
 
@@ -337,6 +374,10 @@ run_gatekeeper_zip_check() {
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --steam)
+            RELEASE_CHANNEL=steam
+            shift
+            ;;
         --archive-path)
             ARCHIVE_PATH="${2:-}"
             REUSE_ARCHIVE=true
@@ -371,6 +412,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+apply_release_channel_defaults
 require_value "TEAM_ID" "$TEAM_ID"
 require_command /usr/bin/awk
 require_command /usr/bin/codesign
@@ -413,6 +455,9 @@ SIGNATURE_PATH="$WORK_DIR/$RELEASE_NAME-signature.txt"
 
 echo "Seed Box ZIP release"
 echo "Root:        $ROOT_DIR"
+echo "Channel:     $RELEASE_CHANNEL"
+echo "Scheme:      $SCHEME"
+echo "Config:      $CONFIGURATION"
 echo "Team ID:     $TEAM_ID"
 echo "Archive:     $ARCHIVE_PATH"
 echo "Work dir:    $WORK_DIR"

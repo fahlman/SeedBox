@@ -1,31 +1,42 @@
 # Release Process
 
-Seed Box's primary public release path is the Mac App Store. The optional
-Developer ID path remains available for direct-download testing or a future
-non-App-Store release.
+Seed Box uses one codebase with separate release builds for the Mac App Store
+candidate and Steam. The App Store candidate remains sandboxed. The Steam build
+uses the same app target and source files, but archives with Steam-compatible
+signing settings and no App Sandbox entitlement.
 
 Seed Box's release path is built on Apple's native distribution tools:
 
 - Xcode Organizer and App Store Connect for Mac App Store uploads.
 - Xcode Organizer for first-time account, certificate, and distribution checks.
 - `xcodebuild archive` and `xcodebuild -exportArchive` for repeatable Developer
-  ID automation.
-- `notarytool`, `stapler`, and `spctl` for optional direct-download
+  ID and Steam packaging automation.
+- `notarytool`, `stapler`, and `spctl` for Steam and optional direct-download
   notarization, ticket stapling, and Gatekeeper assessment.
 
-The Developer ID release script keeps the direct-download flow repeatable. It
-lets Xcode sign the app bundle, Swift runtime, SwiftPM frameworks, and
-entitlements before submitting the exported app to Apple's notary service.
+The Developer ID release script keeps the Steam and optional direct-download
+flows repeatable. It lets Xcode sign the app bundle, Swift runtime, SwiftPM
+frameworks, and entitlements before submitting the exported app to Apple's
+notary service.
+
+## Release Principle
+
+Seed Box should submit the full App Store candidate unless there is a clear,
+confirmed policy blocker. Do not remove features from the App Store build based
+only on guessed review outcomes. If App Review rejects a required full-product
+feature, record the exact objection and decide whether the App Store build can
+remain a full-quality product or whether Steam/direct distribution is the better
+channel.
 
 ## Prerequisites
 
 - Apple Developer Program membership for team `PUT2KYMV2W`.
 - Xcode signed in to the Apple ID that can use that team.
 - An App Store Connect app record before the first Mac App Store upload.
-- A valid **Developer ID Application** certificate only for direct-download
-  builds.
-- A `notarytool` keychain profile or notary credentials only for direct-download
-  notarization.
+- A valid **Developer ID Application** certificate for Steam and optional
+  direct-download builds.
+- A `notarytool` keychain profile or notary credentials for Steam and optional
+  direct-download notarization.
 
 Create the local notary profile once:
 
@@ -42,7 +53,7 @@ secret storage outside the repository.
 
 ## Mac App Store Flow
 
-Use this path for public releases:
+Use this path for a sandboxed App Store submission candidate:
 
 1. Open `SeedBox.xcodeproj`.
 2. Choose the **Seed Box** scheme.
@@ -53,25 +64,25 @@ Use this path for public releases:
 
 The App Store handles public update delivery for this distribution path.
 
-## Developer ID Flow
+## Steam Flow
 
-Use this path only for direct-download testing or a future non-App-Store
-release:
+Use this path for the Steam-compatible macOS build:
 
 1. Open `SeedBox.xcodeproj`.
-2. Choose the **Seed Box** scheme.
+2. Choose the **Seed Box Steam** scheme.
 3. Choose **Product > Archive**.
 4. In Organizer, choose **Distribute App**.
 5. Choose **Developer ID** distribution.
 6. Let Xcode sign and notarize the app.
 
-This is the clearest way to confirm the Developer ID certificate and
-notarization setup are healthy.
+The Steam scheme uses `Release Steam`, `SeedBox/Steam.entitlements`, hardened
+runtime, and `ENABLE_APP_SANDBOX = NO`. The normal **Seed Box** scheme continues
+to use `SeedBox/Sandbox.entitlements` for the App Store candidate.
 
 ## Automated Developer ID ZIP
 
-Use this path for repeatable direct-download builds after the Developer ID flow
-works.
+Use this path for repeatable Steam packaging and optional direct-download builds
+after the Developer ID flow works.
 
 Run the full release flow:
 
@@ -79,19 +90,28 @@ Run the full release flow:
 SEEDBOX_NOTARY_PROFILE=seedbox-notary Scripts/release-zip.zsh
 ```
 
+Run the Steam-compatible release flow:
+
+```sh
+SEEDBOX_NOTARY_PROFILE=seedbox-notary Scripts/release-zip.zsh --steam
+```
+
 The full flow uploads the zipped app bundle to Apple's notarization service.
-That upload is required for Developer ID notarization.
+That upload is required for Developer ID notarization before Steam distribution.
 
 For a Developer ID export and packaging check without submitting to Apple:
 
 ```sh
 Scripts/release-zip.zsh --skip-notarization
+Scripts/release-zip.zsh --steam --skip-notarization
 ```
 
 The script writes release artifacts to `dist/`, which is ignored by Git:
 
 - `SeedBox-<version>.zip`
 - `SeedBox-<version>-manifest.json`
+- `SeedBox-Steam-<version>.zip`
+- `SeedBox-Steam-<version>-manifest.json`
 
 The manifest records the version, build number, bundle identifier, team ID,
 archive path, ZIP path, SHA-256 hash, and whether the ZIP was notarized.
@@ -102,8 +122,10 @@ The full release flow verifies:
 
 - the app is signed by a Developer ID Application certificate for the expected
   team;
-- the sandbox, security-scoped bookmark, user-selected file access, and network
-  client entitlements are present;
+- the App Store-candidate build includes the sandbox, security-scoped bookmark,
+  user-selected file access, and network client entitlements;
+- the Steam build omits the App Sandbox entitlement and includes Steam's
+  hardened-runtime compatibility entitlements;
 - direct Downloads folder access is absent because imports use user-selected
   file access;
 - debug signing entitlements are absent;
