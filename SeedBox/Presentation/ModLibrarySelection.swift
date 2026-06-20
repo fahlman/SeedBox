@@ -62,115 +62,18 @@ enum SmartModSet: String, CaseIterable, Identifiable, Sendable {
     }
 
     func count(in state: ModManagerState) -> Int {
-        switch self {
-        case .recentlyDeleted:
-            return ModLibrarySelection.recentlyDeletedArchivedMods(in: state).count
-        default:
-            return state.mods.filter { mod in
-                includes(mod, in: state)
-            }.count
-        }
+        ModFilterEngine.count(for: self, in: state)
     }
 
     func includes(_ mod: ModInfo, in state: ModManagerState) -> Bool {
-        switch self {
-        case .allMods:
-            return true
-        case .smapiMods:
-            return !mod.isContentPatcherContentPack
-        case .contentPatcherMods:
-            return mod.isContentPatcherContentPack
-        case .updatesAvailable:
-            return state.availableUpdate(for: mod) != nil
-        case .errors:
-            return Self.errorModIDs(in: state).contains(mod.id)
-        case .warnings:
-            return Self.warningModIDs(in: state).contains(mod.id)
-        case .recentlyAdded:
-            return Self.recentModIDs(for: [.modsAdded], in: state).contains(mod.id)
-        case .recentlyUpdated:
-            return Self.recentlyUpdatedModIDs(in: state).contains(mod.id)
-        case .recentlyDeleted:
-            return false
-        }
-    }
-
-    private static func errorModIDs(in state: ModManagerState) -> Set<String> {
-        var ids = Set(
-            state.mods
-                .filter(\.hasMissingRequiredDependencies)
-                .map(\.id)
+        ModFilterEngine.includes(
+            mod,
+            in: self,
+            context: ModFilterContext(
+                state: state,
+                dependencyGraph: ModDependencyGraph(mods: state.mods)
+            )
         )
-        ids.formUnion(state.smapiVersionIssues.map(\.id))
-        ids.formUnion(state.lastSessionIssues.map(\.mod.id))
-        for duplicateGroup in state.duplicateGroups {
-            ids.formUnion(duplicateGroup.mods.map(\.id))
-        }
-        return ids
-    }
-
-    private static func warningModIDs(in state: ModManagerState) -> Set<String> {
-        let errorIDs = errorModIDs(in: state)
-        return Set(
-            state.mods
-                .filter { mod in
-                    mod.hasMissingOptionalDependencies && !errorIDs.contains(mod.id)
-                }
-                .map(\.id)
-        )
-    }
-
-    private static func recentlyUpdatedModIDs(in state: ModManagerState) -> Set<String> {
-        var ids = recentModIDs(for: [.modsUpdated], in: state)
-        let archivedUpdatedMods = state.archivedMods.filter { archivedMod in
-            archivedMod.reason == .updated
-        }
-        for archivedMod in archivedUpdatedMods {
-            if let currentMod = ModArchive.currentMod(for: archivedMod, in: state.mods) {
-                ids.insert(currentMod.id)
-            }
-        }
-        return ids
-    }
-
-    private static func recentModIDs(
-        for actions: Set<AuditLogAction>,
-        in state: ModManagerState
-    ) -> Set<String> {
-        var ids = Set<String>()
-        let modsByID = Dictionary(uniqueKeysWithValues: state.mods.map { ($0.id, $0) })
-        let modsByPath = Dictionary(uniqueKeysWithValues: state.mods.map { ($0.url.standardizedFileURL.path, $0) })
-        let modsByFolderToken = Dictionary(grouping: state.mods) { mod in
-            mod.enabledFolderName.normalizedFolderToken
-        }
-        let modsByDisplayName = Dictionary(grouping: state.mods, by: { $0.displayName.lowercased() })
-
-        for entry in state.auditTrail.recentEntries.reversed() where actions.contains(entry.action) {
-            for subject in entry.subjects where subject.kind == .mod {
-                if let id = subject.id, modsByID[id] != nil {
-                    ids.insert(id)
-                    continue
-                }
-
-                if let path = subject.path,
-                   let mod = modsByPath[URL(fileURLWithPath: path).standardizedFileURL.path] {
-                    ids.insert(mod.id)
-                    continue
-                }
-
-                let folderToken = subject.name.normalizedFolderToken
-                if let mod = modsByFolderToken[folderToken]?.first {
-                    ids.insert(mod.id)
-                    continue
-                }
-
-                if let mod = modsByDisplayName[subject.name.lowercased()]?.first {
-                    ids.insert(mod.id)
-                }
-            }
-        }
-
-        return ids
     }
 }
 
@@ -273,36 +176,17 @@ enum ModLibrarySelection: Hashable, Sendable {
     }
 
     func includes(_ mod: ModInfo, in state: ModManagerState) -> Bool {
-        switch self {
-        case .smart(let smartSet):
-            return smartSet.includes(mod, in: state)
-        case .modSet:
-            return true
-        }
+        ModFilterEngine.includes(
+            mod,
+            in: self,
+            context: ModFilterContext(
+                state: state,
+                dependencyGraph: ModDependencyGraph(mods: state.mods)
+            )
+        )
     }
 
     static func recentlyDeletedArchivedMods(in state: ModManagerState) -> [ArchivedModInfo] {
-        state.archivedMods
-            .filter { archivedMod in
-                archivedMod.reason == .deleted
-            }
-            .sorted { lhs, rhs in
-                switch (lhs.archivedDate, rhs.archivedDate) {
-                case let (lhsDate?, rhsDate?):
-                    lhsDate > rhsDate
-                case (.some, nil):
-                    true
-                case (nil, .some):
-                    false
-                case (nil, nil):
-                    lhs.displayName.localizedStandardCompare(rhs.displayName) == .orderedAscending
-                }
-            }
-    }
-}
-
-private extension ModInfo {
-    var isContentPatcherContentPack: Bool {
-        manifest?.contentPackFor?.uniqueID?.caseInsensitiveCompare("Pathoschild.ContentPatcher") == .orderedSame
+        ModFilterEngine.recentlyDeletedArchivedMods(in: state)
     }
 }

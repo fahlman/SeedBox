@@ -8,10 +8,10 @@ struct ModLibrarySidebar: View {
     var body: some View {
         List(selection: selectedItemBinding) {
             Section(AppStrings.Library.smartModSets) {
-                ForEach(SmartModSet.allCases) { smartSet in
-                    Label(smartSet.title, systemImage: smartSet.systemImage)
-                        .badge(smartSet.count(in: presentationState.state))
-                        .tag(ModLibrarySelection.smartID(smartSet))
+                ForEach(SmartModSetDefinition.builtIn) { definition in
+                    Label(definition.title, systemImage: definition.systemImage)
+                        .badge(ModFilterEngine.count(for: definition.smartSet, in: presentationState.state))
+                        .tag(ModLibrarySelection.smartID(definition.smartSet))
                 }
             }
 
@@ -43,8 +43,9 @@ struct ModLibrarySidebar: View {
     }
 
     private func modCount(for set: ModSet) -> Int {
-        presentationState.state.mods.filter { mod in
-            !set.disabledFolderTokens.contains(mod.enabledFolderName.normalizedFolderToken)
+        let resolvedSet = ModSetResolver.resolve(set)
+        return presentationState.state.mods.filter { mod in
+            resolvedSet.isEnabled(mod)
         }.count
     }
 }

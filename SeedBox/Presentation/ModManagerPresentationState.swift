@@ -19,15 +19,12 @@ struct ModManagerPresentationState {
         let librarySelection = ModLibrarySelection(
             id: ModLibrarySelection.resolvedID(selectedLibraryItemID, in: state)
         )
-        let query = ModSearchQuery(searchText)
-        let filteredMods = state.mods.filter { mod in
-            librarySelection.includes(mod, in: state)
-                && query.matches(
-                    mod,
-                    in: dependencyGraph,
-                    hasAvailableUpdate: state.availableUpdate(for: mod) != nil
-                )
-        }
+        let filteredMods = ModFilterEngine.filteredMods(
+            in: state,
+            librarySelection: librarySelection,
+            searchText: searchText,
+            dependencyGraph: dependencyGraph
+        )
         let selectedMod = Self.selectedMod(in: filteredMods, selectedModIDs: selectedModIDs)
 
         self.state = state
