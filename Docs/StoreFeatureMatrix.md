@@ -144,6 +144,12 @@ Legend:
   records audit entries. Its App Store status remains Risky because it mutates
   user-selected game mod folders, but no build-specific code constraint was
   found. Verified with full `Seed Box` and `Seed Box Steam` scheme test runs.
+- 2026-06-20: Security-scoped folder access uses app-scoped bookmarks for the
+  Mods folder, refreshes stale bookmarks when possible, starts scoped access for
+  file operations and folder monitoring, and clears/report lost access when a
+  bookmark fails. No App Store or Steam-specific constraint was found; Steam can
+  keep this path as optional defense-in-depth. Verified with full `Seed Box` and
+  `Seed Box Steam` scheme test runs.
 
 ## Release Decision Rule
 
