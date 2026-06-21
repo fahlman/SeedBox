@@ -110,8 +110,9 @@ struct ModManagerView: View {
             .focusedValue(\.modManagerCommandContext, commandContext(presentationState))
     }
 
+    @ViewBuilder
     private func content(_ presentationState: ModManagerPresentationState) -> some View {
-        VStack(spacing: 0) {
+        Group {
             if presentationState.canManageMods {
                 managedLibraryContent(presentationState)
             } else {
@@ -122,15 +123,19 @@ struct ModManagerView: View {
                     createModFolder: createModFolder
                 )
             }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            statusLine(presentationState)
+        }
+    }
 
-            if !presentationState.statusLineMessage.isEmpty {
+    @ViewBuilder
+    private func statusLine(_ presentationState: ModManagerPresentationState) -> some View {
+        if !presentationState.statusLineMessage.isEmpty {
+            VStack(spacing: 0) {
                 Divider()
                 HStack(spacing: 6) {
-                    if presentationState.statusLineSeverity == .error {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                            .accessibilityLabel(AppStrings.Problems.title)
-                    }
+                    statusLineIcon(presentationState)
 
                     Text(presentationState.statusLineMessage)
                         .font(.callout)
@@ -141,8 +146,17 @@ struct ModManagerView: View {
                 .padding(.horizontal, 18)
                 .padding(.vertical, 10)
             }
+            .background(.background)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private func statusLineIcon(_ presentationState: ModManagerPresentationState) -> some View {
+        if presentationState.statusLineSeverity == .error {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .accessibilityLabel(AppStrings.Problems.title)
+        }
     }
 
     private func managedLibraryContent(_ presentationState: ModManagerPresentationState) -> some View {
@@ -155,7 +169,6 @@ struct ModManagerView: View {
         } detail: {
             managedContent(presentationState)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
