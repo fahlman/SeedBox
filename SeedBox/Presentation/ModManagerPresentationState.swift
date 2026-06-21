@@ -108,7 +108,7 @@ struct ModManagerPresentationState {
     }
 
     var selectedRenamableSet: ModSet? {
-        guard let selectedSet, selectedSet.isUserEditable else {
+        guard let selectedSet, selectedSet.isUserRenamable else {
             return nil
         }
 
@@ -116,7 +116,11 @@ struct ModManagerPresentationState {
     }
 
     var selectedDeletableSet: ModSet? {
-        selectedRenamableSet
+        guard let selectedSet, selectedSet.isUserDeletable else {
+            return nil
+        }
+
+        return selectedSet
     }
 
     var canManageMods: Bool {

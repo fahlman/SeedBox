@@ -3,6 +3,7 @@ import Foundation
 enum ModSetStoreError: Error, Equatable, LocalizedError, Sendable {
     case cannotEditIncludedSet
     case cannotDeleteIncludedSet
+    case cannotDeleteMyModsSet
     case duplicateSetName(String)
     case missingSet(String)
 
@@ -12,6 +13,8 @@ enum ModSetStoreError: Error, Equatable, LocalizedError, Sendable {
             return AppStrings.Errors.cannotEditIncludedSets
         case .cannotDeleteIncludedSet:
             return AppStrings.Errors.cannotDeleteIncludedSets
+        case .cannotDeleteMyModsSet:
+            return AppStrings.Errors.cannotDeleteMyMods
         case .duplicateSetName(let name):
             return AppStrings.Errors.duplicateModSetName(name)
         case .missingSet(let id):
@@ -26,11 +29,10 @@ enum ModSetStore {
     static let noneSetID = "none"
     static let noneSetName = AppStrings.ModSetNames.none
     static let defaultSetID = "default"
-    static let defaultSetName = AppStrings.ModSetNames.defaultSet
+    static let defaultSetName = AppStrings.ModSetNames.myMods
     static let includedSetIDs: Set<String> = [
         allSetID,
-        noneSetID,
-        defaultSetID
+        noneSetID
     ]
 
     static func loadSets(
@@ -40,7 +42,7 @@ enum ModSetStore {
     ) throws -> [ModSet] {
         try createStoreDirectoryIfNeeded(install: install, fileManager: fileManager)
 
-        let defaultSet = try loadOrCreateDefaultSet(
+        let myModsSet = try loadOrCreateMyModsSet(
             install: install,
             currentMods: currentMods,
             fileManager: fileManager
@@ -57,6 +59,7 @@ enum ModSetStore {
         )
         .filter { $0.pathExtension.lowercased() == "plist" }
         .filter { !includedSetIDs.contains($0.deletingPathExtension().lastPathComponent) }
+        .filter { $0.deletingPathExtension().lastPathComponent != defaultSetID }
 
         let userSets: [ModSet] = userSetURLs.compactMap { url in
             guard let stored = loadStoredSet(at: url) else {
@@ -75,7 +78,7 @@ enum ModSetStore {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
 
-        return [allSet, noneSet, defaultSet] + userSets
+        return [allSet, noneSet, myModsSet] + userSets
     }
 
     static func createSet(
@@ -138,7 +141,10 @@ enum ModSetStore {
         install: StardewInstall,
         fileManager: FileManager = .default
     ) throws {
-        guard set.isUserEditable else {
+        guard set.isUserDeletable else {
+            if set.isDefault {
+                throw ModSetStoreError.cannotDeleteMyModsSet
+            }
             throw ModSetStoreError.cannotDeleteIncludedSet
         }
 
@@ -197,20 +203,22 @@ enum ModSetStore {
         var disabledFolderNames: [String]
     }
 
-    private static func loadOrCreateDefaultSet(
+    private static func loadOrCreateMyModsSet(
         install: StardewInstall,
         currentMods: [ModInfo],
         fileManager: FileManager
     ) throws -> ModSet {
         let defaultURL = urlForSetID(defaultSetID, install: install)
         if let stored = loadStoredSet(at: defaultURL) {
-            return ModSet(
+            let set = ModSet(
                 id: defaultSetID,
-                name: defaultSetName,
+                name: migratedMyModsSetName(from: stored.name),
                 disabledFolderNames: normalizeFolderNames(stored.disabledFolderNames),
                 isDefault: true,
-                isIncluded: true
+                isIncluded: false
             )
+            try saveSet(set, install: install, fileManager: fileManager)
+            return set
         }
 
         let baselineSet = snapshotSet(
@@ -218,11 +226,36 @@ enum ModSetStore {
             name: defaultSetName,
             from: currentMods,
             isDefault: true,
-            isIncluded: true
+            isIncluded: false
         )
 
-        try saveIncludedSet(baselineSet, install: install, fileManager: fileManager)
+        try saveSet(baselineSet, install: install, fileManager: fileManager)
         return baselineSet
+    }
+
+    private static func migratedMyModsSetName(from storedName: String) -> String {
+        let trimmedName = storedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            return defaultSetName
+        }
+
+        let legacyDefaultNames: Set<String> = [
+            "Default",
+            "Standard",
+            "Predeterminado",
+            "Par défaut",
+            "Predefinito",
+            "デフォルト",
+            "기본값",
+            "Standaard",
+            "Padrão",
+            "默认"
+        ]
+        if legacyDefaultNames.contains(trimmedName) {
+            return defaultSetName
+        }
+
+        return trimmedName
     }
 
     private static func allIncludedSet() -> ModSet {

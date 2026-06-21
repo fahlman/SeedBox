@@ -232,7 +232,7 @@ final class SeedBoxRouteTests: XCTestCase {
             name: ModSetStore.defaultSetName,
             disabledFolderNames: [],
             isDefault: true,
-            isIncluded: true
+            isIncluded: false
         )
         let favoritesSet = ModSet(
             id: "favorites",

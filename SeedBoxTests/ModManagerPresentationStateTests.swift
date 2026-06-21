@@ -35,10 +35,10 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         XCTAssertEqual(presentationState.selection.dependencyStatuses.map(\.displayName), ["Content Patcher"])
         XCTAssertTrue(presentationState.canManageMods)
         XCTAssertTrue(presentationState.canShowDisplayedModStates)
-        XCTAssertFalse(presentationState.canEditDisplayedModStates)
-        XCTAssertEqual(presentationState.includedModSetNotice, AppStrings.ModSets.includedModSetNotice)
+        XCTAssertTrue(presentationState.canEditDisplayedModStates)
+        XCTAssertNil(presentationState.includedModSetNotice)
         XCTAssertTrue(presentationState.canRevealSelectedMod)
-        XCTAssertFalse(presentationState.canDeleteSelectedMod)
+        XCTAssertTrue(presentationState.canDeleteSelectedMod)
         XCTAssertTrue(presentationState.canShowModInspector)
         XCTAssertTrue(presentationState.canShowProblems)
     }
@@ -504,7 +504,7 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
                 name: ModSetStore.defaultSetName,
                 from: mods,
                 isDefault: true,
-                isIncluded: true
+                isIncluded: false
             )
         ]
 

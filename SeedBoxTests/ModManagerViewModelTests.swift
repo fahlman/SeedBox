@@ -56,7 +56,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, allDisabledSetID)
     }
 
-    func testIncludedDefaultSetDoesNotSaveManualChangesInRealTime() async throws {
+    func testMyModsSetSavesManualChangesInRealTime() async throws {
         let install = try makeInstall()
         let defaults = try makeIsolatedUserDefaults()
 
@@ -66,14 +66,15 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertTrue(viewModel.state.modSetSelection.selectedSetIsApplied)
         XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeRenamed)
         XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeDeleted)
+        XCTAssertEqual(viewModel.state.modSetSelection.selectedSet?.name, ModSetStore.defaultSetName)
 
         let consoleCommands = try XCTUnwrap(
             viewModel.state.mods.first { $0.displayName == "Console Commands" }
         )
         await viewModel.setMod(consoleCommands, enabled: false)
 
-        XCTAssertNil(viewModel.state.modSetSelection.appliedSetID)
-        XCTAssertFalse(viewModel.state.modSetSelection.selectedSetIsApplied)
+        XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, ModSetStore.defaultSetID)
+        XCTAssertTrue(viewModel.state.modSetSelection.selectedSetIsApplied)
         XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Console Commands": false
         ])
@@ -83,13 +84,13 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
             currentMods: viewModel.state.mods
         )
         let defaultSet = try XCTUnwrap(reloadedSets.first(where: \.isDefault))
-        XCTAssertEqual(defaultSet.disabledFolderNames, [])
+        XCTAssertEqual(defaultSet.disabledFolderNames, ["ConsoleCommands"])
 
         await viewModel.selectModSet(id: ModSetStore.defaultSetID)
         XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, ModSetStore.defaultSetID)
         XCTAssertTrue(viewModel.state.modSetSelection.selectedSetIsApplied)
         XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
-            "Console Commands": true
+            "Console Commands": false
         ])
 
         let restoredViewModel = ModManagerViewModel(
@@ -100,7 +101,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(restoredViewModel.state.modSetSelection.appliedSetID, ModSetStore.defaultSetID)
         XCTAssertTrue(restoredViewModel.state.modSetSelection.selectedSetIsApplied)
         XCTAssertEqual(modEnabledStates(in: restoredViewModel.state.mods), [
-            "Console Commands": true
+            "Console Commands": false
         ])
     }
 
@@ -383,7 +384,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: modURL.path))
         XCTAssertEqual(
             viewModel.state.statusLineMessage,
-            "Deleted Content Patcher. Archived a restorable copy."
+            "Deleted Content Patcher. Archived a restorable copy. Updated My Mods."
         )
         let deletedEntry = try XCTUnwrap(viewModel.state.auditTrail.recentEntries.last)
         XCTAssertEqual(deletedEntry.action, .modDeleted)
@@ -410,7 +411,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
             "Content Patcher": false,
             "Save Backup": false
         ])
-        XCTAssertEqual(viewModel.state.statusLineMessage, "Disabled 3 mods.")
+        XCTAssertEqual(viewModel.state.statusLineMessage, "Disabled 3 mods. Updated My Mods.")
         XCTAssertEqual(
             viewModel.state.auditTrail.recentEntries.count,
             auditEntryCountBeforeDisable + 1
@@ -426,7 +427,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
             "Content Patcher": true,
             "Save Backup": true
         ])
-        XCTAssertEqual(viewModel.state.statusLineMessage, "Enabled 3 mods.")
+        XCTAssertEqual(viewModel.state.statusLineMessage, "Enabled 3 mods. Updated My Mods.")
         let enabledEntry = try XCTUnwrap(viewModel.state.auditTrail.recentEntries.last)
         XCTAssertEqual(enabledEntry.action, .modEnabled)
         XCTAssertEqual(enabledEntry.subjects.count, 3)
@@ -673,7 +674,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(addedEntry.details["installed_state"], "disabled")
     }
 
-    func testDeletingSelectedModSetAppliesDefaultSet() async throws {
+    func testDeletingSelectedModSetAppliesMyModsSet() async throws {
         let install = try makeInstall()
         let defaults = try makeIsolatedUserDefaults()
 
@@ -836,7 +837,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         ])
         let noneSet = try XCTUnwrap(viewModel.state.modSets.first { $0.id == ModSetStore.noneSetID })
         XCTAssertEqual(noneSet.disabledFolderNames, ["ConsoleCommands", "SaveBackup"])
-        XCTAssertEqual(viewModel.state.statusLineMessage, "Added 1 mod folder.")
+        XCTAssertEqual(viewModel.state.statusLineMessage, "Added 1 mod folder. Updated My Mods.")
         let addedEntry = try XCTUnwrap(viewModel.state.auditTrail.recentEntries.last)
         XCTAssertEqual(addedEntry.action, .modsAdded)
         XCTAssertEqual(addedEntry.details["source"], "watched_folder")

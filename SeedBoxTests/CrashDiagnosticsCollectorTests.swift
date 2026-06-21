@@ -260,7 +260,7 @@ final class CrashDiagnosticsCollectorTests: SeedBoxTestCase {
                     name: ModSetStore.defaultSetName,
                     from: mods,
                     isDefault: true,
-                    isIncluded: true
+                    isIncluded: false
                 )
             ],
             selectedModSetID: ModSetStore.defaultSetID,

@@ -32,8 +32,10 @@ final class ModSetStoreTests: SeedBoxTestCase {
         XCTAssertEqual(noneSet.disabledFolderNames, ["ContentPatcher", "SaveBackup"])
 
         let defaultSet = try XCTUnwrap(sets.first(where: \.isDefault))
-        XCTAssertTrue(defaultSet.isIncluded)
-        XCTAssertFalse(defaultSet.isUserEditable)
+        XCTAssertFalse(defaultSet.isIncluded)
+        XCTAssertTrue(defaultSet.isUserEditable)
+        XCTAssertFalse(defaultSet.isUserRenamable)
+        XCTAssertFalse(defaultSet.isUserDeletable)
         XCTAssertEqual(defaultSet.id, ModSetStore.defaultSetID)
         XCTAssertEqual(defaultSet.disabledFolderNames, ["SaveBackup"])
 
@@ -100,7 +102,7 @@ final class ModSetStoreTests: SeedBoxTestCase {
         XCTAssertTrue(savedSet.isUserEditable)
     }
 
-    func testRejectsSavingIncludedSetContents() throws {
+    func testSavesMyModsSetContents() throws {
         let install = try makeInstall()
         let modURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
 
@@ -112,15 +114,13 @@ final class ModSetStoreTests: SeedBoxTestCase {
         var defaultSet = try XCTUnwrap(loadedSets.first(where: \.isDefault))
         defaultSet.disabledFolderNames = ["ContentPatcher"]
 
-        XCTAssertThrowsError(try ModSetStore.saveSet(defaultSet, install: install)) { error in
-            XCTAssertEqual(error as? ModSetStoreError, .cannotEditIncludedSet)
-        }
+        try ModSetStore.saveSet(defaultSet, install: install)
 
         let reloadedSets = try ModSetStore.loadSets(install: install, currentMods: mods)
         let savedDefaultSet = try XCTUnwrap(reloadedSets.first(where: \.isDefault))
         XCTAssertEqual(savedDefaultSet.id, ModSetStore.defaultSetID)
         XCTAssertEqual(savedDefaultSet.name, ModSetStore.defaultSetName)
-        XCTAssertEqual(savedDefaultSet.disabledFolderNames, [])
+        XCTAssertEqual(savedDefaultSet.disabledFolderNames, ["ContentPatcher"])
     }
 
     func testRejectsDeletingIncludedSets() throws {
@@ -139,13 +139,29 @@ final class ModSetStoreTests: SeedBoxTestCase {
         }
     }
 
+    func testRejectsDeletingMyModsSet() throws {
+        let install = try makeInstall()
+        let modURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
+
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Content Patcher", to: modURL)
+
+        let mods = try ModLibrary.scan(install: install)
+        let sets = try ModSetStore.loadSets(install: install, currentMods: mods)
+        let myModsSet = try XCTUnwrap(sets.first(where: \.isDefault))
+
+        XCTAssertThrowsError(try ModSetStore.deleteSet(myModsSet, install: install)) { error in
+            XCTAssertEqual(error as? ModSetStoreError, .cannotDeleteMyModsSet)
+        }
+    }
+
     func testRejectsDuplicateSetNamesCaseInsensitive() throws {
         let baseSet = ModSet(
             id: ModSetStore.defaultSetID,
             name: ModSetStore.defaultSetName,
             disabledFolderNames: [],
             isDefault: true,
-            isIncluded: true
+            isIncluded: false
         )
         let existing = [
             baseSet,

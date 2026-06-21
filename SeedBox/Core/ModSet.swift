@@ -28,4 +28,12 @@ struct ModSet: Identifiable, Equatable, Sendable {
     var isUserEditable: Bool {
         !isIncluded
     }
+
+    var isUserRenamable: Bool {
+        !isIncluded && !isDefault
+    }
+
+    var isUserDeletable: Bool {
+        isUserRenamable
+    }
 }

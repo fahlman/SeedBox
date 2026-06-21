@@ -552,11 +552,14 @@ struct ModSetSelectionState: Equatable, Sendable {
         guard let selectedSet else {
             return false
         }
-        return selectedSet.isUserEditable
+        return selectedSet.isUserRenamable
     }
 
     var selectedSetCanBeDeleted: Bool {
-        selectedSetCanBeRenamed
+        guard let selectedSet else {
+            return false
+        }
+        return selectedSet.isUserDeletable
     }
 
     var selectedRenamableSet: ModSet? {

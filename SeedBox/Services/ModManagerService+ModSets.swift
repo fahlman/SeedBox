@@ -137,8 +137,11 @@ extension ModManagerService {
         guard var selectedSet = nextState.modSetSelection.selectedSet else {
             return nextState
         }
-        guard selectedSet.isUserEditable else {
-            record(AppStrings.Status.includedModSetNamesCannotBeChanged, in: &nextState)
+        guard selectedSet.isUserRenamable else {
+            let message = selectedSet.isIncluded
+                ? AppStrings.Status.includedModSetNamesCannotBeChanged
+                : AppStrings.Status.modSetNameCannotBeChanged
+            record(message, in: &nextState)
             return nextState
         }
 
@@ -257,7 +260,7 @@ extension ModManagerService {
             return refreshedState
         }
 
-        guard let defaultSet = nextState.modSets.first(where: { $0.id == ModSetStore.defaultSetID }) else {
+        guard let myModsSet = nextState.modSets.first(where: { $0.id == ModSetStore.defaultSetID }) else {
             setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
             nextState.appliedModSetID = nil
             record(AppStrings.Status.deletedModSet(set.name), in: &nextState)
@@ -267,11 +270,11 @@ extension ModManagerService {
         }
 
         do {
-            let changedCount = try applyModSet(defaultSet, in: nextState, state: &nextState)
+            let changedCount = try applyModSet(myModsSet, in: nextState, state: &nextState)
             setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
             nextState.appliedModSetID = ModSetStore.defaultSetID
             record(
-                AppStrings.Status.deletedModSetAppliedDefault(set.name, changedCount: changedCount),
+                AppStrings.Status.deletedModSetAppliedMyMods(set.name, changedCount: changedCount),
                 in: &nextState
             )
             var refreshedState = refreshedState(from: nextState)
@@ -279,8 +282,8 @@ extension ModManagerService {
                 set,
                 wasSelected: true,
                 details: [
-                    "fallback_mod_set_id": defaultSet.id,
-                    "fallback_mod_set_name": defaultSet.name,
+                    "fallback_mod_set_id": myModsSet.id,
+                    "fallback_mod_set_name": myModsSet.name,
                     "fallback_changed_count": "\(changedCount)"
                 ],
                 in: &refreshedState
@@ -289,12 +292,12 @@ extension ModManagerService {
         } catch is SecurityScopedFolderAccessError {
             setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
             nextState.appliedModSetID = nil
-            record(AppStrings.Status.deletedModSetChooseFolderAgainToApplyDefault(set.name), in: &nextState)
+            record(AppStrings.Status.deletedModSetChooseFolderAgainToApplyMyMods(set.name), in: &nextState)
             return refreshedState(from: nextState)
         } catch {
             setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
             nextState.appliedModSetID = nil
-            record(AppStrings.Status.deletedModSetCouldNotApplyDefault(set.name, errorDescription: error.localizedDescription), in: &nextState)
+            record(AppStrings.Status.deletedModSetCouldNotApplyMyMods(set.name, errorDescription: error.localizedDescription), in: &nextState)
             return refreshedState(from: nextState)
         }
     }

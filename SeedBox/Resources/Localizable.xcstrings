@@ -10930,6 +10930,256 @@
         }
       }
     },
+    "Deleted mod set %@, but could not apply My Mods: %@" : {
+      "comment" : "Mod set status message shown when deleting a selected mod set succeeds but applying the My Mods fallback fails. %@ placeholders are the deleted mod set name and localized error details.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@, but could not apply My Mods: %2$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@, but could not apply My Mods: %2$@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@, but could not apply My Mods: %2$@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@, but could not apply My Mods: %2$@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@, but could not apply My Mods: %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@, but could not apply My Mods: %2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@, but could not apply My Mods: %2$@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@, but could not apply My Mods: %2$@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@, but could not apply My Mods: %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@, but could not apply My Mods: %2$@"
+          }
+        }
+      }
+    },
+    "Deleted mod set %@. Applied My Mods (%lld changes)." : {
+      "comment" : "Count-based status message shown after deleting a selected mod set and applying the My Mods fallback. %lld is the changed mod count; keep placeholders intact.",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (1 change)."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (%2$lld changes)."
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (1 change)."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (%2$lld changes)."
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (1 change)."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (%2$lld changes)."
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (1 change)."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (%2$lld changes)."
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (1 change)."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (%2$lld changes)."
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (1 change)."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (%2$lld changes)."
+                }
+              }
+            }
+          }
+        },
+        "ko" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (1 change)."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (%2$lld changes)."
+                }
+              }
+            }
+          }
+        },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (1 change)."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (%2$lld changes)."
+                }
+              }
+            }
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (1 change)."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (%2$lld changes)."
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (1 change)."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Deleted mod set %1$@. Applied My Mods (%2$lld changes)."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Deleted mod set %@. Applied Default (%lld changes)." : {
       "comment" : "Count-based user-visible string. %lld is the changed mod count; keep placeholders intact. Uses native string-catalog plural forms.",
       "localizations" : {
@@ -11177,6 +11427,71 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除了模组集 %1$@。应用默认值（1 项更改）。"
+          }
+        }
+      }
+    },
+    "Deleted mod set %@. Choose the Mods folder again to apply My Mods." : {
+      "comment" : "Status message shown after deleting a selected mod set when folder access must be restored before applying the My Mods fallback.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@. Choose the Mods folder again to apply My Mods."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@. Choose the Mods folder again to apply My Mods."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@. Choose the Mods folder again to apply My Mods."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@. Choose the Mods folder again to apply My Mods."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@. Choose the Mods folder again to apply My Mods."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@. Choose the Mods folder again to apply My Mods."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@. Choose the Mods folder again to apply My Mods."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@. Choose the Mods folder again to apply My Mods."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@. Choose the Mods folder again to apply My Mods."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deleted mod set %1$@. Choose the Mods folder again to apply My Mods."
           }
         }
       }
@@ -18136,6 +18451,136 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mods Updated"
+          }
+        }
+      }
+    },
+    "My Mods" : {
+      "comment" : "Starter mod set name for the user's primary editable mod set.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods"
+          }
+        }
+      }
+    },
+    "My Mods cannot be deleted." : {
+      "comment" : "Error shown if the app is asked to delete the permanent editable starter mod set.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods cannot be deleted."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods cannot be deleted."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods cannot be deleted."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods cannot be deleted."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods cannot be deleted."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods cannot be deleted."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods cannot be deleted."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods cannot be deleted."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods cannot be deleted."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "My Mods cannot be deleted."
           }
         }
       }
@@ -29097,6 +29542,71 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "This Mod Set is included with Seed Box. You can apply it, but you cannot edit, rename, or delete it."
+          }
+        }
+      }
+    },
+    "This mod set name cannot be changed." : {
+      "comment" : "Status message shown if a protected mod set is asked to rename itself.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This mod set name cannot be changed."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This mod set name cannot be changed."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This mod set name cannot be changed."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This mod set name cannot be changed."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This mod set name cannot be changed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This mod set name cannot be changed."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This mod set name cannot be changed."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This mod set name cannot be changed."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This mod set name cannot be changed."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This mod set name cannot be changed."
           }
         }
       }
