@@ -182,6 +182,7 @@ struct ModManagerView: View {
             ModList(
                 mods: presentationState.filteredMods,
                 canManageMods: presentationState.canManageMods,
+                canEditModStates: presentationState.canEditDisplayedModStates,
                 modFolderName: viewModel.modFolderName,
                 selectedModIDs: $selectedModIDs,
                 selectedMod: presentationState.selection.mod,

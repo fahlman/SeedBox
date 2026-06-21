@@ -123,6 +123,10 @@ struct ModManagerPresentationState {
         readiness.canManageMods
     }
 
+    var canEditDisplayedModStates: Bool {
+        canManageMods && librarySelection.selectedModSetID != nil
+    }
+
     var canShowProblems: Bool {
         state.hasProblems
     }
@@ -144,7 +148,7 @@ struct ModManagerPresentationState {
     }
 
     var canRestorePreviousVersion: Bool {
-        canManageMods && selection.canRestorePreviousVersion
+        canEditDisplayedModStates && selection.canRestorePreviousVersion
     }
 
     var canRevealSelectedMod: Bool {
@@ -152,7 +156,7 @@ struct ModManagerPresentationState {
     }
 
     var canDeleteSelectedMod: Bool {
-        canManageMods && selection.hasSelectedMod
+        canEditDisplayedModStates && selection.hasSelectedMod
     }
 
     var canShowModInspector: Bool {

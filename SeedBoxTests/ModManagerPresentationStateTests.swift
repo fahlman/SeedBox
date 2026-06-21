@@ -34,7 +34,9 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         XCTAssertEqual(presentationState.selection.mod?.displayName, "Stardew Valley Expanded")
         XCTAssertEqual(presentationState.selection.dependencyStatuses.map(\.displayName), ["Content Patcher"])
         XCTAssertTrue(presentationState.canManageMods)
+        XCTAssertTrue(presentationState.canEditDisplayedModStates)
         XCTAssertTrue(presentationState.canRevealSelectedMod)
+        XCTAssertTrue(presentationState.canDeleteSelectedMod)
         XCTAssertTrue(presentationState.canShowModInspector)
         XCTAssertTrue(presentationState.canShowProblems)
     }
@@ -361,13 +363,18 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         state.selectedModSetID = selectedUserSet.id
         state.appliedModSetID = selectedUserSet.id
 
+        let mod = try XCTUnwrap(mods.first)
         let presentationState = ModManagerPresentationState(
             state: state,
             searchText: "",
-            selectedModIDs: [],
+            selectedModIDs: [mod.id],
             selectedLibraryItemID: ModLibrarySelection.smartID(.allMods)
         )
 
+        XCTAssertFalse(presentationState.canEditDisplayedModStates)
+        XCTAssertTrue(presentationState.canRevealSelectedMod)
+        XCTAssertFalse(presentationState.canDeleteSelectedMod)
+        XCTAssertTrue(presentationState.canShowModInspector)
         XCTAssertNil(presentationState.selectedSet)
         XCTAssertNil(presentationState.selectedRenamableSet)
         XCTAssertNil(presentationState.selectedDeletableSet)
@@ -375,6 +382,7 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         XCTAssertFalse(ModManagerCommand.duplicateModSet.isEnabled(in: presentationState))
         XCTAssertFalse(ModManagerCommand.renameModSet.isEnabled(in: presentationState))
         XCTAssertFalse(ModManagerCommand.deleteModSet.isEnabled(in: presentationState))
+        XCTAssertFalse(ModManagerCommand.deleteSelectedMod.isEnabled(in: presentationState))
     }
 
     func testUserSmartModSetSelectionDisablesModSetCommands() throws {
@@ -393,13 +401,18 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
             userSmartModSets: [smartModSet]
         )
 
+        let mod = try XCTUnwrap(mods.first)
         let presentationState = ModManagerPresentationState(
             state: state,
             searchText: "",
-            selectedModIDs: [],
+            selectedModIDs: [mod.id],
             selectedLibraryItemID: ModLibrarySelection.userSmartID(smartModSet.id)
         )
 
+        XCTAssertFalse(presentationState.canEditDisplayedModStates)
+        XCTAssertTrue(presentationState.canRevealSelectedMod)
+        XCTAssertFalse(presentationState.canDeleteSelectedMod)
+        XCTAssertTrue(presentationState.canShowModInspector)
         XCTAssertNil(presentationState.selectedSet)
         XCTAssertNil(presentationState.selectedRenamableSet)
         XCTAssertNil(presentationState.selectedDeletableSet)
@@ -407,6 +420,7 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         XCTAssertFalse(ModManagerCommand.duplicateModSet.isEnabled(in: presentationState))
         XCTAssertFalse(ModManagerCommand.renameModSet.isEnabled(in: presentationState))
         XCTAssertFalse(ModManagerCommand.deleteModSet.isEnabled(in: presentationState))
+        XCTAssertFalse(ModManagerCommand.deleteSelectedMod.isEnabled(in: presentationState))
     }
 
     private func makeState(

@@ -85,7 +85,9 @@ extension ModManagerView {
     }
 
     func restorePreviousVersion() {
-        guard let selectedMod = presentationState.selection.mod else {
+        guard presentationState.canEditDisplayedModStates,
+              let selectedMod = presentationState.selection.mod
+        else {
             return
         }
 
@@ -263,7 +265,8 @@ extension ModManagerView {
     }
 
     func requestDeleteSelectedMod() {
-        if let selectedMod = presentationState.selection.mod {
+        if presentationState.canEditDisplayedModStates,
+           let selectedMod = presentationState.selection.mod {
             presentation.alert = .deleteMod(selectedMod)
         }
     }
@@ -277,7 +280,9 @@ extension ModManagerView {
     }
 
     func requestSetModEnabled(_ mod: ModInfo, enabled: Bool) {
-        guard mod.isEnabled != enabled else {
+        guard presentationState.canEditDisplayedModStates,
+              mod.isEnabled != enabled
+        else {
             return
         }
 

@@ -3,6 +3,7 @@ import SwiftUI
 struct ModList: View {
     var mods: [ModInfo]
     var canManageMods: Bool
+    var canEditModStates: Bool
     var modFolderName: String
     @Binding var selectedModIDs: Set<String>
     var selectedMod: ModInfo?
@@ -30,17 +31,18 @@ struct ModList: View {
             )
         } else {
             Table(rows, selection: $selectedModIDs, sortOrder: sortOrderBinding) {
-                TableColumn(AppStrings.Table.state, value: \.enabledSortText) { row in
-                    Toggle(row.enabledText, isOn: Binding(
-                        get: { row.mod.isEnabled },
-                        set: { enabled in
-                            requestSetModEnabled(row.mod, enabled)
-                        }
-                    ))
-                    .labelsHidden()
-                    .disabled(!canManageMods)
+                if canEditModStates {
+                    TableColumn(AppStrings.Table.state, value: \.enabledSortText) { row in
+                        Toggle(row.enabledText, isOn: Binding(
+                            get: { row.mod.isEnabled },
+                            set: { enabled in
+                                requestSetModEnabled(row.mod, enabled)
+                            }
+                        ))
+                        .labelsHidden()
+                    }
+                    .width(min: 76, ideal: 92, max: 110)
                 }
-                .width(min: 76, ideal: 92, max: 110)
 
                 TableColumn(AppStrings.Table.mod, value: \.nameSortText) { row in
                     ModNameCell(mod: row.mod)
@@ -85,7 +87,7 @@ struct ModList: View {
                 } label: {
                     Label(AppStrings.Toolbar.deleteMod, systemImage: "trash")
                 }
-                .disabled(selectedMod == nil || !canManageMods)
+                .disabled(selectedMod == nil || !canEditModStates)
             }
         }
     }
@@ -105,7 +107,10 @@ struct ModList: View {
     }
 
     private var currentSortOrder: [KeyPathComparator<ModTableRow>] {
-        let column = ModListSortColumn(rawValue: storedSortColumn) ?? .mod
+        var column = ModListSortColumn(rawValue: storedSortColumn) ?? .mod
+        if column == .state && !canEditModStates {
+            column = .mod
+        }
         let direction = ModListSortDirection(rawValue: storedSortDirection) ?? .forward
         return [column.comparator(direction: direction)]
     }
