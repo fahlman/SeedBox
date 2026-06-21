@@ -116,6 +116,12 @@ Legend:
   the preview's installable sources after confirmation. No App Store or
   Steam-specific constraint was found. Verified with full `Seed Box` and
   `Seed Box Steam` scheme test runs.
+- 2026-06-20: Multi-install support resolves user-selected folders and ZIPs
+  into one or more install candidates, including ZIPs that contain multiple mod
+  folders. Its App Store status remains Risky because it installs user-provided
+  archive contents into the Mods folder, but no build-specific code constraint
+  was found. Verified with full `Seed Box` and `Seed Box Steam` scheme test
+  runs.
 
 ## Release Decision Rule
 
