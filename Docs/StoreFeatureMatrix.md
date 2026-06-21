@@ -97,6 +97,11 @@ Legend:
   applying mod sets that would create unresolved required dependencies. No App
   Store or Steam-specific constraint was found. Verified with full `Seed Box`
   and `Seed Box Steam` scheme test runs.
+- 2026-06-20: Restoring archived mods is user-initiated, restores selected
+  archived copies into the approved Mods folder, archives any current copy it
+  replaces, updates the active mod set, and records the action in the audit
+  trail. No App Store or Steam-specific constraint was found. Verified with full
+  `Seed Box` and `Seed Box Steam` scheme test runs.
 
 ## Release Decision Rule
 
