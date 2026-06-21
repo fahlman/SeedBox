@@ -198,6 +198,10 @@ final class ModManagerViewModel {
         commit(await service.restoreArchivedMods(archivedMods))
     }
 
+    func deleteArchivedMods(_ archivedMods: [ArchivedModInfo]) async {
+        commit(await service.deleteArchivedMods(archivedMods))
+    }
+
     func restorePreviousVersion(of mod: ModInfo) async {
         commit(await service.restorePreviousVersion(of: mod))
     }

@@ -4,10 +4,14 @@ struct RecentlyDeletedModsView: View {
     var archivedMods: [ArchivedModInfo]
     var currentMods: [ModInfo]
     var restore: ([ArchivedModInfo]) -> Void
+    var deletePermanently: ([ArchivedModInfo]) -> Void
     var revealInFinder: () -> Void
     var pruneExpiredArchives: () -> Void
 
+    @State private var searchText = ""
     @State private var selectedArchiveIDs = Set<ArchivedModInfo.ID>()
+    @State private var pendingDelete = [ArchivedModInfo]()
+    @State private var isConfirmingDelete = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -18,38 +22,38 @@ struct RecentlyDeletedModsView: View {
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                Table(archivedMods, selection: $selectedArchiveIDs) {
-                    TableColumn(AppStrings.RestoreHistory.modColumn) { archivedMod in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(archivedMod.displayName)
-                                .fontWeight(.semibold)
-                                .lineLimit(1)
+                HStack(spacing: 12) {
+                    TextField(AppStrings.RestoreHistory.searchPlaceholder, text: $searchText)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(minWidth: 220, maxWidth: 340)
 
-                            Text(installStateText(for: archivedMod))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-                    .width(min: 180, ideal: 240, max: 320)
+                    Text(AppStrings.RestoreHistory.filteredSummary(
+                        count: filteredArchivedMods.count,
+                        total: archivedMods.count
+                    ))
+                    .foregroundStyle(.secondary)
 
-                    TableColumn(AppStrings.RestoreHistory.versionColumn) { archivedMod in
-                        Text(archivedMod.versionText)
-                    }
-                    .width(min: 90, ideal: 110, max: 150)
-
-                    TableColumn(AppStrings.RestoreHistory.archivedColumn) { archivedMod in
-                        Text(dateText(for: archivedMod))
-                    }
-                    .width(min: 150, ideal: 180, max: 230)
-
-                    TableColumn(AppStrings.RestoreHistory.folderColumn) { archivedMod in
-                        Text(archivedMod.folderName)
-                            .lineLimit(1)
-                    }
+                    Spacer()
                 }
-                .onChange(of: archivedMods.map(\.id)) {
-                    selectedArchiveIDs.formIntersection(Set(archivedMods.map(\.id)))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+
+                if filteredArchivedMods.isEmpty {
+                    ContentUnavailableView(
+                        AppStrings.RestoreHistory.noMatchingArchivedMods,
+                        systemImage: "magnifyingglass"
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ArchivedModsTable(
+                        archivedMods: filteredArchivedMods,
+                        currentMods: currentMods,
+                        showsReasonColumn: false,
+                        selectedArchiveIDs: $selectedArchiveIDs
+                    )
+                    .onChange(of: filteredArchivedMods.map(\.id)) {
+                        selectedArchiveIDs.formIntersection(Set(filteredArchivedMods.map(\.id)))
+                    }
                 }
 
                 Divider()
@@ -59,6 +63,14 @@ struct RecentlyDeletedModsView: View {
                         restore(selectedArchivedMods)
                     } label: {
                         Label(AppStrings.RestoreHistory.restore, systemImage: "arrow.uturn.backward")
+                    }
+                    .disabled(selectedArchivedMods.isEmpty)
+
+                    Button(role: .destructive) {
+                        pendingDelete = selectedArchivedMods
+                        isConfirmingDelete = true
+                    } label: {
+                        Label(AppStrings.RestoreHistory.deletePermanently, systemImage: "trash")
                     }
                     .disabled(selectedArchivedMods.isEmpty)
 
@@ -81,26 +93,34 @@ struct RecentlyDeletedModsView: View {
                 .padding(.vertical, 12)
             }
         }
+        .confirmationDialog(
+            AppStrings.RestoreHistory.deleteConfirmationTitle(count: pendingDelete.count),
+            isPresented: $isConfirmingDelete,
+            titleVisibility: .visible
+        ) {
+            Button(AppStrings.RestoreHistory.deletePermanently, role: .destructive) {
+                deletePermanently(pendingDelete)
+                pendingDelete = []
+            }
+
+            Button(AppStrings.Common.cancel, role: .cancel) {
+                pendingDelete = []
+            }
+        } message: {
+            Text(AppStrings.RestoreHistory.deleteConfirmationMessage(count: pendingDelete.count))
+        }
+    }
+
+    private var filteredArchivedMods: [ArchivedModInfo] {
+        ArchivedModBrowser.filteredArchivedMods(
+            archivedMods,
+            searchText: searchText,
+            reasonFilter: .deleted
+        )
     }
 
     private var selectedArchivedMods: [ArchivedModInfo] {
-        archivedMods.filter { selectedArchiveIDs.contains($0.id) }
-    }
-
-    private func installStateText(for archivedMod: ArchivedModInfo) -> String {
-        guard let currentMod = ModArchive.currentMod(for: archivedMod, in: currentMods) else {
-            return AppStrings.RestoreHistory.deleted
-        }
-
-        return AppStrings.RestoreHistory.currentlyInstalled(currentMod.versionText)
-    }
-
-    private func dateText(for archivedMod: ArchivedModInfo) -> String {
-        guard let archivedDate = archivedMod.archivedDate else {
-            return AppStrings.RestoreHistory.unknownDate
-        }
-
-        return archivedDate.formatted(date: .abbreviated, time: .shortened)
+        filteredArchivedMods.filter { selectedArchiveIDs.contains($0.id) }
     }
 }
 

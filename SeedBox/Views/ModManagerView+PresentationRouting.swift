@@ -95,6 +95,7 @@ extension ModManagerView {
                 currentMods: presentationState.state.mods,
                 archiveSummary: presentationState.archiveSummary,
                 restore: restoreArchivedMods,
+                deletePermanently: deleteArchivedMods,
                 revealInFinder: viewModel.revealArchivedModsFolder,
                 pruneExpiredArchives: pruneExpiredArchives,
                 close: {

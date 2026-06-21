@@ -143,6 +143,10 @@ extension ModManagerService {
         commit(restoreArchivedMods(archivedMods, in: state))
     }
 
+    func deleteArchivedMods(_ archivedMods: [ArchivedModInfo]) -> ModManagerState {
+        commit(deleteArchivedMods(archivedMods, in: state))
+    }
+
     func resolveDuplicateGroup(id: String) -> ModManagerState {
         commit(resolveDuplicateGroup(id: id, in: state))
     }

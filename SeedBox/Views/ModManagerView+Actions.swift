@@ -95,6 +95,17 @@ extension ModManagerView {
         }
     }
 
+    func deleteArchivedMods(_ archivedMods: [ArchivedModInfo]) {
+        guard !archivedMods.isEmpty else {
+            return
+        }
+
+        presentation.dismissSheet()
+        Task {
+            await viewModel.deleteArchivedMods(archivedMods)
+        }
+    }
+
     func pruneExpiredArchives() {
         Task {
             await viewModel.pruneExpiredArchives()

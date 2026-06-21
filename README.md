@@ -19,7 +19,8 @@ launch the game.
   multiple mod folders.
 - Previews installs, updates, reinstalls, downgrades, duplicates, and skipped
   items before applying them.
-- Archives deleted or replaced mods so previous versions can be restored.
+- Archives deleted or replaced mods in searchable Restore History so previous
+  versions can be restored or permanently removed.
 - Watches the Mods folder and reconciles changes made outside the app.
 - Records an audit trail for mod and mod-set actions.
 - Can opt in to SMAPI mod update checks through `api.smapi.io`.

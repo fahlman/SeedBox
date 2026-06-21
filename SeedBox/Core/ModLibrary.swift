@@ -313,6 +313,31 @@ enum ModLibrary {
         return results
     }
 
+    @discardableResult
+    static func deleteArchivedMods(
+        _ archivedMods: [ArchivedModInfo],
+        archiveDirectory: URL,
+        fileManager: FileManager = .default
+    ) throws -> Int {
+        var deletedCount = 0
+
+        for archivedMod in archivedMods {
+            guard fileManager.directoryExists(at: archivedMod.url) else {
+                throw ModLibraryError.modFolderMissing(archivedMod.url)
+            }
+
+            try fileManager.removeItem(at: archivedMod.url)
+            deletedCount += 1
+            removeEmptyArchiveContainerIfNeeded(
+                archivedMod.containerURL,
+                archiveDirectory: archiveDirectory,
+                fileManager: fileManager
+            )
+        }
+
+        return deletedCount
+    }
+
     private struct CompletedRestoreOperation {
         var sourceURL: URL
         var sourceContainerURL: URL

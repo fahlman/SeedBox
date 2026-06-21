@@ -295,6 +295,7 @@ enum AppStrings {
         static let chooseModsFolderBeforeCreating = String(localized: "Choose the Mods folder before creating it.")
         static let chooseModsFolderBeforeManaging = String(localized: "Choose the Mods folder before managing mods.")
         static let chooseArchivedModsToRestore = String(localized: "Choose one or more archived mods to restore.")
+        static let chooseArchivedModsToDelete = String(localized: "Choose one or more archived mods to delete.")
         static let includedModSetNamesCannotBeChanged = String(localized: "Included mod set names cannot be changed.")
         static let modsFolderChangedRefreshed = String(localized: "Mods folder changed. Refreshed mod list.")
         static let modsFolderMissingChooseAgain = String(localized: "The Mods folder is missing. Choose it again from Settings.")
@@ -393,6 +394,10 @@ enum AppStrings {
             String(localized: "Could not restore archived mods: \(errorDescription)")
         }
 
+        static func couldNotDeleteArchivedMods(_ errorDescription: String) -> String {
+            String(localized: "Could not delete archived mods: \(errorDescription)")
+        }
+
         static func couldNotRestoreSavedFolderAccess(_ errorDescription: String) -> String {
             String(localized: "Could not restore saved folder access: \(errorDescription)")
         }
@@ -441,6 +446,14 @@ enum AppStrings {
 
         static func prunedExpiredArchives(count: Int) -> String {
             String(localized: "Pruned \(count) expired archive folders.")
+        }
+
+        static func deletedArchivedMods(count: Int) -> String {
+            if count == 1 {
+                return String(localized: "Deleted 1 archived mod.")
+            }
+
+            return String(localized: "Deleted \(count) archived mods.")
         }
 
         static func createdModFolder(_ path: String) -> String {
@@ -832,18 +845,43 @@ enum AppStrings {
     }
 
     enum RestoreHistory {
+        static let allArchives = String(localized: "All")
         static let archivedColumn = String(localized: "Archived")
         static let deleted = String(localized: "Deleted")
+        static let deletePermanently = String(localized: "Delete Permanently")
         static let folderColumn = String(localized: "Folder")
         static let modColumn = String(localized: "Mod")
         static let noArchivedMods = String(localized: "No archived mods")
+        static let noMatchingArchivedMods = String(localized: "No matching archived mods")
         static let pruneExpiredArchives = String(localized: "Prune Expired Archives")
         static let reasonColumn = String(localized: "Reason")
         static let restore = String(localized: "Restore")
         static let revealInFinder = String(localized: "Reveal in Finder")
+        static let searchPlaceholder = String(localized: "Search archived mods")
         static let title = String(localized: "Restore History")
         static let unknownDate = String(localized: "Unknown date")
+        static let updated = String(localized: "Updated")
         static let versionColumn = String(localized: "Version")
+
+        static func deleteConfirmationTitle(count: Int) -> String {
+            if count == 1 {
+                return String(localized: "Delete Archived Mod Permanently?")
+            }
+
+            return String(localized: "Delete \(count) Archived Mods Permanently?")
+        }
+
+        static func deleteConfirmationMessage(count: Int) -> String {
+            if count == 1 {
+                return String(localized: "This removes the archived copy from Restore History. You cannot restore it afterward.")
+            }
+
+            return String(localized: "This removes the selected archived copies from Restore History. You cannot restore them afterward.")
+        }
+
+        static func filteredSummary(count: Int, total: Int) -> String {
+            String(localized: "\(count) of \(total) shown")
+        }
 
         static func summary(count: Int, size: String) -> String {
             if count == 1 {

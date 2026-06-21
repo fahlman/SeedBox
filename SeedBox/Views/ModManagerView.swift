@@ -159,6 +159,7 @@ struct ModManagerView: View {
                 archivedMods: ModLibrarySelection.recentlyDeletedArchivedMods(in: presentationState.state),
                 currentMods: presentationState.state.mods,
                 restore: restoreArchivedMods,
+                deletePermanently: deleteArchivedMods,
                 revealInFinder: viewModel.revealArchivedModsFolder,
                 pruneExpiredArchives: pruneExpiredArchives
             )

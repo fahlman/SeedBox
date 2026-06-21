@@ -553,6 +553,32 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(restoredEntry.details["restored_count"], "1")
     }
 
+    func testDeletingArchivedModFromHistoryDeletesFolderAndAudits() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+
+        let modURL = try makeInstalledMod(name: "Content Patcher", in: install, version: "1.0.0")
+        let archivedURL = try ModArchive.archive(
+            modURL,
+            in: install.archivedModsDirectoryURL,
+            reason: .deleted
+        )
+
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        let archivedMod = try XCTUnwrap(viewModel.state.archivedMods.first)
+
+        await viewModel.deleteArchivedMods([archivedMod])
+
+        XCTAssertEqual(viewModel.state.archiveSummary.archivedModCount, 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: archivedURL.path))
+        XCTAssertTrue(viewModel.state.statusLineMessage.contains("Deleted 1 archived mod"))
+
+        let deleteEntry = try XCTUnwrap(viewModel.state.auditTrail.recentEntries.last)
+        XCTAssertEqual(deleteEntry.action, .archivesPruned)
+        XCTAssertEqual(deleteEntry.details["source"], "permanent_delete")
+        XCTAssertEqual(deleteEntry.details["pruned_count"], "1")
+    }
+
     func testStartupScanAddsClosedAppModToLastAppliedCustomSet() async throws {
         let install = try makeInstall()
         let defaults = try makeIsolatedUserDefaults()
