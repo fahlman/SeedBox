@@ -23,6 +23,18 @@ task.
 
 ## Next Product Features
 
+### Update management
+
+The current update check is informational. A complete update workflow must
+safely help users acquire and install newer mod versions without silently
+downloading or replacing anything.
+
+- Design safe mod update downloading before implementation.
+- Download and install available mod updates only after clear user approval.
+- Add a SMAPI install/update assistant.
+- Keep automatic SMAPI install/update separate from the guided assistant because
+  it has different store-review and trust implications.
+
 ### Smart Mod Sets
 
 Smart Mod Sets are saved searches. They are not manually edited by adding or
@@ -56,12 +68,24 @@ start with a baseline set and layer optional collections on top.
 - Keep Smart Mod Sets separate from inheritance because they are saved searches,
   not enable/disable configurations.
 
+### Mod Set portability and sync
+
+- Define a `.seedboxset` export/import format for sharing Mod Sets.
+- Add native export/import and system sharing for Mod Sets.
+- Add iCloud sync for Mod Set definitions after local persistence and
+  export/import semantics are stable.
+
 ## Product Polish
 
 - Create a real app icon.
 - Finish the About box and credits review before public release.
 - Keep improving Help content as workflows settle.
 - Do a hands-on accessibility pass with VoiceOver and keyboard navigation.
+- Finish the diagnostics support bundle so exports can include safe audit,
+  settings, and context summaries without including mod contents.
+- Build a native archive browser/search/filter experience.
+- Improve bisection guidance so users understand what changed, what to test, and
+  what happens after a culprit is found.
 
 ## Release Discipline
 
@@ -71,3 +95,7 @@ start with a baseline set and layer optional collections on top.
 - Discuss continuous integration after the release path is clearer.
 - Keep full test-suite verification as the default checkpoint before pushing
   behavior changes.
+- Complete Steam/App Store release readiness: App Store Connect, Steamworks,
+  metadata, App Privacy labels, screenshots, Gatekeeper validation, and the
+  dual-channel verification checklist.
+- Publish a public privacy/support site before App Store submission.
