@@ -150,6 +150,11 @@ Legend:
   bookmark fails. No App Store or Steam-specific constraint was found; Steam can
   keep this path as optional defense-in-depth. Verified with full `Seed Box` and
   `Seed Box Steam` scheme test runs.
+- 2026-06-20: Scanning is limited to the user-selected Mods folder, loads mods
+  from folders containing manifests, reports linked folders and folders without
+  manifests as invalid instead of managing them, and resolves dependency state
+  after scan. No App Store or Steam-specific constraint was found. Verified with
+  full `Seed Box` and `Seed Box Steam` scheme test runs.
 
 ## Release Decision Rule
 
