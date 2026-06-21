@@ -55,6 +55,12 @@ Legend:
 | **Planned:** Steamworks integration | No | Yes |
 | **Planned:** Store-specific availability messaging if App Review rejects a required feature | Depends | Yes |
 
+## Verified Have Features
+
+- 2026-06-20: MetricKit diagnostics are local-only, support user-initiated ZIP
+  export, and have no known App Store or Steam-specific constraint. Verified
+  with full `Seed Box` and `Seed Box Steam` scheme test runs.
+
 ## Release Decision Rule
 
 Seed Box should not be reduced to fit a storefront. Submit the full App Store
