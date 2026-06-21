@@ -21,6 +21,26 @@ struct CrashDiagnosticsExportContext: Equatable, Sendable {
     }
 }
 
+struct CrashDiagnosticsSummary: Equatable, Sendable {
+    static let recentPayloadInterval: TimeInterval = 14 * 24 * 60 * 60
+
+    var payloadCount: Int
+    var mostRecentPayloadDate: Date?
+
+    static let empty = CrashDiagnosticsSummary(payloadCount: 0, mostRecentPayloadDate: nil)
+
+    func hasRecentPayloads(
+        asOf referenceDate: Date = Date(),
+        interval: TimeInterval = Self.recentPayloadInterval
+    ) -> Bool {
+        guard let mostRecentPayloadDate else {
+            return false
+        }
+
+        return mostRecentPayloadDate >= referenceDate.addingTimeInterval(-interval)
+    }
+}
+
 enum CrashDiagnosticsExporter {
     private static let supportDirectoryName = "Seed Box Diagnostics"
 
@@ -62,6 +82,32 @@ enum CrashDiagnosticsExporter {
             .sorted {
                 $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
             }
+    }
+
+    static func diagnosticSummary(
+        in diagnosticsDirectory: URL = CrashDiagnosticsCollector.defaultDiagnosticsDirectory(),
+        fileManager: FileManager = .default
+    ) -> CrashDiagnosticsSummary {
+        guard let payloadURLs = try? diagnosticPayloadURLs(
+            in: diagnosticsDirectory,
+            fileManager: fileManager
+        ) else {
+            return .empty
+        }
+
+        let mostRecentDate = payloadURLs
+            .compactMap { payloadURL -> Date? in
+                let values = try? payloadURL.resourceValues(
+                    forKeys: [.contentModificationDateKey, .creationDateKey]
+                )
+                return values?.contentModificationDate ?? values?.creationDate
+            }
+            .max()
+
+        return CrashDiagnosticsSummary(
+            payloadCount: payloadURLs.count,
+            mostRecentPayloadDate: mostRecentDate
+        )
     }
 
     @discardableResult

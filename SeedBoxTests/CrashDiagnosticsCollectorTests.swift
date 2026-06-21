@@ -40,6 +40,46 @@ final class CrashDiagnosticsCollectorTests: SeedBoxTestCase {
         XCTAssertEqual(payloads.map(\.lastPathComponent), ["A.json", "B.json"])
     }
 
+    func testBuildsDiagnosticSummaryFromStoredPayloads() throws {
+        let diagnosticsDirectory = temporaryDirectory.appendingPathComponent("Diagnostics", isDirectory: true)
+        try FileManager.default.createDirectory(at: diagnosticsDirectory, withIntermediateDirectories: true)
+        let olderDate = Date(timeIntervalSince1970: 1_750_000_000)
+        let newerDate = olderDate.addingTimeInterval(60 * 60)
+        let olderPayload = diagnosticsDirectory.appendingPathComponent("A.json")
+        let newerPayload = diagnosticsDirectory.appendingPathComponent("B.json")
+        try Data("{}".utf8).write(to: olderPayload)
+        try Data("{}".utf8).write(to: newerPayload)
+        try FileManager.default.setAttributes([.modificationDate: olderDate], ofItemAtPath: olderPayload.path)
+        try FileManager.default.setAttributes([.modificationDate: newerDate], ofItemAtPath: newerPayload.path)
+
+        let summary = CrashDiagnosticsExporter.diagnosticSummary(
+            in: diagnosticsDirectory,
+            fileManager: .default
+        )
+
+        XCTAssertEqual(summary.payloadCount, 2)
+        XCTAssertEqual(
+            try XCTUnwrap(summary.mostRecentPayloadDate).timeIntervalSince1970,
+            newerDate.timeIntervalSince1970,
+            accuracy: 1
+        )
+        XCTAssertTrue(summary.hasRecentPayloads(asOf: newerDate.addingTimeInterval(60)))
+        XCTAssertFalse(summary.hasRecentPayloads(asOf: newerDate.addingTimeInterval(CrashDiagnosticsSummary.recentPayloadInterval + 60)))
+    }
+
+    func testPostsNotificationWhenDiagnosticPayloadIsStored() {
+        let diagnosticsDirectory = temporaryDirectory.appendingPathComponent("Diagnostics", isDirectory: true)
+        let collector = CrashDiagnosticsCollector(diagnosticsDirectory: diagnosticsDirectory)
+        let expectation = expectation(
+            forNotification: CrashDiagnosticsCollector.didStorePayloadNotification,
+            object: collector
+        )
+
+        collector.store(Data(#"{"crashDiagnostics": []}"#.utf8), receivedAt: Date(timeIntervalSince1970: 1_750_000_000))
+
+        wait(for: [expectation], timeout: 1)
+    }
+
     func testExportsDiagnosticPayloadsAsZipArchive() throws {
         let diagnosticsDirectory = temporaryDirectory.appendingPathComponent("Diagnostics", isDirectory: true)
         let archiveURL = temporaryDirectory.appendingPathComponent("Seed Box Diagnostics.zip")

@@ -227,7 +227,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         let install = try makeInstall()
         let downloadsURL = try makeDownloadsDirectory()
         let defaults = try makeIsolatedUserDefaults()
-        var preferences = ModManagerPreferences(defaults: defaults)
+        let preferences = ModManagerPreferences(defaults: defaults)
         preferences.moveModFilesToTrashAfterAddingMods = false
         preferences.suppressAddModsSuccessNotification = true
 
@@ -248,7 +248,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         let install = try makeInstall()
         let downloadsURL = try makeDownloadsDirectory()
         let defaults = try makeIsolatedUserDefaults()
-        var preferences = ModManagerPreferences(defaults: defaults)
+        let preferences = ModManagerPreferences(defaults: defaults)
         preferences.moveModFilesToTrashAfterAddingMods = true
         preferences.suppressAddModsSuccessNotification = true
 

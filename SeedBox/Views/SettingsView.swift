@@ -6,7 +6,7 @@ struct SettingsView: View {
     var viewModel: ModManagerViewModel
     @State private var isChoosingModsFolder = false
     @State private var isChoosingLogFolder = false
-    @State private var diagnosticsPayloadCount = 0
+    @State private var diagnosticsSummary = CrashDiagnosticsSummary.empty
     @State private var diagnosticsStatus: StatusEvent?
 
     private var presentationState: ModManagerSettingsPresentationState {
@@ -126,8 +126,24 @@ struct SettingsView: View {
 
             Section(AppStrings.Settings.diagnosticsSection) {
                 LabeledContent(AppStrings.Settings.storedDiagnostics) {
-                    Text(AppStrings.Settings.diagnosticPayloadCount(diagnosticsPayloadCount))
+                    Text(AppStrings.Settings.diagnosticPayloadCount(diagnosticsSummary.payloadCount))
                         .foregroundStyle(.secondary)
+                }
+
+                if diagnosticsSummary.hasRecentPayloads() {
+                    Label(
+                        AppStrings.Settings.recentDiagnosticsAvailable,
+                        systemImage: "waveform.path.ecg"
+                    )
+                    .foregroundStyle(.orange)
+                }
+
+                if let mostRecentPayloadDate = diagnosticsSummary.mostRecentPayloadDate {
+                    Text(AppStrings.Settings.mostRecentDiagnostic(
+                        mostRecentPayloadDate.formatted(date: .abbreviated, time: .shortened)
+                    ))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
                 }
 
                 Text(AppStrings.Settings.diagnosticsFooter)
@@ -229,7 +245,12 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .padding(20)
         .frame(width: 560)
-        .onAppear(perform: refreshDiagnosticsPayloadCount)
+        .onAppear(perform: refreshDiagnosticsSummary)
+        .onReceive(NotificationCenter.default.publisher(for: CrashDiagnosticsCollector.didStorePayloadNotification)) { _ in
+            Task { @MainActor in
+                refreshDiagnosticsSummary()
+            }
+        }
         .fileImporter(
             isPresented: $isChoosingModsFolder,
             allowedContentTypes: [.folder]
@@ -268,7 +289,7 @@ struct SettingsView: View {
                 withIntermediateDirectories: true
             )
             NSWorkspace.shared.activateFileViewerSelecting([diagnosticsDirectory])
-            refreshDiagnosticsPayloadCount()
+            refreshDiagnosticsSummary()
         } catch {
             diagnosticsStatus = StatusEvent(
                 severity: .error,
@@ -299,7 +320,7 @@ struct SettingsView: View {
                 severity: .info,
                 message: AppStrings.Status.exportedDiagnostics(fileCount: summary.supportFileCount)
             )
-            refreshDiagnosticsPayloadCount()
+            refreshDiagnosticsSummary()
         } catch {
             diagnosticsStatus = StatusEvent(
                 severity: .error,
@@ -308,7 +329,8 @@ struct SettingsView: View {
         }
     }
 
-    private func refreshDiagnosticsPayloadCount() {
-        diagnosticsPayloadCount = CrashDiagnosticsExporter.diagnosticPayloadCount()
+    @MainActor
+    private func refreshDiagnosticsSummary() {
+        diagnosticsSummary = CrashDiagnosticsExporter.diagnosticSummary()
     }
 }

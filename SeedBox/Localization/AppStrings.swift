@@ -130,6 +130,7 @@ enum AppStrings {
         static let smapiLogFooter = String(localized: "Seed Box reads SMAPI's log to show what happened in your last game session. The usual location is ~/.config/StardewValley/ErrorLogs.")
         static let diagnosticsSection = String(localized: "Diagnostics")
         static let storedDiagnostics = String(localized: "Stored Diagnostics")
+        static let recentDiagnosticsAvailable = String(localized: "Recent Apple crash diagnostics are available.")
         static let diagnosticsFooter = String(localized: "Export a support bundle only when you choose to share diagnostics. The bundle includes safe app summaries and any locally stored Apple crash diagnostics.")
         static let exportDiagnostics = String(localized: "Export Diagnostics…")
         static let revealDiagnostics = String(localized: "Reveal Diagnostics")
@@ -149,6 +150,10 @@ enum AppStrings {
 
         static func diagnosticPayloadCount(_ count: Int) -> String {
             String(localized: "\(count) files")
+        }
+
+        static func mostRecentDiagnostic(_ dateText: String) -> String {
+            String(localized: "Most recent: \(dateText)")
         }
 
         static func days(_ count: Int) -> String {
