@@ -21,8 +21,6 @@ enum ModSetStore {
     static let defaultSetName = AppStrings.ModSetNames.defaultSet
     static let noneSetID = "none"
     static let noneSetName = AppStrings.ModSetNames.none
-    static let initialSetID = "my-mods"
-    static let initialSetName = AppStrings.ModSetNames.myMods
 
     private static let appProvidedSetIDs: Set<String> = [
         allSetID,
@@ -211,12 +209,7 @@ enum ModSetStore {
         [
             allStarterSet(),
             defaultStarterSet(from: mods),
-            noneStarterSet(from: mods),
-            snapshotSet(
-                id: initialSetID,
-                name: initialSetName,
-                from: mods
-            )
+            noneStarterSet(from: mods)
         ]
     }
 

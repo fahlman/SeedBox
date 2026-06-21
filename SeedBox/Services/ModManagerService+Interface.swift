@@ -82,6 +82,7 @@ extension ModManagerService {
                 fallbackURLs: addedMods.map(\.url),
                 source: .watchedFolder,
                 shouldEnable: shouldEnableAddedMods(in: previousState),
+                appliedModSetID: previousState.appliedModSetID,
                 in: refreshed
             )
             return (commit(reconciled), true)

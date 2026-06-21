@@ -92,6 +92,7 @@ actor ModManagerService {
             fallbackURLs: addedMods.map(\.url),
             source: .startupScan,
             shouldEnable: shouldEnableAddedMods(appliedModSetID: appliedModSetID),
+            appliedModSetID: appliedModSetID,
             in: refreshedState
         )
 

@@ -228,9 +228,10 @@ final class SeedBoxRouteTests: XCTestCase {
 
     private func makeState() -> ModManagerState {
         let defaultSet = ModSet(
-            id: ModSetStore.initialSetID,
-            name: ModSetStore.initialSetName,
-            disabledFolderNames: []
+            id: ModSetStore.defaultSetID,
+            name: ModSetStore.defaultSetName,
+            disabledFolderNames: [],
+            isEditable: false
         )
         let favoritesSet = ModSet(
             id: "favorites",
@@ -261,8 +262,8 @@ final class SeedBoxRouteTests: XCTestCase {
                     searchText: "Visible"
                 )
             ],
-            selectedModSetID: ModSetStore.initialSetID,
-            appliedModSetID: ModSetStore.initialSetID,
+            selectedModSetID: ModSetStore.defaultSetID,
+            appliedModSetID: ModSetStore.defaultSetID,
             activityStatus: nil,
             auditTrail: AuditTrailState(
                 logPath: "/tmp/SeedBoxTests/Audit Log.json",

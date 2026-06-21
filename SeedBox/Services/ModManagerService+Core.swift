@@ -21,6 +21,21 @@ extension ModManagerService {
         }
     }
 
+    func shouldEnableAddedMod(
+        _ mod: ModInfo,
+        defaultShouldEnable: Bool,
+        appliedModSetID: String?
+    ) -> Bool {
+        switch appliedModSetID {
+        case ModSetStore.defaultSetID:
+            SMAPIIdentifiers.isBundledMod(mod)
+        case ModSetStore.noneSetID:
+            false
+        default:
+            defaultShouldEnable
+        }
+    }
+
     func guardCanManageMods(in state: inout ModManagerState) -> Bool {
         guard let blockedMessage = state.readiness.managementBlockedMessage else {
             return true

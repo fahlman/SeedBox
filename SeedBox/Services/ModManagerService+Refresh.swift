@@ -52,7 +52,7 @@ extension ModManagerService {
     func reloadModSets(in state: inout ModManagerState) {
         guard state.readiness.canManageMods else {
             state.modSets = []
-            setSelectedModSetID(ModSetStore.initialSetID, in: &state)
+            setSelectedModSetID(ModSetStore.defaultSetID, in: &state)
             state.appliedModSetID = nil
             return
         }
@@ -83,7 +83,7 @@ extension ModManagerService {
             }
         } catch {
             state.modSets = []
-            setSelectedModSetID(ModSetStore.initialSetID, in: &state)
+            setSelectedModSetID(ModSetStore.defaultSetID, in: &state)
             state.appliedModSetID = nil
             record(AppStrings.Status.couldNotReadModSets(error.localizedDescription), severity: .error, in: &state)
         }
@@ -92,7 +92,7 @@ extension ModManagerService {
     private func fallbackSelectedModSetID(in sets: [ModSet]) -> String {
         sets.first { $0.id == ModSetStore.defaultSetID }?.id
             ?? sets.first?.id
-            ?? ModSetStore.initialSetID
+            ?? ModSetStore.defaultSetID
     }
 
     func reloadAuditTrail(in state: inout ModManagerState) {

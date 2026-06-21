@@ -104,7 +104,7 @@ enum ModLibrarySelection: Hashable, Sendable {
     static let smartPrefix = "smart:"
     static let userSmartPrefix = "userSmart:"
     static let modSetPrefix = "modSet:"
-    static let initialID = modSetID(ModSetStore.initialSetID)
+    static let initialID = modSetID(ModSetStore.defaultSetID)
 
     init(id: String) {
         if id.hasPrefix(Self.smartPrefix) {
@@ -119,7 +119,7 @@ enum ModLibrarySelection: Hashable, Sendable {
         } else if id.hasPrefix(Self.modSetPrefix) {
             self = .modSet(String(id.dropFirst(Self.modSetPrefix.count)))
         } else if id.isEmpty {
-            self = .modSet(ModSetStore.initialSetID)
+            self = .modSet(ModSetStore.defaultSetID)
         } else {
             self = .modSet(id)
         }

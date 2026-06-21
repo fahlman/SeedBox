@@ -15,7 +15,6 @@ enum AppStrings {
         static let all = String(localized: "All")
         static let defaultSet = String(localized: "Default")
         static let none = String(localized: "None")
-        static let myMods = String(localized: "My Mods")
         static let current = String(localized: "Current")
         static let newSet = String(localized: "New Set")
         static let untitledSet = String(localized: "Untitled Set")

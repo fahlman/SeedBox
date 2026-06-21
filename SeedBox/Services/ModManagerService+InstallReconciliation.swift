@@ -126,9 +126,23 @@ extension ModManagerService {
         fallbackURLs: [URL],
         source: AddedModSource,
         shouldEnable: Bool,
+        appliedModSetID: String? = nil,
         in state: ModManagerState
     ) -> ModManagerState {
         var nextState = state
+        let effectiveAppliedModSetID = appliedModSetID ?? state.appliedModSetID
+        let enablementByModID = Dictionary(
+            uniqueKeysWithValues: addedMods.map { mod in
+                (
+                    mod.id,
+                    shouldEnableAddedMod(
+                        mod,
+                        defaultShouldEnable: shouldEnable,
+                        appliedModSetID: effectiveAppliedModSetID
+                    )
+                )
+            }
+        )
         let addedTokens = Set(
             (addedMods.map(\.enabledFolderName) + fallbackURLs.map(\.lastPathComponent))
                 .map(\.normalizedFolderToken)
@@ -139,7 +153,10 @@ extension ModManagerService {
         do {
             try performWithFolderAccess(state: &nextState) {
                 for mod in addedMods {
-                    _ = try ModLibrary.setEnabled(mod, enabled: shouldEnable)
+                    _ = try ModLibrary.setEnabled(
+                        mod,
+                        enabled: enablementByModID[mod.id] ?? shouldEnable
+                    )
                 }
             }
 
@@ -159,7 +176,10 @@ extension ModManagerService {
                 )
             )
             var details = source.details
-            details["installed_state"] = shouldEnable ? "enabled" : "disabled"
+            details["installed_state"] = installedStateDescription(
+                for: addedMods.map { enablementByModID[$0.id] ?? shouldEnable },
+                fallback: shouldEnable
+            )
             details["destination_paths"] = finalAddedURLs.map(\.path).joined(separator: "\n")
             audit(
                 .modsAdded,
@@ -175,6 +195,20 @@ extension ModManagerService {
             record(AppStrings.Status.couldNotReconcileAddedMods(error.localizedDescription), severity: .error, in: &nextState)
             return nextState
         }
+    }
+
+    private func installedStateDescription(for decisions: [Bool], fallback: Bool) -> String {
+        guard !decisions.isEmpty else {
+            return fallback ? "enabled" : "disabled"
+        }
+
+        if decisions.allSatisfy({ $0 }) {
+            return "enabled"
+        }
+        if decisions.allSatisfy({ !$0 }) {
+            return "disabled"
+        }
+        return "mixed"
     }
 
     func installSummary(for installResult: ModInstallResult) -> String {

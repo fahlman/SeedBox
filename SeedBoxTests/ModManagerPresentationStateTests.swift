@@ -23,7 +23,14 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
 
         let mods = try ModLibrary.scan(install: install)
         let expandedMod = try XCTUnwrap(mods.first { $0.displayName == "Stardew Valley Expanded" })
-        let state = makeState(install: install, mods: mods)
+        let userSet = ModSetStore.snapshotSet(
+            id: "favorites",
+            name: "Favorites",
+            from: mods
+        )
+        var state = makeState(install: install, mods: mods, modSets: [userSet])
+        state.selectedModSetID = userSet.id
+        state.appliedModSetID = userSet.id
         let presentationState = ModManagerPresentationState(
             state: state,
             searchText: "dependency:disabled",
@@ -290,7 +297,7 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
             selectedLibraryItemID: ModLibrarySelection.userSmartID("missing")
         )
 
-        XCTAssertEqual(presentationState.librarySelection, .modSet(ModSetStore.initialSetID))
+        XCTAssertEqual(presentationState.librarySelection, .modSet(ModSetStore.defaultSetID))
         XCTAssertEqual(presentationState.selectedLibraryItem?.kind, .modSet)
     }
 
@@ -486,10 +493,11 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         userSmartModSets: [UserSmartModSet] = []
     ) -> ModManagerState {
         let sets = modSets ?? [
-            ModSetStore.snapshotSet(
-                id: ModSetStore.initialSetID,
-                name: ModSetStore.initialSetName,
-                from: mods
+            ModSet(
+                id: ModSetStore.defaultSetID,
+                name: ModSetStore.defaultSetName,
+                disabledFolderNames: [],
+                isEditable: false
             )
         ]
 
@@ -508,8 +516,8 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
             hasLoadedMods: true,
             modSets: sets,
             userSmartModSets: userSmartModSets,
-            selectedModSetID: ModSetStore.initialSetID,
-            appliedModSetID: ModSetStore.initialSetID,
+            selectedModSetID: ModSetStore.defaultSetID,
+            appliedModSetID: ModSetStore.defaultSetID,
             activityStatus: nil,
             auditTrail: AuditTrailState(
                 logPath: install.modSetDirectory.appendingPathComponent("Audit Log.json").path,

@@ -259,7 +259,7 @@ extension ModManagerService {
         }
 
         let fallbackSet = nextState.modSets.first { $0.id != set.id }
-        setSelectedModSetID(fallbackSet?.id ?? ModSetStore.initialSetID, in: &nextState)
+        setSelectedModSetID(fallbackSet?.id ?? ModSetStore.defaultSetID, in: &nextState)
         nextState.appliedModSetID = nil
         record(AppStrings.Status.deletedModSet(set.name), in: &nextState)
         var refreshedState = refreshedState(from: nextState)
