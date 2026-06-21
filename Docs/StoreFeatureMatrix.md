@@ -102,6 +102,11 @@ Legend:
   replaces, updates the active mod set, and records the action in the audit
   trail. No App Store or Steam-specific constraint was found. Verified with full
   `Seed Box` and `Seed Box Steam` scheme test runs.
+- 2026-06-20: Replaced, deleted, duplicate, and restore-conflicting mod folders
+  are archived into Application Support with sidecar date/reason metadata before
+  the active Mods folder is changed. No App Store or Steam-specific constraint
+  was found. Verified with full `Seed Box` and `Seed Box Steam` scheme test
+  runs.
 
 ## Release Decision Rule
 
