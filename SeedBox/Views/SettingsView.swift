@@ -146,7 +146,6 @@ struct SettingsView: View {
                     } label: {
                         Label(AppStrings.Settings.exportDiagnostics, systemImage: "square.and.arrow.up")
                     }
-                    .disabled(diagnosticsPayloadCount == 0)
 
                     Spacer()
                 }
@@ -292,10 +291,13 @@ struct SettingsView: View {
         }
 
         do {
-            let summary = try CrashDiagnosticsExporter.exportArchive(to: destinationURL)
+            let summary = try CrashDiagnosticsExporter.exportArchive(
+                to: destinationURL,
+                context: .current(state: viewModel.state)
+            )
             diagnosticsStatus = StatusEvent(
                 severity: .info,
-                message: AppStrings.Status.exportedDiagnostics(count: summary.payloadCount)
+                message: AppStrings.Status.exportedDiagnostics(fileCount: summary.supportFileCount)
             )
             refreshDiagnosticsPayloadCount()
         } catch {

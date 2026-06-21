@@ -58,26 +58,180 @@ final class CrashDiagnosticsCollectorTests: SeedBoxTestCase {
 
         let archiveData = try Data(contentsOf: archiveURL)
         XCTAssertEqual(summary.payloadCount, 2)
+        XCTAssertEqual(summary.supportFileCount, 4)
         XCTAssertEqual(summary.archiveByteCount, archiveData.count)
         XCTAssertTrue(archiveData.starts(with: Data([0x50, 0x4B])))
     }
 
-    func testNoDiagnosticsExportDoesNotReplaceDestinationFile() throws {
+    func testExportsSupportBundleWithoutDiagnosticPayloads() throws {
         let diagnosticsDirectory = temporaryDirectory.appendingPathComponent("Empty Diagnostics", isDirectory: true)
-        let archiveURL = temporaryDirectory.appendingPathComponent("Existing.zip")
-        let existingData = Data("keep me".utf8)
+        let archiveURL = temporaryDirectory.appendingPathComponent("Seed Box Diagnostics.zip")
         try FileManager.default.createDirectory(at: diagnosticsDirectory, withIntermediateDirectories: true)
-        try existingData.write(to: archiveURL)
 
-        XCTAssertThrowsError(
-            try CrashDiagnosticsExporter.exportArchive(
-                from: diagnosticsDirectory,
-                to: archiveURL,
-                fileManager: .default
-            )
-        ) { error in
-            XCTAssertEqual(error as? CrashDiagnosticsExportError, .noDiagnostics)
-        }
-        XCTAssertEqual(try Data(contentsOf: archiveURL), existingData)
+        let summary = try CrashDiagnosticsExporter.exportArchive(
+            from: diagnosticsDirectory,
+            to: archiveURL,
+            context: CrashDiagnosticsExportContext(appVersion: "1.2.3", buildVersion: "4", state: nil),
+            generatedAt: Date(timeIntervalSince1970: 1_750_000_000),
+            fileManager: .default
+        )
+
+        let archiveData = try Data(contentsOf: archiveURL)
+        XCTAssertEqual(summary.payloadCount, 0)
+        XCTAssertEqual(summary.supportFileCount, 2)
+        XCTAssertEqual(summary.archiveByteCount, archiveData.count)
+        XCTAssertTrue(archiveData.starts(with: Data([0x50, 0x4B])))
+    }
+
+    func testWritesSupportBundleWithSafeStateSummaries() throws {
+        let install = try makeInstall()
+        let modURL = try makeInstalledMod(
+            name: "Sample Mod",
+            in: install,
+            folderName: "SampleMod",
+            uniqueID: "Example.SampleMod",
+            updateKeys: ["Nexus:123"]
+        )
+        let state = makeDiagnosticsState(
+            install: install,
+            mods: [
+                ModInfo(
+                    folderName: "SampleMod",
+                    url: modURL,
+                    isEnabled: true,
+                    manifest: ModManifest(
+                        name: "Sample Mod",
+                        author: "Test Author",
+                        version: "1.2.3",
+                        description: "A test mod.",
+                        uniqueID: "Example.SampleMod",
+                        entryDll: "SampleMod.dll",
+                        minimumApiVersion: nil,
+                        updateKeys: ["Nexus:123"],
+                        contentPackFor: nil,
+                        dependencies: nil
+                    )
+                )
+            ]
+        )
+        let bundleDirectory = temporaryDirectory.appendingPathComponent("Bundle", isDirectory: true)
+
+        let summary = try CrashDiagnosticsExporter.writeSupportBundle(
+            to: bundleDirectory,
+            payloadURLs: [],
+            context: CrashDiagnosticsExportContext(appVersion: "1.2.3", buildVersion: "4", state: state),
+            generatedAt: Date(timeIntervalSince1970: 1_750_000_000),
+            fileManager: .default
+        )
+
+        let files = try FileManager.default.contentsOfDirectory(atPath: bundleDirectory.path)
+        XCTAssertEqual(summary.payloadCount, 0)
+        XCTAssertEqual(summary.supportFileCount, 5)
+        XCTAssertTrue(files.contains("README.txt"))
+        XCTAssertTrue(files.contains("App Summary.json"))
+        XCTAssertTrue(files.contains("Settings Summary.json"))
+        XCTAssertTrue(files.contains("Mod Inventory Summary.json"))
+        XCTAssertTrue(files.contains("Audit Summary.json"))
+
+        let readme = try String(contentsOf: bundleDirectory.appendingPathComponent("README.txt"), encoding: .utf8)
+        XCTAssertTrue(readme.contains("does not include mod files"))
+
+        let appSummary = try String(contentsOf: bundleDirectory.appendingPathComponent("App Summary.json"), encoding: .utf8)
+        XCTAssertTrue(appSummary.contains(#""appVersion" : "1.2.3""#))
+
+        let inventorySummary = try String(contentsOf: bundleDirectory.appendingPathComponent("Mod Inventory Summary.json"), encoding: .utf8)
+        XCTAssertTrue(inventorySummary.contains("Sample Mod"))
+        XCTAssertFalse(inventorySummary.contains(temporaryDirectory.path))
+    }
+
+    func testSupportBundleRedactsKnownPrivatePathsFromAuditSummary() throws {
+        let install = try makeInstall()
+        let modURL = try makeInstalledMod(name: "Private Path Mod", in: install)
+        let entry = AuditLogEntry(
+            timestamp: Date(timeIntervalSince1970: 1_750_000_000),
+            action: .modsAdded,
+            summary: "Added \(modURL.path)",
+            modsDirectoryPath: install.modDirectoryURL.path,
+            selectedModSetID: ModSetStore.defaultSetID,
+            selectedModSetName: ModSetStore.defaultSetName,
+            appliedModSetID: ModSetStore.defaultSetID,
+            subjects: [
+                AuditLogSubject(
+                    kind: .mod,
+                    id: "Example.PrivatePathMod",
+                    name: "Private Path Mod",
+                    path: modURL.path
+                )
+            ],
+            details: [
+                "source": modURL.path,
+                "note": "safe detail"
+            ]
+        )
+        let state = makeDiagnosticsState(
+            install: install,
+            mods: [
+                ModInfo(
+                    folderName: modURL.lastPathComponent,
+                    url: modURL,
+                    isEnabled: true,
+                    manifest: nil
+                )
+            ],
+            auditEntries: [entry]
+        )
+        let bundleDirectory = temporaryDirectory.appendingPathComponent("Bundle", isDirectory: true)
+
+        try CrashDiagnosticsExporter.writeSupportBundle(
+            to: bundleDirectory,
+            payloadURLs: [],
+            context: CrashDiagnosticsExportContext(appVersion: "1.2.3", buildVersion: "4", state: state),
+            generatedAt: Date(timeIntervalSince1970: 1_750_000_000),
+            fileManager: .default
+        )
+
+        let auditSummary = try String(contentsOf: bundleDirectory.appendingPathComponent("Audit Summary.json"), encoding: .utf8)
+        XCTAssertTrue(auditSummary.contains("[redacted path]"))
+        XCTAssertTrue(auditSummary.contains("safe detail"))
+        XCTAssertFalse(auditSummary.contains(temporaryDirectory.path))
+    }
+
+    private func makeDiagnosticsState(
+        install: StardewInstall,
+        mods: [ModInfo] = [],
+        auditEntries: [AuditLogEntry] = []
+    ) -> ModManagerState {
+        ModManagerState(
+            modsDirectoryPath: install.modDirectoryURL.path,
+            status: install.status(),
+            hasSavedFolderAccess: true,
+            mods: mods,
+            invalidModFolders: [],
+            archivedMods: [],
+            archiveSummary: ModArchiveSummary(),
+            archiveSettings: ArchiveSettings(
+                automaticallyPrunesExpiredArchives: false,
+                retentionDays: ArchiveSettings.defaultRetentionDays
+            ),
+            hasLoadedMods: true,
+            modSets: [
+                ModSetStore.snapshotSet(
+                    id: ModSetStore.defaultSetID,
+                    name: ModSetStore.defaultSetName,
+                    from: mods,
+                    isDefault: true,
+                    isIncluded: true
+                )
+            ],
+            selectedModSetID: ModSetStore.defaultSetID,
+            appliedModSetID: ModSetStore.defaultSetID,
+            activityStatus: nil,
+            auditTrail: AuditTrailState(
+                logPath: install.auditLogURL.path,
+                recentEntries: auditEntries,
+                lastErrorMessage: nil
+            ),
+            pendingSourceCleanupOffer: nil
+        )
     }
 }

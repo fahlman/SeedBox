@@ -130,7 +130,7 @@ enum AppStrings {
         static let smapiLogFooter = String(localized: "Seed Box reads SMAPI's log to show what happened in your last game session. The usual location is ~/.config/StardewValley/ErrorLogs.")
         static let diagnosticsSection = String(localized: "Diagnostics")
         static let storedDiagnostics = String(localized: "Stored Diagnostics")
-        static let diagnosticsFooter = String(localized: "Seed Box stores Apple crash diagnostics locally on this Mac. Export them only when you choose to share them for support.")
+        static let diagnosticsFooter = String(localized: "Export a support bundle only when you choose to share diagnostics. The bundle includes safe app summaries and any locally stored Apple crash diagnostics.")
         static let exportDiagnostics = String(localized: "Export Diagnostics…")
         static let revealDiagnostics = String(localized: "Reveal Diagnostics")
         static let modUpdatesSection = String(localized: "Mod Updates")
@@ -430,10 +430,9 @@ enum AppStrings {
         }
 
         static let couldNotApplySetSelectionMissing = String(localized: "Could not apply set: selection is missing.")
-        static let noDiagnosticsToExport = String(localized: "No diagnostics to export.")
 
-        static func exportedDiagnostics(count: Int) -> String {
-            String(localized: "Exported \(count) diagnostic files.")
+        static func exportedDiagnostics(fileCount: Int) -> String {
+            String(localized: "Exported diagnostics support bundle with \(fileCount) files.")
         }
 
         static func couldNotExportDiagnostics(_ errorDescription: String) -> String {

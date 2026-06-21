@@ -81,8 +81,6 @@ start with a baseline set and layer optional collections on top.
 - Finish the About box and credits review before public release.
 - Keep improving Help content as workflows settle.
 - Do a hands-on accessibility pass with VoiceOver and keyboard navigation.
-- Finish the diagnostics support bundle so exports can include safe audit,
-  settings, and context summaries without including mod contents.
 - Build a native archive browser/search/filter experience.
 - Improve bisection guidance so users understand what changed, what to test, and
   what happens after a culprit is found.
