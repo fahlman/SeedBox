@@ -122,6 +122,12 @@ Legend:
   archive contents into the Mods folder, but no build-specific code constraint
   was found. Verified with full `Seed Box` and `Seed Box Steam` scheme test
   runs.
+- 2026-06-20: Drag/drop and file-import install paths accept folders and ZIPs,
+  converge on the same preview workflow, and use user-selected source access
+  before applying changes. Its App Store status remains Risky because it writes
+  user-provided mod contents into the Mods folder, but no build-specific code
+  constraint was found. Verified with full `Seed Box` and `Seed Box Steam`
+  scheme test runs.
 
 ## Release Decision Rule
 
