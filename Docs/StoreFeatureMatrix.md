@@ -128,6 +128,12 @@ Legend:
   user-provided mod contents into the Mods folder, but no build-specific code
   constraint was found. Verified with full `Seed Box` and `Seed Box Steam`
   scheme test runs.
+- 2026-06-20: Applying a Mod Set resolves the selected set, preflights required
+  dependency issues, renames folders inside the approved Mods folder, and records
+  the action in the audit trail. Its App Store status remains Risky because it
+  mutates user-selected game mod folders, but no build-specific code constraint
+  was found. Verified with full `Seed Box` and `Seed Box Steam` scheme test
+  runs.
 
 ## Release Decision Rule
 
