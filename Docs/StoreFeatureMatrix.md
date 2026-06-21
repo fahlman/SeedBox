@@ -73,6 +73,10 @@ Legend:
   SMAPI log folder, filtered to currently installed mods, and refreshed on app
   launch and activation. No App Store or Steam-specific constraint was found.
   Verified with full `Seed Box` and `Seed Box Steam` scheme test runs.
+- 2026-06-20: SMAPI log reading uses an explicit user-selected ErrorLogs folder
+  bookmark, reads only `SMAPI-latest.txt`, and applies a 64 MB size cap before
+  parsing. No App Store or Steam-specific constraint was found. Verified with
+  full `Seed Box` and `Seed Box Steam` scheme test runs.
 
 ## Release Decision Rule
 
