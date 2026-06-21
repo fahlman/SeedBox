@@ -77,6 +77,10 @@ Legend:
   bookmark, reads only `SMAPI-latest.txt`, and applies a 64 MB size cap before
   parsing. No App Store or Steam-specific constraint was found. Verified with
   full `Seed Box` and `Seed Box Steam` scheme test runs.
+- 2026-06-20: Update results expose mod pages through native SwiftUI links after
+  the SMAPI client filters out non-HTTPS URLs. No App Store or Steam-specific
+  constraint was found. Verified with full `Seed Box` and `Seed Box Steam`
+  scheme test runs.
 
 ## Release Decision Rule
 
