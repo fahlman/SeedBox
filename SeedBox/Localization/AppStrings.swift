@@ -1013,6 +1013,10 @@ enum AppStrings {
             String(localized: "The mod folder does not exist at \(path).")
         }
 
+        static func archivedModOutsideArchive(at path: String) -> String {
+            String(localized: "The archived mod is outside Seed Box's archive folder at \(path).")
+        }
+
         static func modSetNotFound(_ id: String) -> String {
             String(localized: "Mod set \(id) was not found.")
         }

@@ -6,6 +6,7 @@ enum ModLibraryError: Error, Equatable, LocalizedError, Sendable {
     case modAlreadyInstalled(String, URL)
     case invalidDisabledName(String)
     case noInstallableMods(URL)
+    case archivedModOutsideArchive(URL)
 
     var errorDescription: String? {
         switch self {
@@ -19,6 +20,8 @@ enum ModLibraryError: Error, Equatable, LocalizedError, Sendable {
             return AppStrings.Errors.disabledFolderNameCannotBeEnabled(name)
         case .noInstallableMods(let url):
             return AppStrings.Errors.noInstallableMods(at: url.path)
+        case .archivedModOutsideArchive(let url):
+            return AppStrings.Errors.archivedModOutsideArchive(at: url.path)
         }
     }
 }
@@ -320,8 +323,16 @@ enum ModLibrary {
         fileManager: FileManager = .default
     ) throws -> Int {
         var deletedCount = 0
+        let resolvedArchiveDirectory = archiveDirectory
+            .standardizedFileURL
+            .resolvingSymlinksInPath()
 
         for archivedMod in archivedMods {
+            try validateArchivedModIsInsideArchive(
+                archivedMod,
+                archiveDirectory: resolvedArchiveDirectory
+            )
+
             guard fileManager.directoryExists(at: archivedMod.url) else {
                 throw ModLibraryError.modFolderMissing(archivedMod.url)
             }
@@ -336,6 +347,24 @@ enum ModLibrary {
         }
 
         return deletedCount
+    }
+
+    private static func validateArchivedModIsInsideArchive(
+        _ archivedMod: ArchivedModInfo,
+        archiveDirectory: URL
+    ) throws {
+        let containerURL = archivedMod.containerURL
+            .standardizedFileURL
+            .resolvingSymlinksInPath()
+        let archivedModURL = archivedMod.url
+            .standardizedFileURL
+            .resolvingSymlinksInPath()
+
+        guard containerURL.deletingLastPathComponent() == archiveDirectory,
+              archivedModURL.deletingLastPathComponent() == containerURL
+        else {
+            throw ModLibraryError.archivedModOutsideArchive(archivedMod.url)
+        }
     }
 
     private struct CompletedRestoreOperation {

@@ -1051,6 +1051,65 @@ final class ModLibraryTests: SeedBoxTestCase {
         XCTAssertTrue(try ModArchive.archivedMods(in: install.archivedModsDirectoryURL).isEmpty)
     }
 
+    func testDeleteArchivedModsRefusesModOutsideArchiveDirectory() throws {
+        let install = try makeInstall()
+        let archiveContainerURL = install.archivedModsDirectoryURL
+            .appendingPathComponent("2026-06-20T12-00-00Z-deleted", isDirectory: true)
+        let outsideContainerURL = temporaryDirectory
+            .appendingPathComponent("Outside Archive", isDirectory: true)
+        let outsideModURL = outsideContainerURL.appendingPathComponent("OutsideMod", isDirectory: true)
+        try FileManager.default.createDirectory(at: archiveContainerURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: outsideModURL, withIntermediateDirectories: true)
+
+        let forgedArchivedMod = ArchivedModInfo(
+            url: outsideModURL,
+            containerURL: archiveContainerURL,
+            folderName: "OutsideMod",
+            reason: .deleted,
+            archivedDate: Date(timeIntervalSince1970: 1_750_000_000),
+            manifest: nil
+        )
+
+        XCTAssertThrowsError(
+            try ModLibrary.deleteArchivedMods(
+                [forgedArchivedMod],
+                archiveDirectory: install.archivedModsDirectoryURL
+            )
+        ) { error in
+            XCTAssertEqual(error as? ModLibraryError, .archivedModOutsideArchive(outsideModURL))
+        }
+        XCTAssertTrue(FileManager.default.directoryExists(at: outsideModURL))
+        XCTAssertTrue(FileManager.default.directoryExists(at: archiveContainerURL))
+    }
+
+    func testDeleteArchivedModsRefusesContainerOutsideArchiveDirectory() throws {
+        let install = try makeInstall()
+        let outsideContainerURL = temporaryDirectory
+            .appendingPathComponent("Outside Archive", isDirectory: true)
+        let outsideModURL = outsideContainerURL.appendingPathComponent("OutsideMod", isDirectory: true)
+        try FileManager.default.createDirectory(at: outsideModURL, withIntermediateDirectories: true)
+
+        let forgedArchivedMod = ArchivedModInfo(
+            url: outsideModURL,
+            containerURL: outsideContainerURL,
+            folderName: "OutsideMod",
+            reason: .deleted,
+            archivedDate: Date(timeIntervalSince1970: 1_750_000_000),
+            manifest: nil
+        )
+
+        XCTAssertThrowsError(
+            try ModLibrary.deleteArchivedMods(
+                [forgedArchivedMod],
+                archiveDirectory: install.archivedModsDirectoryURL
+            )
+        ) { error in
+            XCTAssertEqual(error as? ModLibraryError, .archivedModOutsideArchive(outsideModURL))
+        }
+        XCTAssertTrue(FileManager.default.directoryExists(at: outsideModURL))
+        XCTAssertTrue(FileManager.default.directoryExists(at: outsideContainerURL))
+    }
+
     func testRestoreArchivedModReplacesCurrentCopyAndArchivesCurrentCopy() throws {
         let install = try makeInstall()
         let currentURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
