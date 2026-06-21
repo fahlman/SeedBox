@@ -107,6 +107,10 @@ Legend:
   the active Mods folder is changed. No App Store or Steam-specific constraint
   was found. Verified with full `Seed Box` and `Seed Box Steam` scheme test
   runs.
+- 2026-06-20: Update, reinstall, downgrade, replace, duplicate, and already
+  installed classifications are produced by the same install classifier used by
+  previews and actual installs. No App Store or Steam-specific constraint was
+  found. Verified with full `Seed Box` and `Seed Box Steam` scheme test runs.
 
 ## Release Decision Rule
 
