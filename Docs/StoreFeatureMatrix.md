@@ -81,6 +81,12 @@ Legend:
   the SMAPI client filters out non-HTTPS URLs. No App Store or Steam-specific
   constraint was found. Verified with full `Seed Box` and `Seed Box Steam`
   scheme test runs.
+- 2026-06-20: SMAPI update checks are opt-in, use a fixed HTTPS endpoint with
+  an ephemeral URL session, and send only each mod's unique ID, installed
+  version, update keys, plus detected SMAPI version when available. The
+  sandboxed build includes the network client entitlement. No App Store or
+  Steam-specific constraint was found. Verified with full `Seed Box` and
+  `Seed Box Steam` scheme test runs.
 
 ## Release Decision Rule
 
