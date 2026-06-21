@@ -48,6 +48,10 @@ struct ModManagerModSetState: Equatable, Sendable {
     var appliedSetID: String?
 }
 
+struct ModManagerSmartModSetState: Equatable, Sendable {
+    var userSmartModSets: [UserSmartModSet]
+}
+
 struct ModManagerTroubleshootingState: Equatable, Sendable {
     var bisectionSession: ModBisectionSession?
     var hasSMAPILogFolderAccess: Bool
@@ -67,6 +71,7 @@ struct ModManagerState: Equatable, Sendable {
     var sourceCleanup: ModManagerSourceCleanupState
     var updates: ModManagerUpdateState
     var modSetsState: ModManagerModSetState
+    var smartModSetsState: ModManagerSmartModSetState
     var troubleshooting: ModManagerTroubleshootingState
     var activity: ModManagerActivityState
 
@@ -89,6 +94,7 @@ struct ModManagerState: Equatable, Sendable {
         knownModPageURLs: [String: URL] = [:],
         hasLoadedMods: Bool,
         modSets: [ModSet],
+        userSmartModSets: [UserSmartModSet] = [],
         selectedModSetID: String,
         appliedModSetID: String?,
         activityStatus: StatusEvent?,
@@ -128,6 +134,9 @@ struct ModManagerState: Equatable, Sendable {
             sets: modSets,
             selectedSetID: selectedModSetID,
             appliedSetID: appliedModSetID
+        )
+        smartModSetsState = ModManagerSmartModSetState(
+            userSmartModSets: userSmartModSets
         )
         troubleshooting = ModManagerTroubleshootingState(
             bisectionSession: bisectionSession,
@@ -229,6 +238,11 @@ struct ModManagerState: Equatable, Sendable {
     var appliedModSetID: String? {
         get { modSetsState.appliedSetID }
         set { modSetsState.appliedSetID = newValue }
+    }
+
+    var userSmartModSets: [UserSmartModSet] {
+        get { smartModSetsState.userSmartModSets }
+        set { smartModSetsState.userSmartModSets = newValue }
     }
 
     var bisectionSession: ModBisectionSession? {

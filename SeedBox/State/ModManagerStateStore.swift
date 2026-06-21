@@ -5,15 +5,19 @@ import Foundation
 struct ModManagerStateStore: @unchecked Sendable {
     private let folderAccess: SecurityScopedFolderAccess
     private let modSetDirectory: URL
+    private let smartModSetStoreURL: URL
     private let preferences: ModManagerPreferences
 
     init(
         folderAccess: SecurityScopedFolderAccess,
         modSetDirectory: URL,
+        smartModSetStoreURL: URL? = nil,
         preferences: ModManagerPreferences
     ) {
         self.folderAccess = folderAccess
         self.modSetDirectory = modSetDirectory
+        self.smartModSetStoreURL = smartModSetStoreURL
+            ?? StardewInstall.smartModSetStoreURL(forModSetDirectory: modSetDirectory)
         self.preferences = preferences
     }
 
@@ -93,6 +97,20 @@ struct ModManagerStateStore: @unchecked Sendable {
 
     func save(_ state: ModManagerState) {
         preferences.save(state)
+        saveUserSmartModSetsIfNeeded(state.userSmartModSets)
+    }
+
+    private func saveUserSmartModSetsIfNeeded(_ userSmartModSets: [UserSmartModSet]) {
+        let storeExists = FileManager.default.fileExists(atPath: smartModSetStoreURL.path)
+        guard !userSmartModSets.isEmpty || storeExists else {
+            return
+        }
+
+        do {
+            try UserSmartModSetStore.saveSmartModSets(userSmartModSets, to: smartModSetStoreURL)
+        } catch {
+            AppLog.smartModSets.error("Could not save user Smart Mod Sets: \(error.localizedDescription, privacy: .private)")
+        }
     }
 
     func initialState(selectedModSetID: String) -> ModManagerState {
@@ -104,6 +122,7 @@ struct ModManagerStateStore: @unchecked Sendable {
             modsDirectory: URL(fileURLWithPath: initialDirectoryPath, isDirectory: true),
             modSetDirectory: modSetDirectory
         )
+        let userSmartModSets = (try? UserSmartModSetStore.loadSmartModSets(from: smartModSetStoreURL)) ?? []
 
         return ModManagerState(
             modsDirectoryPath: initialDirectoryPath,
@@ -119,6 +138,7 @@ struct ModManagerStateStore: @unchecked Sendable {
             availableUpdates: [],
             hasLoadedMods: false,
             modSets: [],
+            userSmartModSets: userSmartModSets,
             selectedModSetID: selectedModSetID,
             appliedModSetID: nil,
             activityStatus: nil,
