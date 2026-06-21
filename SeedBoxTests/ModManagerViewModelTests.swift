@@ -126,8 +126,8 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
         await viewModel.selectModSet(id: ModSetStore.noneSetID)
         XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, ModSetStore.noneSetID)
-        XCTAssertTrue(viewModel.state.modSetSelection.selectedSetCanBeRenamed)
-        XCTAssertTrue(viewModel.state.modSetSelection.selectedSetCanBeDeleted)
+        XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeRenamed)
+        XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeDeleted)
         XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Content Patcher": false,
             "Console Commands": false,
@@ -136,8 +136,8 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
         await viewModel.selectModSet(id: ModSetStore.defaultSetID)
         XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, ModSetStore.defaultSetID)
-        XCTAssertTrue(viewModel.state.modSetSelection.selectedSetCanBeRenamed)
-        XCTAssertTrue(viewModel.state.modSetSelection.selectedSetCanBeDeleted)
+        XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeRenamed)
+        XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeDeleted)
         XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Content Patcher": false,
             "Console Commands": true,
@@ -146,13 +146,36 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
         await viewModel.selectModSet(id: ModSetStore.allSetID)
         XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, ModSetStore.allSetID)
-        XCTAssertTrue(viewModel.state.modSetSelection.selectedSetCanBeRenamed)
-        XCTAssertTrue(viewModel.state.modSetSelection.selectedSetCanBeDeleted)
+        XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeRenamed)
+        XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeDeleted)
         XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Content Patcher": true,
             "Console Commands": true,
             "Save Backup": true
         ])
+    }
+
+    func testAppProvidedModSetsCannotBeRenamedOrDeletedThroughViewModel() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+
+        try makeInstalledMod(
+            name: "Console Commands",
+            in: install,
+            uniqueID: "SMAPI.ConsoleCommands"
+        )
+        try makeInstalledMod(name: "Content Patcher", in: install)
+
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        await viewModel.selectModSet(id: ModSetStore.defaultSetID)
+        let defaultSet = try XCTUnwrap(viewModel.state.modSetSelection.selectedSet)
+
+        await viewModel.renameSelectedModSet(to: "Renamed")
+        XCTAssertEqual(viewModel.state.modSetSelection.selectedSet?.name, ModSetStore.defaultSetName)
+
+        await viewModel.deleteModSet(defaultSet)
+        XCTAssertTrue(viewModel.state.modSets.contains { $0.id == ModSetStore.defaultSetID })
+        XCTAssertEqual(viewModel.state.selectedModSetID, ModSetStore.defaultSetID)
     }
 
     func testAddingModToCustomSetInstallsEnabledAndSavesSet() async throws {

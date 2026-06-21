@@ -4,15 +4,18 @@ struct ModSet: Identifiable, Equatable, Sendable {
     var id: String
     var name: String
     var disabledFolderNames: [String]
+    var isEditable: Bool
 
     init(
         id: String,
         name: String,
-        disabledFolderNames: [String]
+        disabledFolderNames: [String],
+        isEditable: Bool = true
     ) {
         self.id = id
         self.name = name
         self.disabledFolderNames = disabledFolderNames
+        self.isEditable = isEditable
     }
 
     var disabledFolderTokens: Set<String> {
@@ -20,14 +23,14 @@ struct ModSet: Identifiable, Equatable, Sendable {
     }
 
     var isUserEditable: Bool {
-        true
+        isEditable
     }
 
     var isUserRenamable: Bool {
-        true
+        isEditable
     }
 
     var isUserDeletable: Bool {
-        true
+        isEditable
     }
 }

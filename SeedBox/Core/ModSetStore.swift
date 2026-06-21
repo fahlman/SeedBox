@@ -24,6 +24,12 @@ enum ModSetStore {
     static let initialSetID = "my-mods"
     static let initialSetName = AppStrings.ModSetNames.myMods
 
+    private static let appProvidedSetIDs: Set<String> = [
+        allSetID,
+        defaultSetID,
+        noneSetID
+    ]
+
     static func loadSets(
         install: StardewInstall,
         currentMods: [ModInfo],
@@ -87,7 +93,8 @@ enum ModSetStore {
         let storedSet = StoredModSet(
             id: set.id,
             name: set.name,
-            disabledFolderNames: normalizeFolderNames(set.disabledFolderNames)
+            disabledFolderNames: normalizeFolderNames(set.disabledFolderNames),
+            isEditable: set.isEditable
         )
         try saveStoredSet(
             storedSet,
@@ -135,14 +142,16 @@ enum ModSetStore {
     static func snapshotSet(
         id: String,
         name: String,
-        from mods: [ModInfo]
+        from mods: [ModInfo],
+        isEditable: Bool = true
     ) -> ModSet {
         ModSet(
             id: id,
             name: name,
             disabledFolderNames: normalizeFolderNames(
                 mods.filter { !$0.isEnabled }.map(\.enabledFolderName)
-            )
+            ),
+            isEditable: isEditable
         )
     }
 
@@ -150,6 +159,7 @@ enum ModSetStore {
         var id: String
         var name: String
         var disabledFolderNames: [String]
+        var isEditable: Bool?
     }
 
     private static func setFileURLs(
@@ -175,13 +185,17 @@ enum ModSetStore {
                 continue
             }
 
+            let isEditable = stored.isEditable ?? defaultEditability(for: stored.id)
             let set = ModSet(
                 id: stored.id,
                 name: stored.name,
-                disabledFolderNames: normalizeFolderNames(stored.disabledFolderNames)
+                disabledFolderNames: normalizeFolderNames(stored.disabledFolderNames),
+                isEditable: isEditable
             )
 
-            if set.name != stored.name || set.disabledFolderNames != stored.disabledFolderNames {
+            if stored.isEditable == nil
+                || set.name != stored.name
+                || set.disabledFolderNames != stored.disabledFolderNames {
                 try saveSet(set, install: install, fileManager: fileManager)
             }
             sets.append(set)
@@ -206,7 +220,8 @@ enum ModSetStore {
         ModSet(
             id: allSetID,
             name: allSetName,
-            disabledFolderNames: []
+            disabledFolderNames: [],
+            isEditable: false
         )
     }
 
@@ -218,7 +233,8 @@ enum ModSetStore {
                 mods
                     .filter { !SMAPIIdentifiers.isBundledMod($0) }
                     .map(\.enabledFolderName)
-            )
+            ),
+            isEditable: false
         )
     }
 
@@ -226,7 +242,8 @@ enum ModSetStore {
         ModSet(
             id: noneSetID,
             name: noneSetName,
-            disabledFolderNames: normalizeFolderNames(mods.map(\.enabledFolderName))
+            disabledFolderNames: normalizeFolderNames(mods.map(\.enabledFolderName)),
+            isEditable: false
         )
     }
 
@@ -267,6 +284,10 @@ enum ModSetStore {
 
     private static func urlForSetID(_ setID: String, install: StardewInstall) -> URL {
         install.modSetDirectoryURL.appendingPathComponent("\(setID).plist")
+    }
+
+    private static func defaultEditability(for setID: String) -> Bool {
+        !appProvidedSetIDs.contains(setID)
     }
 
     private static func normalizeFolderNames(_ folderNames: [String]) -> [String] {

@@ -372,7 +372,7 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         XCTAssertTrue(presentationState.canDeleteSelectedMod)
     }
 
-    func testStarterModSetSelectionCanEditDisplayedModStates() throws {
+    func testAppProvidedModSetSelectionCannotEditDisplayedModStates() throws {
         let install = try makeInstall()
         try makeInstalledMod(name: "Some Mod", in: install)
 
@@ -380,7 +380,8 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         let noneSet = ModSet(
             id: ModSetStore.noneSetID,
             name: ModSetStore.noneSetName,
-            disabledFolderNames: mods.map(\.enabledFolderName)
+            disabledFolderNames: mods.map(\.enabledFolderName),
+            isEditable: false
         )
         var state = makeState(install: install, mods: mods, modSets: [noneSet])
         state.selectedModSetID = noneSet.id
@@ -395,8 +396,8 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         )
 
         XCTAssertTrue(presentationState.canShowDisplayedModStates)
-        XCTAssertTrue(presentationState.canEditDisplayedModStates)
-        XCTAssertTrue(presentationState.canDeleteSelectedMod)
+        XCTAssertFalse(presentationState.canEditDisplayedModStates)
+        XCTAssertFalse(presentationState.canDeleteSelectedMod)
     }
 
     func testSmartModSetSelectionDisablesModSetCommands() throws {

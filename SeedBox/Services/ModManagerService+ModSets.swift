@@ -10,6 +10,14 @@ extension ModManagerService {
             nextState.appliedModSetID = nil
             return nextState
         }
+        guard selectedSet.isUserEditable else {
+            if modSetMatchesCurrentMods(selectedSet, in: nextState) {
+                nextState.appliedModSetID = selectedSet.id
+            } else if nextState.appliedModSetID == selectedSet.id {
+                nextState.appliedModSetID = nil
+            }
+            return nextState
+        }
         do {
             try saveCurrentState(to: selectedSet, in: nextState)
             nextState.appliedModSetID = selectedSet.id
@@ -35,6 +43,10 @@ extension ModManagerService {
     }
 
     func saveCurrentState(to set: ModSet, in state: ModManagerState) throws {
+        guard set.isUserEditable else {
+            return
+        }
+
         var updatedSet = set
         updatedSet.disabledFolderNames = ModSetStore.snapshotSet(
             id: set.id,
@@ -50,6 +62,10 @@ extension ModManagerService {
     }
 
     func saveCurrentStateIfEditable(to set: ModSet, in state: ModManagerState) throws {
+        guard set.isUserEditable else {
+            return
+        }
+
         try saveCurrentState(to: set, in: state)
     }
     func createModSet(
@@ -120,6 +136,10 @@ extension ModManagerService {
         guard var selectedSet = nextState.modSetSelection.selectedSet else {
             return nextState
         }
+        guard selectedSet.isUserRenamable else {
+            return nextState
+        }
+
         let trimmedName = requestedName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else {
             record(AppStrings.Status.setNameCannotBeEmpty, in: &nextState)
@@ -211,6 +231,9 @@ extension ModManagerService {
     func deleteModSet(_ set: ModSet, in state: ModManagerState) -> ModManagerState {
         var nextState = state
         guard guardCanManageMods(in: &nextState) else {
+            return nextState
+        }
+        guard set.isUserDeletable else {
             return nextState
         }
 

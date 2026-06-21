@@ -34,22 +34,22 @@ final class ModSetStoreTests: SeedBoxTestCase {
         ])
 
         let allSet = try XCTUnwrap(sets.first { $0.id == ModSetStore.allSetID })
-        XCTAssertTrue(allSet.isUserEditable)
-        XCTAssertTrue(allSet.isUserRenamable)
-        XCTAssertTrue(allSet.isUserDeletable)
+        XCTAssertFalse(allSet.isUserEditable)
+        XCTAssertFalse(allSet.isUserRenamable)
+        XCTAssertFalse(allSet.isUserDeletable)
         XCTAssertEqual(allSet.disabledFolderNames, [])
 
         let defaultSet = try XCTUnwrap(sets.first { $0.id == ModSetStore.defaultSetID })
-        XCTAssertTrue(defaultSet.isUserEditable)
-        XCTAssertTrue(defaultSet.isUserRenamable)
-        XCTAssertTrue(defaultSet.isUserDeletable)
+        XCTAssertFalse(defaultSet.isUserEditable)
+        XCTAssertFalse(defaultSet.isUserRenamable)
+        XCTAssertFalse(defaultSet.isUserDeletable)
         XCTAssertEqual(defaultSet.name, ModSetStore.defaultSetName)
         XCTAssertEqual(defaultSet.disabledFolderNames, ["ContentPatcher"])
 
         let noneSet = try XCTUnwrap(sets.first { $0.id == ModSetStore.noneSetID })
-        XCTAssertTrue(noneSet.isUserEditable)
-        XCTAssertTrue(noneSet.isUserRenamable)
-        XCTAssertTrue(noneSet.isUserDeletable)
+        XCTAssertFalse(noneSet.isUserEditable)
+        XCTAssertFalse(noneSet.isUserRenamable)
+        XCTAssertFalse(noneSet.isUserDeletable)
         XCTAssertEqual(noneSet.disabledFolderNames, ["ConsoleCommands", "ContentPatcher", "SaveBackup"])
 
         let initialSet = try XCTUnwrap(sets.first { $0.id == ModSetStore.initialSetID })
@@ -59,19 +59,15 @@ final class ModSetStoreTests: SeedBoxTestCase {
         XCTAssertEqual(initialSet.name, ModSetStore.initialSetName)
         XCTAssertEqual(initialSet.disabledFolderNames, ["SaveBackup"])
 
-        for setID in [
-            ModSetStore.allSetID,
-            ModSetStore.defaultSetID,
-            ModSetStore.initialSetID,
-            ModSetStore.noneSetID
-        ] {
-            XCTAssertTrue(
-                FileManager.default.fileExists(
-                    atPath: install.modSetDirectoryURL
-                        .appendingPathComponent("\(setID).plist")
-                        .path
-                )
-            )
+        let expectedEditabilityBySetID = [
+            ModSetStore.allSetID: false,
+            ModSetStore.defaultSetID: false,
+            ModSetStore.initialSetID: true,
+            ModSetStore.noneSetID: false
+        ]
+        for (setID, isEditable) in expectedEditabilityBySetID {
+            let payload = try storedModSetPayload(id: setID, install: install)
+            XCTAssertEqual(payload["isEditable"] as? Bool, isEditable)
         }
     }
 
@@ -182,7 +178,10 @@ final class ModSetStoreTests: SeedBoxTestCase {
 
         let initialSet = try XCTUnwrap(sets.first { $0.id == ModSetStore.initialSetID })
         XCTAssertEqual(initialSet.name, "My Saved Mods")
+        XCTAssertTrue(initialSet.isUserEditable)
         XCTAssertEqual(initialSet.disabledFolderNames, ["SaveBackup"])
+        let payload = try storedModSetPayload(id: ModSetStore.initialSetID, install: install)
+        XCTAssertEqual(payload["isEditable"] as? Bool, true)
     }
 
     func testPreservesSavedMyModsContents() throws {
@@ -284,6 +283,8 @@ final class ModSetStoreTests: SeedBoxTestCase {
         let savedSet = try XCTUnwrap(reloadedSets.first(where: { $0.id == userSet.id }))
         XCTAssertEqual(savedSet.name, "Stardew Valley Expanded")
         XCTAssertTrue(savedSet.isUserEditable)
+        let payload = try storedModSetPayload(id: savedSet.id, install: install)
+        XCTAssertEqual(payload["isEditable"] as? Bool, true)
     }
 
     func testSavesMyModsSetContents() throws {
@@ -304,7 +305,28 @@ final class ModSetStoreTests: SeedBoxTestCase {
         let savedInitialSet = try XCTUnwrap(reloadedSets.first { $0.id == ModSetStore.initialSetID })
         XCTAssertEqual(savedInitialSet.id, ModSetStore.initialSetID)
         XCTAssertEqual(savedInitialSet.name, ModSetStore.initialSetName)
+        XCTAssertTrue(savedInitialSet.isUserEditable)
         XCTAssertEqual(savedInitialSet.disabledFolderNames, ["ContentPatcher"])
+    }
+
+    func testMigratesStoredAppProvidedSetWithoutEditabilityFlag() throws {
+        let install = try makeInstall()
+        try writeStoredModSet(
+            id: ModSetStore.allSetID,
+            name: ModSetStore.allSetName,
+            disabledFolderNames: [],
+            install: install
+        )
+
+        let sets = try ModSetStore.loadSets(install: install, currentMods: [])
+
+        let allSet = try XCTUnwrap(sets.first { $0.id == ModSetStore.allSetID })
+        XCTAssertFalse(allSet.isUserEditable)
+        XCTAssertFalse(allSet.isUserRenamable)
+        XCTAssertFalse(allSet.isUserDeletable)
+
+        let payload = try storedModSetPayload(id: ModSetStore.allSetID, install: install)
+        XCTAssertEqual(payload["isEditable"] as? Bool, false)
     }
 
     func testDeletesStarterSetLikeAnyUserSet() throws {
@@ -414,27 +436,39 @@ final class ModSetStoreTests: SeedBoxTestCase {
     }
 
     private func writeStoredModSet(
+        id: String = ModSetStore.initialSetID,
         name: String,
         disabledFolderNames: [String],
+        isEditable: Bool? = nil,
         install: StardewInstall
     ) throws {
         try FileManager.default.createDirectory(
             at: install.modSetDirectoryURL,
             withIntermediateDirectories: true
         )
-        let payload: [String: Any] = [
-            "id": ModSetStore.initialSetID,
+        var payload: [String: Any] = [
+            "id": id,
             "name": name,
             "disabledFolderNames": disabledFolderNames
         ]
+        if let isEditable {
+            payload["isEditable"] = isEditable
+        }
         let data = try PropertyListSerialization.data(
             fromPropertyList: payload,
             format: .xml,
             options: 0
         )
         try data.write(
-            to: install.modSetDirectoryURL.appendingPathComponent("\(ModSetStore.initialSetID).plist"),
+            to: install.modSetDirectoryURL.appendingPathComponent("\(id).plist"),
             options: .atomic
         )
+    }
+
+    private func storedModSetPayload(id: String, install: StardewInstall) throws -> [String: Any] {
+        let url = install.modSetDirectoryURL.appendingPathComponent("\(id).plist")
+        let data = try Data(contentsOf: url)
+        let payload = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        return try XCTUnwrap(payload)
     }
 }
