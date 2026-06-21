@@ -87,6 +87,11 @@ Legend:
   sandboxed build includes the network client entitlement. No App Store or
   Steam-specific constraint was found. Verified with full `Seed Box` and
   `Seed Box Steam` scheme test runs.
+- 2026-06-20: Missing dependency reporting is derived from installed mod
+  manifests, distinguishes required and optional dependency problems, and is
+  surfaced in Problems and Smart Mod Sets. No App Store or Steam-specific
+  constraint was found. Verified with full `Seed Box` and `Seed Box Steam`
+  scheme test runs.
 
 ## Release Decision Rule
 
