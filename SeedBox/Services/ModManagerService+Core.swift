@@ -56,7 +56,6 @@ extension ModManagerService {
             id: set.id,
             name: set.name,
             from: state.mods,
-            isDefault: set.isDefault,
             isIncluded: set.isIncluded
         )
         return ModSetResolver.disabledFolderTokens(for: currentSnapshot)

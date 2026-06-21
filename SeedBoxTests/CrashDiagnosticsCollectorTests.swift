@@ -192,9 +192,9 @@ final class CrashDiagnosticsCollectorTests: SeedBoxTestCase {
             action: .modsAdded,
             summary: "Added \(modURL.path)",
             modsDirectoryPath: install.modDirectoryURL.path,
-            selectedModSetID: ModSetStore.defaultSetID,
-            selectedModSetName: ModSetStore.defaultSetName,
-            appliedModSetID: ModSetStore.defaultSetID,
+            selectedModSetID: ModSetStore.initialSetID,
+            selectedModSetName: ModSetStore.initialSetName,
+            appliedModSetID: ModSetStore.initialSetID,
             subjects: [
                 AuditLogSubject(
                     kind: .mod,
@@ -256,15 +256,14 @@ final class CrashDiagnosticsCollectorTests: SeedBoxTestCase {
             hasLoadedMods: true,
             modSets: [
                 ModSetStore.snapshotSet(
-                    id: ModSetStore.defaultSetID,
-                    name: ModSetStore.defaultSetName,
+                    id: ModSetStore.initialSetID,
+                    name: ModSetStore.initialSetName,
                     from: mods,
-                    isDefault: true,
                     isIncluded: false
                 )
             ],
-            selectedModSetID: ModSetStore.defaultSetID,
-            appliedModSetID: ModSetStore.defaultSetID,
+            selectedModSetID: ModSetStore.initialSetID,
+            appliedModSetID: ModSetStore.initialSetID,
             activityStatus: nil,
             auditTrail: AuditTrailState(
                 logPath: install.auditLogURL.path,

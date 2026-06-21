@@ -136,10 +136,10 @@ final class UserSmartModSetStoreTests: SeedBoxTestCase {
         let modURL = try makeInstalledMod(name: "Content Patcher", in: install)
         let mods = try ModLibrary.scan(install: install)
         let loadedSets = try ModSetStore.loadSets(install: install, currentMods: mods)
-        let defaultSet = try XCTUnwrap(loadedSets.first(where: \.isDefault))
+        let initialSet = try XCTUnwrap(loadedSets.first { $0.id == ModSetStore.initialSetID })
         let regularSet = try ModSetStore.createSet(
             named: "Regular Set",
-            from: defaultSet,
+            from: initialSet,
             existingSets: loadedSets
         )
         try ModSetStore.saveSet(regularSet, install: install)
@@ -194,7 +194,7 @@ final class UserSmartModSetStoreTests: SeedBoxTestCase {
             preferences: ModManagerPreferences(defaults: defaults)
         )
 
-        let state = stateStore.initialState(selectedModSetID: ModSetStore.defaultSetID)
+        let state = stateStore.initialState(selectedModSetID: ModSetStore.initialSetID)
 
         XCTAssertEqual(state.userSmartModSets, [smartModSet])
     }
@@ -210,7 +210,7 @@ final class UserSmartModSetStoreTests: SeedBoxTestCase {
             modSetDirectory: install.modSetDirectoryURL,
             preferences: ModManagerPreferences(defaults: defaults)
         )
-        var state = stateStore.initialState(selectedModSetID: ModSetStore.defaultSetID)
+        var state = stateStore.initialState(selectedModSetID: ModSetStore.initialSetID)
         state.userSmartModSets = [
             UserSmartModSet(
                 id: "updates",

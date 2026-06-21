@@ -263,7 +263,6 @@ final class ModLibraryTests: SeedBoxTestCase {
                 id: "broken",
                 name: "Broken",
                 disabledFolderNames: ["FrameworkRequired"],
-                isDefault: false
             ),
             to: try ModLibrary.scan(install: install)
         )
@@ -1226,7 +1225,6 @@ final class ModLibraryTests: SeedBoxTestCase {
             id: "test",
             name: "Opposite",
             disabledFolderNames: ["EnabledMod"],
-            isDefault: false
         )
 
         let comparison = ModManagerInsights.comparison(for: set, currentMods: mods)

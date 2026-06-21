@@ -13,7 +13,7 @@ struct ModManagerPresentationState {
         state: ModManagerState,
         searchText: String,
         selectedModIDs: Set<String>,
-        selectedLibraryItemID: String = ModLibrarySelection.defaultID
+        selectedLibraryItemID: String = ModLibrarySelection.initialID
     ) {
         let dependencyGraph = ModDependencyGraph(mods: state.mods)
         let librarySelection = ModLibrarySelection(

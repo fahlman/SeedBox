@@ -24,7 +24,7 @@ final class SeedBoxRouteTests: XCTestCase {
             (.restoreHistory, .restoreHistory)
         ] {
             var presentation = ModManagerViewPresentation()
-            var selectedLibraryItemID = ModLibrarySelection.defaultID
+            var selectedLibraryItemID = ModLibrarySelection.initialID
             var selectedModIDs: Set<String> = ["selected-mod"]
 
             let result = makeDispatcher().dispatch(
@@ -36,7 +36,7 @@ final class SeedBoxRouteTests: XCTestCase {
 
             XCTAssertEqual(result, .handled)
             XCTAssertEqual(presentation.sheet?.id, expectedSheet.id)
-            XCTAssertEqual(selectedLibraryItemID, ModLibrarySelection.defaultID)
+            XCTAssertEqual(selectedLibraryItemID, ModLibrarySelection.initialID)
             XCTAssertEqual(selectedModIDs, ["selected-mod"])
         }
     }
@@ -55,7 +55,7 @@ final class SeedBoxRouteTests: XCTestCase {
 
         XCTAssertEqual(result, .handled)
         XCTAssertNil(presentation.sheet)
-        XCTAssertEqual(selectedLibraryItemID, ModLibrarySelection.defaultID)
+        XCTAssertEqual(selectedLibraryItemID, ModLibrarySelection.initialID)
         XCTAssertTrue(selectedModIDs.isEmpty)
     }
 
@@ -70,7 +70,7 @@ final class SeedBoxRouteTests: XCTestCase {
 
     func testDispatchesUserSmartModSetRoute() {
         var presentation = ModManagerViewPresentation(sheet: .activity)
-        var selectedLibraryItemID = ModLibrarySelection.defaultID
+        var selectedLibraryItemID = ModLibrarySelection.initialID
         var selectedModIDs: Set<String> = ["selected-mod"]
 
         let result = makeDispatcher().dispatch(
@@ -88,7 +88,7 @@ final class SeedBoxRouteTests: XCTestCase {
 
     func testMissingUserSmartModSetRouteIsUnavailable() {
         var presentation = ModManagerViewPresentation(sheet: .activity)
-        var selectedLibraryItemID = ModLibrarySelection.defaultID
+        var selectedLibraryItemID = ModLibrarySelection.initialID
         var selectedModIDs: Set<String> = ["selected-mod"]
 
         let result = makeDispatcher().dispatch(
@@ -100,13 +100,13 @@ final class SeedBoxRouteTests: XCTestCase {
 
         XCTAssertEqual(result, .unavailable)
         XCTAssertEqual(presentation.sheet?.id, ModManagerSheet.activity.id)
-        XCTAssertEqual(selectedLibraryItemID, ModLibrarySelection.defaultID)
+        XCTAssertEqual(selectedLibraryItemID, ModLibrarySelection.initialID)
         XCTAssertEqual(selectedModIDs, ["selected-mod"])
     }
 
     func testDispatchesModSetRoute() {
         var presentation = ModManagerViewPresentation(sheet: .activity)
-        var selectedLibraryItemID = ModLibrarySelection.defaultID
+        var selectedLibraryItemID = ModLibrarySelection.initialID
         var selectedModIDs: Set<String> = ["selected-mod"]
 
         let result = makeDispatcher().dispatch(
@@ -124,7 +124,7 @@ final class SeedBoxRouteTests: XCTestCase {
 
     func testMissingModSetRouteIsUnavailable() {
         var presentation = ModManagerViewPresentation(sheet: .activity)
-        var selectedLibraryItemID = ModLibrarySelection.defaultID
+        var selectedLibraryItemID = ModLibrarySelection.initialID
         var selectedModIDs: Set<String> = ["selected-mod"]
 
         let result = makeDispatcher().dispatch(
@@ -136,7 +136,7 @@ final class SeedBoxRouteTests: XCTestCase {
 
         XCTAssertEqual(result, .unavailable)
         XCTAssertEqual(presentation.sheet?.id, ModManagerSheet.activity.id)
-        XCTAssertEqual(selectedLibraryItemID, ModLibrarySelection.defaultID)
+        XCTAssertEqual(selectedLibraryItemID, ModLibrarySelection.initialID)
         XCTAssertEqual(selectedModIDs, ["selected-mod"])
     }
 
@@ -201,7 +201,7 @@ final class SeedBoxRouteTests: XCTestCase {
         line: UInt = #line
     ) {
         var presentation = ModManagerViewPresentation(sheet: .activity)
-        var selectedLibraryItemID = ModLibrarySelection.defaultID
+        var selectedLibraryItemID = ModLibrarySelection.initialID
         var selectedModIDs: Set<String> = ["selected-mod"]
 
         let result = makeDispatcher().dispatch(
@@ -228,17 +228,15 @@ final class SeedBoxRouteTests: XCTestCase {
 
     private func makeState() -> ModManagerState {
         let defaultSet = ModSet(
-            id: ModSetStore.defaultSetID,
-            name: ModSetStore.defaultSetName,
+            id: ModSetStore.initialSetID,
+            name: ModSetStore.initialSetName,
             disabledFolderNames: [],
-            isDefault: true,
             isIncluded: false
         )
         let favoritesSet = ModSet(
             id: "favorites",
             name: "Favorites",
             disabledFolderNames: [],
-            isDefault: false,
             isIncluded: false
         )
         return ModManagerState(
@@ -265,8 +263,8 @@ final class SeedBoxRouteTests: XCTestCase {
                     searchText: "Visible"
                 )
             ],
-            selectedModSetID: ModSetStore.defaultSetID,
-            appliedModSetID: ModSetStore.defaultSetID,
+            selectedModSetID: ModSetStore.initialSetID,
+            appliedModSetID: ModSetStore.initialSetID,
             activityStatus: nil,
             auditTrail: AuditTrailState(
                 logPath: "/tmp/SeedBoxTests/Audit Log.json",

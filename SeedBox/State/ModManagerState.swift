@@ -541,7 +541,7 @@ struct ModSetSelectionState: Equatable, Sendable {
     }
 
     var selectedSetName: String {
-        selectedSet?.name ?? ModSetStore.defaultSetName
+        selectedSet?.name ?? AppStrings.App.name
     }
 
     var selectedSetIsApplied: Bool {

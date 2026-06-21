@@ -3,7 +3,7 @@ import SwiftUI
 
 struct ModManagerWindow: View {
     private let viewModel = ModManagerViewModel.shared
-    @SceneStorage("modManager.selectedLibraryItemID") private var selectedLibraryItemID = ModLibrarySelection.defaultID
+    @SceneStorage("modManager.selectedLibraryItemID") private var selectedLibraryItemID = ModLibrarySelection.initialID
     @SceneStorage("modManager.searchText") private var searchText = ""
     @SceneStorage("modManager.selectedModIDs") private var selectedModIDsStorage = "[]"
     @State private var restoredWindowState = false

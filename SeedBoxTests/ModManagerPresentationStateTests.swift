@@ -292,7 +292,7 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
             selectedLibraryItemID: ModLibrarySelection.userSmartID("missing")
         )
 
-        XCTAssertEqual(presentationState.librarySelection, .modSet(ModSetStore.defaultSetID))
+        XCTAssertEqual(presentationState.librarySelection, .modSet(ModSetStore.initialSetID))
         XCTAssertEqual(presentationState.selectedLibraryItem?.kind, .modSet)
     }
 
@@ -305,7 +305,6 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
             id: "favorites",
             name: "Favorites",
             from: mods,
-            isDefault: false,
             isIncluded: false
         )
         let smartModSet = UserSmartModSet(
@@ -358,7 +357,6 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
             id: "favorites",
             name: "Favorites",
             from: mods,
-            isDefault: false,
             isIncluded: false
         )
         var state = makeState(install: install, mods: mods, modSets: [userSet])
@@ -388,7 +386,6 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
             id: ModSetStore.noneSetID,
             name: ModSetStore.noneSetName,
             disabledFolderNames: mods.map(\.enabledFolderName),
-            isDefault: false,
             isIncluded: true
         )
         var state = makeState(install: install, mods: mods, modSets: [noneSet])
@@ -421,7 +418,6 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
             id: "favorites",
             name: "Favorites",
             from: mods,
-            isDefault: false,
             isIncluded: false
         )
         var state = makeState(install: install, mods: mods, modSets: [selectedUserSet])
@@ -500,10 +496,9 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
     ) -> ModManagerState {
         let sets = modSets ?? [
             ModSetStore.snapshotSet(
-                id: ModSetStore.defaultSetID,
-                name: ModSetStore.defaultSetName,
+                id: ModSetStore.initialSetID,
+                name: ModSetStore.initialSetName,
                 from: mods,
-                isDefault: true,
                 isIncluded: false
             )
         ]
@@ -523,8 +518,8 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
             hasLoadedMods: true,
             modSets: sets,
             userSmartModSets: userSmartModSets,
-            selectedModSetID: ModSetStore.defaultSetID,
-            appliedModSetID: ModSetStore.defaultSetID,
+            selectedModSetID: ModSetStore.initialSetID,
+            appliedModSetID: ModSetStore.initialSetID,
             activityStatus: nil,
             auditTrail: AuditTrailState(
                 logPath: install.modSetDirectory.appendingPathComponent("Audit Log.json").path,

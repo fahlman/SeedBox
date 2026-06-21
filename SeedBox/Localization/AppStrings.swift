@@ -488,18 +488,6 @@ enum AppStrings {
             String(localized: "Deleted mod set \(setName).")
         }
 
-        static func deletedModSetAppliedMyMods(_ setName: String, changedCount: Int) -> String {
-            String(localized: "Deleted mod set \(setName). Applied My Mods (\(changedCount) changes).")
-        }
-
-        static func deletedModSetChooseFolderAgainToApplyMyMods(_ setName: String) -> String {
-            String(localized: "Deleted mod set \(setName). Choose the Mods folder again to apply My Mods.")
-        }
-
-        static func deletedModSetCouldNotApplyMyMods(_ setName: String, errorDescription: String) -> String {
-            String(localized: "Deleted mod set \(setName), but could not apply My Mods: \(errorDescription)")
-        }
-
         static func duplicatedSelectedMod(_ displayName: String) -> String {
             String(localized: "Skipped \(displayName) because it was duplicated in the selected sources.")
         }
@@ -992,7 +980,6 @@ enum AppStrings {
 
     enum Errors {
         static let cannotDeleteIncludedSets = String(localized: "Included mod sets cannot be deleted.")
-        static let cannotDeleteMyMods = String(localized: "My Mods cannot be deleted.")
         static let cannotEditIncludedSets = String(localized: "Included mod sets cannot be edited.")
         static let noSavedFolderAccess = String(localized: "No saved folder access was found.")
         static let ready = String(localized: "Ready")

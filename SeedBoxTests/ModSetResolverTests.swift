@@ -7,7 +7,6 @@ final class ModSetResolverTests: SeedBoxTestCase {
             id: "favorites",
             name: "Favorites",
             disabledFolderNames: [" .ContentPatcher ", "contentpatcher", ".SaveBackup"],
-            isDefault: false
         )
 
         let resolvedSet = ModSetResolver.resolve(set)
@@ -28,7 +27,6 @@ final class ModSetResolverTests: SeedBoxTestCase {
             id: "favorites",
             name: "Favorites",
             disabledFolderNames: ["ContentPatcher"],
-            isDefault: false
         )
 
         XCTAssertFalse(ModSetResolver.resolve(set).isEnabled(mod))

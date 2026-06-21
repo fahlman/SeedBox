@@ -260,45 +260,12 @@ extension ModManagerService {
             return refreshedState
         }
 
-        guard let myModsSet = nextState.modSets.first(where: { $0.id == ModSetStore.defaultSetID }) else {
-            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
+        if nextState.appliedModSetID == set.id {
             nextState.appliedModSetID = nil
-            record(AppStrings.Status.deletedModSet(set.name), in: &nextState)
-            var refreshedState = refreshedState(from: nextState)
-            auditDeletedModSet(set, wasSelected: true, in: &refreshedState)
-            return refreshedState
         }
-
-        do {
-            let changedCount = try applyModSet(myModsSet, in: nextState, state: &nextState)
-            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
-            nextState.appliedModSetID = ModSetStore.defaultSetID
-            record(
-                AppStrings.Status.deletedModSetAppliedMyMods(set.name, changedCount: changedCount),
-                in: &nextState
-            )
-            var refreshedState = refreshedState(from: nextState)
-            auditDeletedModSet(
-                set,
-                wasSelected: true,
-                details: [
-                    "fallback_mod_set_id": myModsSet.id,
-                    "fallback_mod_set_name": myModsSet.name,
-                    "fallback_changed_count": "\(changedCount)"
-                ],
-                in: &refreshedState
-            )
-            return refreshedState
-        } catch is SecurityScopedFolderAccessError {
-            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
-            nextState.appliedModSetID = nil
-            record(AppStrings.Status.deletedModSetChooseFolderAgainToApplyMyMods(set.name), in: &nextState)
-            return refreshedState(from: nextState)
-        } catch {
-            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
-            nextState.appliedModSetID = nil
-            record(AppStrings.Status.deletedModSetCouldNotApplyMyMods(set.name, errorDescription: error.localizedDescription), in: &nextState)
-            return refreshedState(from: nextState)
-        }
+        var refreshedState = refreshedState(from: nextState)
+        record(AppStrings.Status.deletedModSet(set.name), in: &refreshedState)
+        auditDeletedModSet(set, wasSelected: true, in: &refreshedState)
+        return refreshedState
     }
 }

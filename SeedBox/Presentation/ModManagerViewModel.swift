@@ -19,7 +19,7 @@ final class ModManagerViewModel {
     init(
         defaults: UserDefaults = .standard,
         modSetDirectory: URL = StardewInstall.defaultModSetDirectory(),
-        selectedModSetID: String = ModSetStore.defaultSetID,
+        selectedModSetID: String = ModSetStore.initialSetID,
         modsFolderMonitor: ModsFolderMonitoring = ModsFolderMonitor(),
         folderChangeNotifier: ModFolderChangeNotifying = UserNotificationModFolderChangeNotifier.shared,
         updateChecker: ModUpdateChecking = SMAPIModUpdateClient()
