@@ -40,6 +40,7 @@ enum ModSetStore {
         let existingSetURLs = try setFileURLs(install: install, fileManager: fileManager)
         var sets = try loadUserSets(
             from: existingSetURLs,
+            currentMods: currentMods,
             install: install,
             fileManager: fileManager
         )
@@ -176,6 +177,7 @@ enum ModSetStore {
 
     private static func loadUserSets(
         from urls: [URL],
+        currentMods: [ModInfo],
         install: StardewInstall,
         fileManager: FileManager
     ) throws -> [ModSet] {
@@ -186,14 +188,16 @@ enum ModSetStore {
             }
 
             let isEditable = stored.isEditable ?? defaultEditability(for: stored.id)
-            let set = ModSet(
+            var set = ModSet(
                 id: stored.id,
                 name: stored.name,
                 disabledFolderNames: normalizeFolderNames(stored.disabledFolderNames),
                 isEditable: isEditable
             )
+            set = appProvidedSet(for: set.id, currentMods: currentMods) ?? set
 
             if stored.isEditable == nil
+                || stored.isEditable != set.isEditable
                 || set.name != stored.name
                 || set.disabledFolderNames != stored.disabledFolderNames {
                 try saveSet(set, install: install, fileManager: fileManager)
@@ -288,6 +292,19 @@ enum ModSetStore {
 
     private static func defaultEditability(for setID: String) -> Bool {
         !appProvidedSetIDs.contains(setID)
+    }
+
+    private static func appProvidedSet(for setID: String, currentMods: [ModInfo]) -> ModSet? {
+        switch setID {
+        case allSetID:
+            return allStarterSet()
+        case defaultSetID:
+            return defaultStarterSet(from: currentMods)
+        case noneSetID:
+            return noneStarterSet(from: currentMods)
+        default:
+            return nil
+        }
     }
 
     private static func normalizeFolderNames(_ folderNames: [String]) -> [String] {

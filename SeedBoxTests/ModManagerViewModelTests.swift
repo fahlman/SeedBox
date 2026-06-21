@@ -309,7 +309,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(trashedEntry.action, .sourceFilesMovedToTrash)
     }
 
-    func testAddingModToAppliedNoneSetInstallsEnabledAndKeepsNoneApplied() async throws {
+    func testAddingModToAppliedNoneSetInstallsDisabledAndKeepsNoneApplied() async throws {
         let install = try makeInstall()
         let downloadsURL = try makeDownloadsDirectory()
         let defaults = try makeIsolatedUserDefaults()
@@ -324,9 +324,9 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, ModSetStore.noneSetID)
         XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Console Commands": false,
-            "New Mod": true
+            "New Mod": false
         ])
-        XCTAssertTrue(
+        XCTAssertFalse(
             FileManager.default.fileExists(
                 atPath: install.modDirectoryURL
                     .appendingPathComponent("NewMod")
@@ -334,17 +334,17 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
                     .path
             )
         )
-        XCTAssertFalse(
+        XCTAssertTrue(
             FileManager.default.fileExists(
                 atPath: install.modDirectoryURL.appendingPathComponent(".NewMod").path
             )
         )
 
         let noneSet = try XCTUnwrap(viewModel.state.modSets.first { $0.id == ModSetStore.noneSetID })
-        XCTAssertEqual(noneSet.disabledFolderNames, ["ConsoleCommands"])
+        XCTAssertEqual(noneSet.disabledFolderNames, ["ConsoleCommands", "NewMod"])
     }
 
-    func testAddingModToAppliedDefaultSetInstallsEnabledAndKeepsDefaultApplied() async throws {
+    func testAddingModToAppliedDefaultSetInstallsDisabledAndKeepsDefaultApplied() async throws {
         let install = try makeInstall()
         let downloadsURL = try makeDownloadsDirectory()
         let defaults = try makeIsolatedUserDefaults()
@@ -363,9 +363,9 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, ModSetStore.defaultSetID)
         XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Console Commands": true,
-            "New Mod": true
+            "New Mod": false
         ])
-        XCTAssertTrue(
+        XCTAssertFalse(
             FileManager.default.fileExists(
                 atPath: install.modDirectoryURL
                     .appendingPathComponent("NewMod")
@@ -373,9 +373,17 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
                     .path
             )
         )
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent(".NewMod")
+                    .appendingPathComponent("manifest.json")
+                    .path
+            )
+        )
 
         let defaultSet = try XCTUnwrap(viewModel.state.modSets.first { $0.id == ModSetStore.defaultSetID })
-        XCTAssertEqual(defaultSet.disabledFolderNames, [])
+        XCTAssertEqual(defaultSet.disabledFolderNames, ["NewMod"])
     }
 
     func testAddingAlreadyInstalledModReportsSkippedInstall() async throws {
@@ -709,7 +717,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(addedEntry.details["installed_state"], "enabled")
     }
 
-    func testStartupScanLeavesClosedAppModEnabledWhenNoneSetWasApplied() async throws {
+    func testStartupScanDisablesClosedAppModWhenNoneSetWasApplied() async throws {
         let install = try makeInstall()
         let defaults = try makeIsolatedUserDefaults()
 
@@ -730,13 +738,21 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(restoredViewModel.state.modSetSelection.appliedSetID, ModSetStore.noneSetID)
         XCTAssertEqual(modEnabledStates(in: restoredViewModel.state.mods), [
             "Console Commands": false,
-            "New Mod": true
+            "New Mod": false
         ])
-        XCTAssertTrue(FileManager.default.fileExists(atPath: enabledNewModURL.path))
-        XCTAssertTrue(
+        XCTAssertFalse(FileManager.default.fileExists(atPath: enabledNewModURL.path))
+        XCTAssertFalse(
             FileManager.default.fileExists(
                 atPath: install.modDirectoryURL
                     .appendingPathComponent("NewMod")
+                    .appendingPathComponent("manifest.json")
+                    .path
+            )
+        )
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent(".NewMod")
                     .appendingPathComponent("manifest.json")
                     .path
             )
@@ -745,12 +761,12 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         let noneSet = try XCTUnwrap(
             restoredViewModel.state.modSets.first { $0.id == ModSetStore.noneSetID }
         )
-        XCTAssertEqual(noneSet.disabledFolderNames, ["ConsoleCommands"])
+        XCTAssertEqual(noneSet.disabledFolderNames, ["ConsoleCommands", "NewMod"])
 
         let addedEntry = try XCTUnwrap(restoredViewModel.state.auditTrail.recentEntries.last)
         XCTAssertEqual(addedEntry.action, .modsAdded)
         XCTAssertEqual(addedEntry.details["source"], "startup_scan")
-        XCTAssertEqual(addedEntry.details["installed_state"], "enabled")
+        XCTAssertEqual(addedEntry.details["installed_state"], "disabled")
     }
 
     func testDeletingSelectedModSetSelectsRemainingSetWithoutApplyingPreset() async throws {
@@ -931,7 +947,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
             "Save Backup": true
         ])
         let noneSet = try XCTUnwrap(viewModel.state.modSets.first { $0.id == ModSetStore.noneSetID })
-        XCTAssertEqual(noneSet.disabledFolderNames, ["ConsoleCommands"])
+        XCTAssertEqual(noneSet.disabledFolderNames, ["ConsoleCommands", "SaveBackup"])
         XCTAssertEqual(viewModel.state.statusLineMessage, "Added 1 mod folder. Updated My Mods.")
         let addedEntry = try XCTUnwrap(viewModel.state.auditTrail.recentEntries.last)
         XCTAssertEqual(addedEntry.action, .modsAdded)
@@ -985,7 +1001,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(addedEntry.details["installed_state"], "enabled")
     }
 
-    func testObservedAddedModIsEnabledWhenNoneSetIsApplied() async throws {
+    func testObservedAddedModIsDisabledWhenNoneSetIsApplied() async throws {
         let install = try makeInstall()
         let defaults = try makeIsolatedUserDefaults()
 
@@ -1003,10 +1019,10 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(reconciledState.modSetSelection.appliedSetID, ModSetStore.noneSetID)
         XCTAssertEqual(modEnabledStates(in: reconciledState.mods), [
             "Console Commands": false,
-            "New Mod": true
+            "New Mod": false
         ])
-        XCTAssertTrue(FileManager.default.fileExists(atPath: enabledNewModURL.path))
-        XCTAssertTrue(
+        XCTAssertFalse(FileManager.default.fileExists(atPath: enabledNewModURL.path))
+        XCTAssertFalse(
             FileManager.default.fileExists(
                 atPath: install.modDirectoryURL
                     .appendingPathComponent("NewMod")
@@ -1014,14 +1030,22 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
                     .path
             )
         )
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent(".NewMod")
+                    .appendingPathComponent("manifest.json")
+                    .path
+            )
+        )
 
         let noneSet = try XCTUnwrap(reconciledState.modSets.first { $0.id == ModSetStore.noneSetID })
-        XCTAssertEqual(noneSet.disabledFolderNames, ["ConsoleCommands"])
+        XCTAssertEqual(noneSet.disabledFolderNames, ["ConsoleCommands", "NewMod"])
 
         let addedEntry = try XCTUnwrap(reconciledState.auditTrail.recentEntries.last)
         XCTAssertEqual(addedEntry.action, .modsAdded)
         XCTAssertEqual(addedEntry.details["source"], "watched_folder")
-        XCTAssertEqual(addedEntry.details["installed_state"], "enabled")
+        XCTAssertEqual(addedEntry.details["installed_state"], "disabled")
     }
 
     func testAppInitiatedFolderChangeDoesNotShowFolderChangeNotification() async throws {

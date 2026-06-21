@@ -45,11 +45,18 @@ enum SMAPIIdentifiers {
         "SMAPI.SaveBackup".normalizedDependencyID
     ]
 
+    private static let bundledFolderTokens: Set<String> = [
+        "ConsoleCommands".normalizedFolderToken,
+        "SaveBackup".normalizedFolderToken
+    ]
+
     static func isBundledMod(_ mod: ModInfo) -> Bool {
-        guard let uniqueID = mod.manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID else {
-            return false
+        if let uniqueID = mod.manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID,
+           bundledModIDs.contains(uniqueID) {
+            return true
         }
-        return bundledModIDs.contains(uniqueID)
+
+        return bundledFolderTokens.contains(mod.enabledFolderName.normalizedFolderToken)
     }
 
     static func detectedSMAPIVersion(in mods: [ModInfo]) -> String? {
