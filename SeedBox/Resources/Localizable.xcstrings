@@ -25476,6 +25476,71 @@
         }
       }
     },
+    "Saved Smart Mod Sets" : {
+      "comment" : "Sidebar section title for user-created saved smart mod set views.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Saved Smart Mod Sets"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Saved Smart Mod Sets"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Saved Smart Mod Sets"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Saved Smart Mod Sets"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Saved Smart Mod Sets"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Saved Smart Mod Sets"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Saved Smart Mod Sets"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Saved Smart Mod Sets"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Saved Smart Mod Sets"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Saved Smart Mod Sets"
+          }
+        }
+      }
+    },
     "Saved folder access could not be restored: %@" : {
       "comment" : "Dynamic user-visible string. %@ placeholders are app-provided names, paths, or descriptions; keep placeholders intact.",
       "localizations" : {
