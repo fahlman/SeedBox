@@ -147,7 +147,7 @@ final class ModSetStoreTests: SeedBoxTestCase {
         XCTAssertEqual(initialSet.disabledFolderNames, ["ConsoleCommands", "SaveBackup"])
     }
 
-    func testLoadsStoredInitialSetWithoutChangingNameOrContents() throws {
+    func testLoadsStoredMyModsSetWithoutChangingNameOrContents() throws {
         let install = try makeInstall()
         try makeInstalledMod(
             name: "Console Commands",
@@ -167,7 +167,7 @@ final class ModSetStoreTests: SeedBoxTestCase {
             folderName: "ContentPatcher"
         )
         try writeStoredModSet(
-            name: "Default",
+            name: "My Saved Mods",
             disabledFolderNames: ["SaveBackup"],
             install: install
         )
@@ -176,7 +176,7 @@ final class ModSetStoreTests: SeedBoxTestCase {
         let sets = try ModSetStore.loadSets(install: install, currentMods: mods)
 
         let initialSet = try XCTUnwrap(sets.first { $0.id == ModSetStore.initialSetID })
-        XCTAssertEqual(initialSet.name, "Default")
+        XCTAssertEqual(initialSet.name, "My Saved Mods")
         XCTAssertEqual(initialSet.disabledFolderNames, ["SaveBackup"])
     }
 

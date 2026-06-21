@@ -23,13 +23,11 @@ enum ModSetStoreError: Error, Equatable, LocalizedError, Sendable {
 enum ModSetStore {
     static let allSetID = "all"
     static let allSetName = AppStrings.ModSetNames.all
-    static let defaultSetID = "smapi-default"
+    static let defaultSetID = "default"
     static let defaultSetName = AppStrings.ModSetNames.defaultSet
     static let noneSetID = "none"
     static let noneSetName = AppStrings.ModSetNames.none
-    /// Kept as "default" on disk so existing installs continue to load their
-    /// first Seed Box-created mod set. It is not behaviorally special.
-    static let initialSetID = "default"
+    static let initialSetID = "my-mods"
     static let initialSetName = AppStrings.ModSetNames.myMods
     static let includedSetIDs: Set<String> = [
         allSetID,
