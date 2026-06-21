@@ -29482,7 +29482,7 @@
       }
     },
     "This Mod Set is included with Seed Box. You can apply it, but you cannot edit, rename, or delete it." : {
-      "comment" : "Notice shown above an app-included Mod Set. The user can apply the preset but cannot modify, rename, or delete it.",
+      "comment" : "Notice shown for an app-included Mod Set. The user can apply the preset but cannot modify, rename, or delete it.",
       "localizations" : {
         "de" : {
           "stringUnit" : {

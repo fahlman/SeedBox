@@ -155,27 +155,8 @@ struct ModManagerView: View {
 
     private func modListContent(_ presentationState: ModManagerPresentationState) -> some View {
         HStack(spacing: 0) {
-            VStack(spacing: 0) {
-                if let includedModSetNotice = presentationState.includedModSetNotice {
-                    IncludedModSetNotice(message: includedModSetNotice)
-                }
-
-                ModList(
-                    mods: presentationState.filteredMods,
-                    canManageMods: presentationState.canManageMods,
-                    showsStateColumn: presentationState.canShowDisplayedModStates,
-                    canEditModStates: presentationState.canEditDisplayedModStates,
-                    modFolderName: viewModel.modFolderName,
-                    selectedModIDs: $selectedModIDs,
-                    selectedMod: presentationState.selection.mod,
-                    availableUpdate: presentationState.state.availableUpdate(for:),
-                    addMods: addMods,
-                    requestSetModEnabled: requestSetModEnabled,
-                    revealSelectedMod: revealSelectedMod,
-                    requestDeleteSelectedMod: requestDeleteSelectedMod
-                )
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            modTableContent(presentationState)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if presentation.isShowingModInspector, let selectedMod = presentationState.selection.mod {
                 Divider()
@@ -198,6 +179,28 @@ struct ModManagerView: View {
                     pruneExpiredArchives: pruneExpiredArchives
                 )
                 .frame(minWidth: 280, idealWidth: 340, maxWidth: 420)
+            }
+        }
+    }
+
+    private func modTableContent(_ presentationState: ModManagerPresentationState) -> some View {
+        ModList(
+            mods: presentationState.filteredMods,
+            canManageMods: presentationState.canManageMods,
+            showsStateColumn: presentationState.canShowDisplayedModStates,
+            canEditModStates: presentationState.canEditDisplayedModStates,
+            modFolderName: viewModel.modFolderName,
+            selectedModIDs: $selectedModIDs,
+            selectedMod: presentationState.selection.mod,
+            availableUpdate: presentationState.state.availableUpdate(for:),
+            addMods: addMods,
+            requestSetModEnabled: requestSetModEnabled,
+            revealSelectedMod: revealSelectedMod,
+            requestDeleteSelectedMod: requestDeleteSelectedMod
+        )
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let includedModSetNotice = presentationState.includedModSetNotice {
+                IncludedModSetNotice(message: includedModSetNotice)
             }
         }
     }
