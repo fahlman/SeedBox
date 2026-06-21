@@ -2,7 +2,7 @@ import XCTest
 @testable import SeedBox
 
 final class ModSetStoreTests: SeedBoxTestCase {
-    func testCreatesAndPersistsIncludedSets() throws {
+    func testCreatesAndPersistsStarterSets() throws {
         let install = try makeInstall()
         let consoleCommandsURL = install.modDirectoryURL.appendingPathComponent("ConsoleCommands")
         let contentPatcherURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
@@ -26,40 +26,45 @@ final class ModSetStoreTests: SeedBoxTestCase {
         let mods = try ModLibrary.scan(install: install)
         let sets = try ModSetStore.loadSets(install: install, currentMods: mods)
 
-        XCTAssertEqual(sets.prefix(4).map(\.name), [
+        XCTAssertEqual(sets.map(\.name), [
             ModSetStore.allSetName,
             ModSetStore.defaultSetName,
-            ModSetStore.noneSetName,
-            ModSetStore.initialSetName
+            ModSetStore.initialSetName,
+            ModSetStore.noneSetName
         ])
 
         let allSet = try XCTUnwrap(sets.first { $0.id == ModSetStore.allSetID })
-        XCTAssertTrue(allSet.isIncluded)
-        XCTAssertFalse(allSet.isUserEditable)
+        XCTAssertTrue(allSet.isUserEditable)
+        XCTAssertTrue(allSet.isUserRenamable)
+        XCTAssertTrue(allSet.isUserDeletable)
         XCTAssertEqual(allSet.disabledFolderNames, [])
 
         let defaultSet = try XCTUnwrap(sets.first { $0.id == ModSetStore.defaultSetID })
-        XCTAssertTrue(defaultSet.isIncluded)
-        XCTAssertFalse(defaultSet.isUserEditable)
-        XCTAssertFalse(defaultSet.isUserRenamable)
-        XCTAssertFalse(defaultSet.isUserDeletable)
+        XCTAssertTrue(defaultSet.isUserEditable)
+        XCTAssertTrue(defaultSet.isUserRenamable)
+        XCTAssertTrue(defaultSet.isUserDeletable)
         XCTAssertEqual(defaultSet.name, ModSetStore.defaultSetName)
         XCTAssertEqual(defaultSet.disabledFolderNames, ["ContentPatcher"])
 
         let noneSet = try XCTUnwrap(sets.first { $0.id == ModSetStore.noneSetID })
-        XCTAssertTrue(noneSet.isIncluded)
-        XCTAssertFalse(noneSet.isUserEditable)
+        XCTAssertTrue(noneSet.isUserEditable)
+        XCTAssertTrue(noneSet.isUserRenamable)
+        XCTAssertTrue(noneSet.isUserDeletable)
         XCTAssertEqual(noneSet.disabledFolderNames, ["ConsoleCommands", "ContentPatcher", "SaveBackup"])
 
         let initialSet = try XCTUnwrap(sets.first { $0.id == ModSetStore.initialSetID })
-        XCTAssertFalse(initialSet.isIncluded)
         XCTAssertTrue(initialSet.isUserEditable)
         XCTAssertTrue(initialSet.isUserRenamable)
         XCTAssertTrue(initialSet.isUserDeletable)
         XCTAssertEqual(initialSet.name, ModSetStore.initialSetName)
         XCTAssertEqual(initialSet.disabledFolderNames, ["SaveBackup"])
 
-        for setID in ModSetStore.includedSetIDs {
+        for setID in [
+            ModSetStore.allSetID,
+            ModSetStore.defaultSetID,
+            ModSetStore.initialSetID,
+            ModSetStore.noneSetID
+        ] {
             XCTAssertTrue(
                 FileManager.default.fileExists(
                     atPath: install.modSetDirectoryURL
@@ -70,7 +75,7 @@ final class ModSetStoreTests: SeedBoxTestCase {
         }
     }
 
-    func testDefaultIncludedSetUsesSMAPIBundledModsOnly() throws {
+    func testDefaultStarterSetUsesSMAPIBundledModsOnly() throws {
         let install = try makeInstall()
         try makeInstalledMod(
             name: "Console Commands",
@@ -99,7 +104,7 @@ final class ModSetStoreTests: SeedBoxTestCase {
         XCTAssertEqual(defaultSet.disabledFolderNames, ["ContentPatcher"])
     }
 
-    func testDefaultIncludedSetRequiresSMAPIUniqueIDs() throws {
+    func testDefaultStarterSetRequiresSMAPIUniqueIDs() throws {
         let install = try makeInstall()
         try makeInstalledMod(
             name: "Console Commands",
@@ -231,7 +236,7 @@ final class ModSetStoreTests: SeedBoxTestCase {
         XCTAssertFalse(reloadedSets.contains { $0.id == ModSetStore.initialSetID })
     }
 
-    func testUpdatesNoneIncludedSetWhenModsChange() throws {
+    func testPreservesStarterSetContentsWhenModsChange() throws {
         let install = try makeInstall()
         let contentPatcherURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
         let saveBackupURL = install.modDirectoryURL.appendingPathComponent("SaveBackup")
@@ -254,7 +259,7 @@ final class ModSetStoreTests: SeedBoxTestCase {
         allSet = try XCTUnwrap(sets.first { $0.id == ModSetStore.allSetID })
         noneSet = try XCTUnwrap(sets.first { $0.id == ModSetStore.noneSetID })
         XCTAssertEqual(allSet.disabledFolderNames, [])
-        XCTAssertEqual(noneSet.disabledFolderNames, ["ContentPatcher", "SaveBackup"])
+        XCTAssertEqual(noneSet.disabledFolderNames, ["ContentPatcher"])
     }
 
     func testSavesAndLoadsUserSet() throws {
@@ -278,7 +283,6 @@ final class ModSetStoreTests: SeedBoxTestCase {
         let reloadedSets = try ModSetStore.loadSets(install: install, currentMods: mods)
         let savedSet = try XCTUnwrap(reloadedSets.first(where: { $0.id == userSet.id }))
         XCTAssertEqual(savedSet.name, "Stardew Valley Expanded")
-        XCTAssertFalse(savedSet.isIncluded)
         XCTAssertTrue(savedSet.isUserEditable)
     }
 
@@ -303,7 +307,7 @@ final class ModSetStoreTests: SeedBoxTestCase {
         XCTAssertEqual(savedInitialSet.disabledFolderNames, ["ContentPatcher"])
     }
 
-    func testRejectsDeletingIncludedSets() throws {
+    func testDeletesStarterSetLikeAnyUserSet() throws {
         let install = try makeInstall()
         let modURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
 
@@ -312,11 +316,12 @@ final class ModSetStoreTests: SeedBoxTestCase {
 
         let mods = try ModLibrary.scan(install: install)
         let sets = try ModSetStore.loadSets(install: install, currentMods: mods)
-        for includedSet in sets.filter(\.isIncluded) {
-            XCTAssertThrowsError(try ModSetStore.deleteSet(includedSet, install: install)) { error in
-                XCTAssertEqual(error as? ModSetStoreError, .cannotDeleteIncludedSet)
-            }
-        }
+        let allSet = try XCTUnwrap(sets.first { $0.id == ModSetStore.allSetID })
+
+        try ModSetStore.deleteSet(allSet, install: install)
+
+        let reloadedSets = try ModSetStore.loadSets(install: install, currentMods: mods)
+        XCTAssertFalse(reloadedSets.contains { $0.id == ModSetStore.allSetID })
     }
 
     func testDeletesMyModsSetLikeAnyUserSet() throws {
@@ -340,8 +345,7 @@ final class ModSetStoreTests: SeedBoxTestCase {
         let baseSet = ModSet(
             id: ModSetStore.initialSetID,
             name: ModSetStore.initialSetName,
-            disabledFolderNames: [],
-            isIncluded: false
+            disabledFolderNames: []
         )
         let existing = [
             baseSet,

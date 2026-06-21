@@ -12,9 +12,8 @@ extension ModManagerService {
         shouldEnableAddedMods(appliedModSetID: state.appliedModSetID)
     }
 
-    func shouldEnableAddedMods(appliedModSetID: String?) -> Bool {
-        appliedModSetID != ModSetStore.noneSetID
-            && appliedModSetID != ModSetStore.defaultSetID
+    func shouldEnableAddedMods(appliedModSetID _: String?) -> Bool {
+        true
     }
 
     func guardCanManageMods(in state: inout ModManagerState) -> Bool {
@@ -56,8 +55,7 @@ extension ModManagerService {
         let currentSnapshot = ModSetStore.snapshotSet(
             id: set.id,
             name: set.name,
-            from: state.mods,
-            isIncluded: set.isIncluded
+            from: state.mods
         )
         return ModSetResolver.disabledFolderTokens(for: currentSnapshot)
             == ModSetResolver.disabledFolderTokens(for: set)

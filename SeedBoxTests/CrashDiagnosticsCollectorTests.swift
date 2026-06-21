@@ -258,8 +258,7 @@ final class CrashDiagnosticsCollectorTests: SeedBoxTestCase {
                 ModSetStore.snapshotSet(
                     id: ModSetStore.initialSetID,
                     name: ModSetStore.initialSetName,
-                    from: mods,
-                    isIncluded: false
+                    from: mods
                 )
             ],
             selectedModSetID: ModSetStore.initialSetID,

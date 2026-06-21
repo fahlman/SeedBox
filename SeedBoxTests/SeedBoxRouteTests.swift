@@ -230,14 +230,12 @@ final class SeedBoxRouteTests: XCTestCase {
         let defaultSet = ModSet(
             id: ModSetStore.initialSetID,
             name: ModSetStore.initialSetName,
-            disabledFolderNames: [],
-            isIncluded: false
+            disabledFolderNames: []
         )
         let favoritesSet = ModSet(
             id: "favorites",
             name: "Favorites",
-            disabledFolderNames: [],
-            isIncluded: false
+            disabledFolderNames: []
         )
         return ModManagerState(
             modsDirectoryPath: "/tmp/SeedBoxTests/Stardew Valley/Contents/MacOS/Mods",

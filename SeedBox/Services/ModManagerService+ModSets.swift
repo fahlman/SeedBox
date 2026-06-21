@@ -10,15 +10,6 @@ extension ModManagerService {
             nextState.appliedModSetID = nil
             return nextState
         }
-        guard selectedSet.isUserEditable else {
-            if modSetMatchesCurrentMods(selectedSet, in: nextState) {
-                nextState.appliedModSetID = selectedSet.id
-            } else if nextState.appliedModSetID == selectedSet.id {
-                nextState.appliedModSetID = nil
-            }
-            return nextState
-        }
-
         do {
             try saveCurrentState(to: selectedSet, in: nextState)
             nextState.appliedModSetID = selectedSet.id
@@ -44,10 +35,6 @@ extension ModManagerService {
     }
 
     func saveCurrentState(to set: ModSet, in state: ModManagerState) throws {
-        guard set.isUserEditable else {
-            throw ModSetStoreError.cannotEditIncludedSet
-        }
-
         var updatedSet = set
         updatedSet.disabledFolderNames = ModSetStore.snapshotSet(
             id: set.id,
@@ -63,10 +50,6 @@ extension ModManagerService {
     }
 
     func saveCurrentStateIfEditable(to set: ModSet, in state: ModManagerState) throws {
-        guard set.isUserEditable else {
-            return
-        }
-
         try saveCurrentState(to: set, in: state)
     }
     func createModSet(
@@ -137,14 +120,6 @@ extension ModManagerService {
         guard var selectedSet = nextState.modSetSelection.selectedSet else {
             return nextState
         }
-        guard selectedSet.isUserRenamable else {
-            let message = selectedSet.isIncluded
-                ? AppStrings.Status.includedModSetNamesCannotBeChanged
-                : AppStrings.Status.modSetNameCannotBeChanged
-            record(message, in: &nextState)
-            return nextState
-        }
-
         let trimmedName = requestedName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else {
             record(AppStrings.Status.setNameCannotBeEmpty, in: &nextState)
@@ -260,45 +235,12 @@ extension ModManagerService {
             return refreshedState
         }
 
-        guard let defaultSet = nextState.modSets.first(where: { $0.id == ModSetStore.defaultSetID }) else {
-            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
-            nextState.appliedModSetID = nil
-            record(AppStrings.Status.deletedModSet(set.name), in: &nextState)
-            var refreshedState = refreshedState(from: nextState)
-            auditDeletedModSet(set, wasSelected: true, in: &refreshedState)
-            return refreshedState
-        }
-
-        do {
-            let changedCount = try applyModSet(defaultSet, in: nextState, state: &nextState)
-            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
-            nextState.appliedModSetID = ModSetStore.defaultSetID
-            record(
-                AppStrings.Status.deletedModSetAppliedDefault(set.name, changedCount: changedCount),
-                in: &nextState
-            )
-            var refreshedState = refreshedState(from: nextState)
-            auditDeletedModSet(
-                set,
-                wasSelected: true,
-                details: [
-                    "fallback_mod_set_id": defaultSet.id,
-                    "fallback_mod_set_name": defaultSet.name,
-                    "fallback_changed_count": "\(changedCount)"
-                ],
-                in: &refreshedState
-            )
-            return refreshedState
-        } catch is SecurityScopedFolderAccessError {
-            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
-            nextState.appliedModSetID = nil
-            record(AppStrings.Status.deletedModSetChooseFolderAgainToApplyDefault(set.name), in: &nextState)
-            return refreshedState(from: nextState)
-        } catch {
-            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
-            nextState.appliedModSetID = nil
-            record(AppStrings.Status.deletedModSetCouldNotApplyDefault(set.name, errorDescription: error.localizedDescription), in: &nextState)
-            return refreshedState(from: nextState)
-        }
+        let fallbackSet = nextState.modSets.first { $0.id != set.id }
+        setSelectedModSetID(fallbackSet?.id ?? ModSetStore.initialSetID, in: &nextState)
+        nextState.appliedModSetID = nil
+        record(AppStrings.Status.deletedModSet(set.name), in: &nextState)
+        var refreshedState = refreshedState(from: nextState)
+        auditDeletedModSet(set, wasSelected: true, in: &refreshedState)
+        return refreshedState
     }
 }

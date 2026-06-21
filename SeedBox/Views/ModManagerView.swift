@@ -155,8 +155,21 @@ struct ModManagerView: View {
 
     private func modListContent(_ presentationState: ModManagerPresentationState) -> some View {
         HStack(spacing: 0) {
-            modTableContent(presentationState)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            ModList(
+                mods: presentationState.filteredMods,
+                canManageMods: presentationState.canManageMods,
+                showsStateColumn: presentationState.canShowDisplayedModStates,
+                canEditModStates: presentationState.canEditDisplayedModStates,
+                modFolderName: viewModel.modFolderName,
+                selectedModIDs: $selectedModIDs,
+                selectedMod: presentationState.selection.mod,
+                availableUpdate: presentationState.state.availableUpdate(for:),
+                addMods: addMods,
+                requestSetModEnabled: requestSetModEnabled,
+                revealSelectedMod: revealSelectedMod,
+                requestDeleteSelectedMod: requestDeleteSelectedMod
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if presentation.isShowingModInspector, let selectedMod = presentationState.selection.mod {
                 Divider()
@@ -183,28 +196,6 @@ struct ModManagerView: View {
         }
     }
 
-    private func modTableContent(_ presentationState: ModManagerPresentationState) -> some View {
-        ModList(
-            mods: presentationState.filteredMods,
-            canManageMods: presentationState.canManageMods,
-            showsStateColumn: presentationState.canShowDisplayedModStates,
-            canEditModStates: presentationState.canEditDisplayedModStates,
-            modFolderName: viewModel.modFolderName,
-            selectedModIDs: $selectedModIDs,
-            selectedMod: presentationState.selection.mod,
-            availableUpdate: presentationState.state.availableUpdate(for:),
-            addMods: addMods,
-            requestSetModEnabled: requestSetModEnabled,
-            revealSelectedMod: revealSelectedMod,
-            requestDeleteSelectedMod: requestDeleteSelectedMod
-        )
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let includedModSetNotice = presentationState.includedModSetNotice {
-                IncludedModSetNotice(message: includedModSetNotice)
-            }
-        }
-    }
-
     @ViewBuilder
     private func dropOverlay(_ presentationState: ModManagerPresentationState) -> some View {
         if presentation.isDropTargeted && presentationState.canManageMods {
@@ -217,31 +208,5 @@ struct ModManagerView: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
-    }
-
-}
-
-private struct IncludedModSetNotice: View {
-    var message: String
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: "lock.fill")
-                .imageScale(.small)
-                .foregroundStyle(.secondary)
-
-            Text(message)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial)
-        .overlay(alignment: .bottom) {
-            Divider()
-        }
-        .accessibilityElement(children: .combine)
     }
 }

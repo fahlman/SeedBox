@@ -135,14 +135,6 @@ struct ModManagerPresentationState {
         canManageMods && (selectedSet?.isUserEditable ?? false)
     }
 
-    var includedModSetNotice: String? {
-        guard selectedSet?.isIncluded == true else {
-            return nil
-        }
-
-        return AppStrings.ModSets.includedModSetNotice
-    }
-
     var canShowProblems: Bool {
         state.hasProblems
     }

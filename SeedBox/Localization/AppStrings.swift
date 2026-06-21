@@ -61,10 +61,6 @@ enum AppStrings {
         static let renameTitle = String(localized: "Rename Mod Set")
     }
 
-    enum ModSets {
-        static let includedModSetNotice = String(localized: "This Mod Set is included with Seed Box. You can apply it, but you cannot edit, rename, or delete it.")
-    }
-
     enum Search {
         static let prompt = String(localized: "Search Mods")
     }
@@ -312,8 +308,6 @@ enum AppStrings {
         static let chooseModsFolderBeforeManaging = String(localized: "Choose the Mods folder before managing mods.")
         static let chooseArchivedModsToRestore = String(localized: "Choose one or more archived mods to restore.")
         static let chooseArchivedModsToDelete = String(localized: "Choose one or more archived mods to delete.")
-        static let includedModSetNamesCannotBeChanged = String(localized: "Included mod set names cannot be changed.")
-        static let modSetNameCannotBeChanged = String(localized: "This mod set name cannot be changed.")
         static let modsFolderChangedRefreshed = String(localized: "Mods folder changed. Refreshed mod list.")
         static let modsFolderMissingChooseAgain = String(localized: "The Mods folder is missing. Choose it again from Settings.")
         static let noModFoldersInstalled = String(localized: "No mod folders were installed.")
@@ -487,18 +481,6 @@ enum AppStrings {
 
         static func deletedModSet(_ setName: String) -> String {
             String(localized: "Deleted mod set \(setName).")
-        }
-
-        static func deletedModSetAppliedDefault(_ setName: String, changedCount: Int) -> String {
-            String(localized: "Deleted mod set \(setName). Applied Default (\(changedCount) changes).")
-        }
-
-        static func deletedModSetChooseFolderAgainToApplyDefault(_ setName: String) -> String {
-            String(localized: "Deleted mod set \(setName). Choose the Mods folder again to apply Default.")
-        }
-
-        static func deletedModSetCouldNotApplyDefault(_ setName: String, errorDescription: String) -> String {
-            String(localized: "Deleted mod set \(setName), but could not apply Default: \(errorDescription)")
         }
 
         static func duplicatedSelectedMod(_ displayName: String) -> String {
@@ -992,8 +974,6 @@ enum AppStrings {
     }
 
     enum Errors {
-        static let cannotDeleteIncludedSets = String(localized: "Included mod sets cannot be deleted.")
-        static let cannotEditIncludedSets = String(localized: "Included mod sets cannot be edited.")
         static let noSavedFolderAccess = String(localized: "No saved folder access was found.")
         static let ready = String(localized: "Ready")
         static let needsSetup = String(localized: "Needs setup")

@@ -251,7 +251,7 @@ enum ModLibrarySelection: Hashable, Sendable {
             return ModLibraryItem(
                 selection: self,
                 title: modSet.name,
-                systemImage: modSet.isUserEditable ? "folder" : "folder.badge.gearshape",
+                systemImage: "folder",
                 count: Self.modCount(for: modSet, in: state),
                 kind: .modSet,
                 isUserEditable: modSet.isUserEditable
@@ -296,9 +296,6 @@ enum ModLibrarySelection: Hashable, Sendable {
         let availableIDs = Set(state.modSets.map(\.id))
         if availableIDs.contains(state.selectedModSetID) {
             return modSetID(state.selectedModSetID)
-        }
-        if let firstUserSetID = state.modSets.first(where: { !$0.isIncluded })?.id {
-            return modSetID(firstUserSetID)
         }
         if availableIDs.contains(ModSetStore.defaultSetID) {
             return modSetID(ModSetStore.defaultSetID)
