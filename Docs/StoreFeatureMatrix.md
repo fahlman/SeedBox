@@ -111,6 +111,11 @@ Legend:
   installed classifications are produced by the same install classifier used by
   previews and actual installs. No App Store or Steam-specific constraint was
   found. Verified with full `Seed Box` and `Seed Box Steam` scheme test runs.
+- 2026-06-20: Install preview stages selected folders and ZIPs, shows every
+  installable and skipped item before changes are applied, and installs only
+  the preview's installable sources after confirmation. No App Store or
+  Steam-specific constraint was found. Verified with full `Seed Box` and
+  `Seed Box Steam` scheme test runs.
 
 ## Release Decision Rule
 
