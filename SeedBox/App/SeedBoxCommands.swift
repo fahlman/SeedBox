@@ -8,7 +8,7 @@ struct SeedBoxCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
             Button {
-                NSApplication.shared.orderFrontStandardAboutPanel(nil)
+                NSApplication.shared.orderFrontStandardAboutPanel(options: AboutPanelContent.options())
             } label: {
                 Label(AppStrings.Commands.aboutSeedBox, systemImage: "info.circle")
             }

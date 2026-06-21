@@ -3,6 +3,12 @@ import Foundation
 enum AppStrings {
     enum App {
         static let name = String(localized: "Seed Box")
+        static let unknownBuild = String(localized: "Unknown Build")
+        static let unknownVersion = String(localized: "Unknown Version")
+
+        static func versionBuild(version: String, build: String) -> String {
+            String(localized: "Version \(version) (Build \(build))")
+        }
     }
 
     enum ModSetNames {
