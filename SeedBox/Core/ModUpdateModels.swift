@@ -44,15 +44,31 @@ enum SMAPIIdentifiers {
         "SMAPI.ConsoleCommands".normalizedDependencyID,
         "SMAPI.SaveBackup".normalizedDependencyID
     ]
+    static let bundledModFolderTokens: Set<String> = [
+        "ConsoleCommands".normalizedFolderToken,
+        "SaveBackup".normalizedFolderToken
+    ]
+    static let bundledModNames: Set<String> = [
+        "Console Commands".normalizedSearchText,
+        "Save Backup".normalizedSearchText
+    ]
+
+    static func isBundledMod(_ mod: ModInfo) -> Bool {
+        if let uniqueID = mod.manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID,
+           bundledModIDs.contains(uniqueID) {
+            return true
+        }
+
+        if bundledModFolderTokens.contains(mod.enabledFolderName.normalizedFolderToken) {
+            return true
+        }
+
+        return bundledModNames.contains(mod.displayName.normalizedSearchText)
+    }
 
     static func detectedSMAPIVersion(in mods: [ModInfo]) -> String? {
         mods.lazy
-            .filter { mod in
-                guard let uniqueID = mod.manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID else {
-                    return false
-                }
-                return bundledModIDs.contains(uniqueID)
-            }
+            .filter(isBundledMod)
             .compactMap { $0.manifest?.version?.trimmedNonEmpty }
             .first
     }

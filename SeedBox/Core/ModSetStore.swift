@@ -210,10 +210,15 @@ enum ModSetStore {
     ) throws -> ModSet {
         let defaultURL = urlForSetID(defaultSetID, install: install)
         if let stored = loadStoredSet(at: defaultURL) {
+            let migratedName = migratedMyModsSetName(from: stored.name)
+            let isLegacyDefaultSet = migratedName == defaultSetName
+                && stored.name.trimmingCharacters(in: .whitespacesAndNewlines) != defaultSetName
             let set = ModSet(
                 id: defaultSetID,
-                name: migratedMyModsSetName(from: stored.name),
-                disabledFolderNames: normalizeFolderNames(stored.disabledFolderNames),
+                name: migratedName,
+                disabledFolderNames: isLegacyDefaultSet
+                    ? smapiStarterDisabledFolderNames(from: currentMods)
+                    : normalizeFolderNames(stored.disabledFolderNames),
                 isDefault: true,
                 isIncluded: false
             )
@@ -221,10 +226,10 @@ enum ModSetStore {
             return set
         }
 
-        let baselineSet = snapshotSet(
+        let baselineSet = ModSet(
             id: defaultSetID,
             name: defaultSetName,
-            from: currentMods,
+            disabledFolderNames: smapiStarterDisabledFolderNames(from: currentMods),
             isDefault: true,
             isIncluded: false
         )
@@ -256,6 +261,14 @@ enum ModSetStore {
         }
 
         return trimmedName
+    }
+
+    private static func smapiStarterDisabledFolderNames(from mods: [ModInfo]) -> [String] {
+        normalizeFolderNames(
+            mods
+                .filter { !SMAPIIdentifiers.isBundledMod($0) }
+                .map(\.enabledFolderName)
+        )
     }
 
     private static func allIncludedSet() -> ModSet {
