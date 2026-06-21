@@ -109,7 +109,7 @@ struct ModManagerStateStore: @unchecked Sendable {
         do {
             try UserSmartModSetStore.saveSmartModSets(userSmartModSets, to: smartModSetStoreURL)
         } catch {
-            AppLog.smartModSets.error("Could not save user Smart Mod Sets: \(error.localizedDescription, privacy: .private)")
+            AppLog.smartModSets.error("Could not save user saved searches: \(error.localizedDescription, privacy: .private)")
         }
     }
 

@@ -74,7 +74,7 @@ enum AppStrings {
         static let recentlyAdded = String(localized: "Recently Added")
         static let recentlyDeleted = String(localized: "Recently Deleted")
         static let recentlyUpdated = String(localized: "Recently Updated")
-        static let smartModSets = String(localized: "Smart Mod Sets")
+        static let savedSearches = String(localized: "Saved Searches")
         static let smapiMods = String(localized: "SMAPI Mods")
         static let updatesAvailable = String(localized: "Updates Available")
         static let warnings = String(localized: "Warnings")

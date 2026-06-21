@@ -14,7 +14,7 @@ struct ModLibrarySidebar: View {
             }
 
             if !presentationState.userSmartModSetItems.isEmpty {
-                Section(AppStrings.Library.smartModSets) {
+                Section(AppStrings.Library.savedSearches) {
                     ForEach(presentationState.userSmartModSetItems) { item in
                         sidebarRow(for: item)
                     }

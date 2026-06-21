@@ -3719,7 +3719,7 @@
       }
     },
     "All Mods" : {
-      "comment" : "Sidebar smart mod set that shows every installed mod.",
+      "comment" : "Library filter that shows every installed mod.",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -6446,7 +6446,7 @@
       }
     },
     "Content Patcher Mods" : {
-      "comment" : "Sidebar smart mod set that shows Content Patcher content packs.",
+      "comment" : "Library filter that shows Content Patcher content packs.",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -13062,7 +13062,7 @@
       }
     },
     "Errors" : {
-      "comment" : "Sidebar smart mod set for mods with required dependency failures or other blocking problems.",
+      "comment" : "Library filter for mods with required dependency failures or other blocking problems.",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -19566,7 +19566,7 @@
       }
     },
     "No Matching Mods" : {
-      "comment" : "Empty-state title when a selected smart mod set has no matching installed mods.",
+      "comment" : "Empty-state title when a selected Library filter or Saved Search has no matching installed mods.",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -19957,7 +19957,7 @@
       }
     },
     "No Recently Deleted Mods" : {
-      "comment" : "Empty-state title when the Recently Deleted smart mod set has no archived deleted mods.",
+      "comment" : "Empty-state title when the Recently Deleted Library filter has no archived deleted mods.",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -22309,7 +22309,7 @@
       }
     },
     "Recently Added" : {
-      "comment" : "Sidebar smart mod set that shows mods recently added to the managed Mods folder.",
+      "comment" : "Library filter that shows mods recently added to the managed Mods folder.",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -22374,7 +22374,7 @@
       }
     },
     "Recently Deleted" : {
-      "comment" : "Sidebar smart mod set that shows archived deleted mods.",
+      "comment" : "Library filter that shows archived deleted mods.",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -22439,7 +22439,7 @@
       }
     },
     "Recently Updated" : {
-      "comment" : "Sidebar smart mod set that shows mods recently updated in the managed Mods folder.",
+      "comment" : "Library filter that shows mods recently updated in the managed Mods folder.",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -27282,7 +27282,7 @@
       }
     },
     "SMAPI Mods" : {
-      "comment" : "Sidebar smart mod set that shows regular SMAPI mods, excluding Content Patcher content packs.",
+      "comment" : "Library filter that shows regular SMAPI mods, excluding Content Patcher content packs.",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -27411,67 +27411,67 @@
         }
       }
     },
-    "Smart Mod Sets" : {
-      "comment" : "Sidebar section title for read-only generated mod set views.",
+    "Saved Searches" : {
+      "comment" : "Sidebar section title for user-created saved mod searches.",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Smart Mod Sets"
+            "value" : "Saved Searches"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Smart Mod Sets"
+            "value" : "Saved Searches"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Smart Mod Sets"
+            "value" : "Saved Searches"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Smart Mod Sets"
+            "value" : "Saved Searches"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Smart Mod Sets"
+            "value" : "Saved Searches"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Smart Mod Sets"
+            "value" : "Saved Searches"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Smart Mod Sets"
+            "value" : "Saved Searches"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Smart Mod Sets"
+            "value" : "Saved Searches"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Smart Mod Sets"
+            "value" : "Saved Searches"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Smart Mod Sets"
+            "value" : "Saved Searches"
           }
         }
       }
@@ -30533,7 +30533,7 @@
       }
     },
     "Updates Available" : {
-      "comment" : "Sidebar smart mod set that shows installed mods with known newer versions.",
+      "comment" : "Library filter that shows installed mods with known newer versions.",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -30924,7 +30924,7 @@
       }
     },
     "Warnings" : {
-      "comment" : "Sidebar smart mod set for non-blocking mod warnings, such as missing optional dependencies.",
+      "comment" : "Library filter for non-blocking mod warnings, such as missing optional dependencies.",
       "localizations" : {
         "de" : {
           "stringUnit" : {

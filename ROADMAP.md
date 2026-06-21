@@ -35,19 +35,20 @@ downloading or replacing anything.
 - Keep automatic SMAPI install/update separate from the guided assistant because
   it has different store-review and trust implications.
 
-### Smart Mod Sets
+### Saved Searches
 
-Smart Mod Sets are saved searches. They are not manually edited by adding or
-removing mods; users edit the search/rule that defines the set.
+Saved Searches are reusable Library filters. They are not manually edited by
+adding or removing mods, and they are not applied to the Mods folder like Mod
+Sets. Users edit the search/rule that defines the results.
 
-- Add built-in Smart Mod Sets for common searches.
-- Let users save the current search as a Smart Mod Set.
-- Let users rename, edit, duplicate, and delete user-created Smart Mod Sets.
+- Add built-in Library filters for common searches.
+- Let users save the current search as a Saved Search.
+- Let users rename, edit, duplicate, and delete user-created Saved Searches.
 - Reuse the existing search parser first.
 - Consider a native AppKit `NSPredicateEditor` rule builder later if plain
   search text becomes too limiting.
 
-Example Smart Mod Sets:
+Example Library filters:
 
 - SMAPI Mods
 - Content Patcher Mods
@@ -65,8 +66,8 @@ start with a baseline set and layer optional collections on top.
 - Detect and prevent cycles.
 - Resolve chains such as C inherits B inherits A.
 - Make inherited state clear in the sidebar and main table.
-- Keep Smart Mod Sets separate from inheritance because they are saved searches,
-  not enable/disable configurations.
+- Keep Saved Searches separate from inheritance because they are filters, not
+  enable/disable configurations.
 
 ### Mod Set portability and sync
 
