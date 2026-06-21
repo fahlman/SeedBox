@@ -2,6 +2,8 @@ import Foundation
 
 enum SmartModSet: String, CaseIterable, Identifiable, Sendable {
     case allMods
+    case enabled
+    case disabled
     case smapiMods
     case contentPatcherMods
     case updatesAvailable
@@ -19,6 +21,10 @@ enum SmartModSet: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .allMods:
             AppStrings.Library.allMods
+        case .enabled:
+            AppStrings.Library.enabled
+        case .disabled:
+            AppStrings.Library.disabled
         case .smapiMods:
             AppStrings.Library.smapiMods
         case .contentPatcherMods:
@@ -42,6 +48,10 @@ enum SmartModSet: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .allMods:
             "shippingbox"
+        case .enabled:
+            "checkmark.circle"
+        case .disabled:
+            "slash.circle"
         case .smapiMods:
             "terminal"
         case .contentPatcherMods:

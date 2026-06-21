@@ -67,6 +67,8 @@ enum AppStrings {
     enum Library {
         static let allMods = String(localized: "All Mods")
         static let contentPatcherMods = String(localized: "Content Patcher Mods")
+        static let disabled = String(localized: "Disabled")
+        static let enabled = String(localized: "Enabled")
         static let errors = String(localized: "Errors")
         static let library = String(localized: "Library")
         static let noMatchingMods = String(localized: "No Matching Mods")

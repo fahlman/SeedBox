@@ -66,6 +66,10 @@ enum ModFilterEngine {
         switch smartSet {
         case .allMods:
             return true
+        case .enabled:
+            return mod.isEnabled
+        case .disabled:
+            return !mod.isEnabled
         case .smapiMods:
             return !mod.isContentPatcherContentPack
         case .contentPatcherMods:

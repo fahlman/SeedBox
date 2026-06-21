@@ -113,6 +113,31 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         XCTAssertEqual(regularModState.filteredMods.map(\.displayName), ["Content Patcher"])
     }
 
+    func testSmartModSetFiltersEnabledAndDisabledMods() throws {
+        let install = try makeInstall()
+        try makeInstalledMod(name: "Active Mod", in: install)
+        try makeInstalledMod(name: "Inactive Mod", in: install, enabled: false)
+
+        let mods = try ModLibrary.scan(install: install)
+        let state = makeState(install: install, mods: mods)
+
+        let enabledState = ModManagerPresentationState(
+            state: state,
+            searchText: "",
+            selectedModIDs: [],
+            selectedLibraryItemID: ModLibrarySelection.smartID(.enabled)
+        )
+        let disabledState = ModManagerPresentationState(
+            state: state,
+            searchText: "",
+            selectedModIDs: [],
+            selectedLibraryItemID: ModLibrarySelection.smartID(.disabled)
+        )
+
+        XCTAssertEqual(enabledState.filteredMods.map(\.displayName), ["Active Mod"])
+        XCTAssertEqual(disabledState.filteredMods.map(\.displayName), ["Inactive Mod"])
+    }
+
     func testSmartModSetFiltersUpdatesAvailable() throws {
         let install = try makeInstall()
         let updatedURL = install.modDirectoryURL.appendingPathComponent("UpdateMe")
