@@ -28,6 +28,35 @@ feature, record the exact objection and decide whether the App Store build can
 remain a full-quality product or whether Steam/direct distribution is the better
 channel.
 
+## Versioning Discipline
+
+Seed Box uses one public version and one monotonically increasing build number
+across all distribution channels.
+
+- `MARKETING_VERSION` is the public app version. Use semantic versioning in the
+  form `major.minor.patch`.
+- `CURRENT_PROJECT_VERSION` is the build number. Use a whole number and increase
+  it for every App Store upload, Steam release candidate, notarized ZIP, or
+  other build handed to someone outside local development.
+- The App Store-candidate build and Steam build for the same product release use
+  the same `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`. Channel differences
+  belong in schemes, build configurations, entitlements, signing, packaging, and
+  store metadata, not in the version number.
+- Never reuse the same `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` pair for
+  two different release artifacts.
+
+Before archiving for release, the person making the release updates
+`MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in `SeedBox.xcodeproj` for all
+Seed Box app configurations. The version bump should be its own commit or an
+obvious part of the release-preparation commit.
+
+App Store Connect versions map directly to `MARKETING_VERSION`. Final Git tags
+use `v<MARKETING_VERSION>` and point at the commit used for the public release.
+For example, App Store version `1.0.0` uses tag `v1.0.0`. Do not move final
+release tags after publishing them. If release-candidate tags are useful before
+the public release, use `v<MARKETING_VERSION>-rc.<number>`; those tags do not
+represent App Store Connect versions.
+
 ## Prerequisites
 
 - Apple Developer Program membership for team `PUT2KYMV2W`.
@@ -57,10 +86,14 @@ Use this path for a sandboxed App Store submission candidate:
 
 1. Open `SeedBox.xcodeproj`.
 2. Choose the **Seed Box** scheme.
-3. Choose **Product > Archive**.
-4. In Organizer, choose **Distribute App**.
-5. Choose **App Store Connect** distribution.
-6. Upload the archive and finish release setup in App Store Connect.
+3. Confirm `MARKETING_VERSION` matches the App Store Connect version being
+   uploaded.
+4. Confirm `CURRENT_PROJECT_VERSION` is greater than every build number already
+   uploaded for that App Store Connect version.
+5. Choose **Product > Archive**.
+6. In Organizer, choose **Distribute App**.
+7. Choose **App Store Connect** distribution.
+8. Upload the archive and finish release setup in App Store Connect.
 
 The App Store handles public update delivery for this distribution path.
 
@@ -70,10 +103,12 @@ Use this path for the Steam-compatible macOS build:
 
 1. Open `SeedBox.xcodeproj`.
 2. Choose the **Seed Box Steam** scheme.
-3. Choose **Product > Archive**.
-4. In Organizer, choose **Distribute App**.
-5. Choose **Developer ID** distribution.
-6. Let Xcode sign and notarize the app.
+3. Confirm `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` match the App Store
+   candidate for the same product release.
+4. Choose **Product > Archive**.
+5. In Organizer, choose **Distribute App**.
+6. Choose **Developer ID** distribution.
+7. Let Xcode sign and notarize the app.
 
 The Steam scheme uses `Release Steam`, `SeedBox/Steam.entitlements`, hardened
 runtime, and `ENABLE_APP_SANDBOX = NO`. The normal **Seed Box** scheme continues
@@ -120,6 +155,8 @@ archive path, ZIP path, SHA-256 hash, and whether the ZIP was notarized.
 
 The full release flow verifies:
 
+- the archive reports the intended `MARKETING_VERSION` and
+  `CURRENT_PROJECT_VERSION`;
 - the app is signed by a Developer ID Application certificate for the expected
   team;
 - the App Store-candidate build includes the sandbox, security-scoped bookmark,

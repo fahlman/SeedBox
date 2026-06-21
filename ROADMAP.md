@@ -84,9 +84,6 @@ start with a baseline set and layer optional collections on top.
 
 ## Release Discipline
 
-- Decide the versioning policy before the first public release.
-- Keep `MARKETING_VERSION`, build numbers, App Store Connect versions, and
-  release tags in lockstep.
 - Discuss continuous integration after the release path is clearer.
 - Keep full test-suite verification as the default checkpoint before pushing
   behavior changes.
