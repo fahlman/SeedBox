@@ -861,13 +861,29 @@ enum AppStrings {
 
     enum Bisection {
         static let title = String(localized: "Find Problem Mod")
-        static let instructions = String(localized: "Half of the suspect mods have been disabled. Launch Stardew Valley, check whether the problem still happens, then come back and choose below. Your previous mod states are restored when the search ends.")
+        static let currentTest = String(localized: "Current Test")
+        static let enabledForTest = String(localized: "Enabled for this test")
+        static let disabledForTest = String(localized: "Disabled for this test")
+        static let remainingSuspects = String(localized: "Still suspected")
+        static let next = String(localized: "Next")
+        static let howThisEnds = String(localized: "How this ends")
+        static let safety = String(localized: "Safety")
+        static let noMods = String(localized: "None")
+        static let startHelp = String(localized: "Start a guided search that temporarily changes which enabled mods load, then restores your original mod states when the search ends.")
+        static let nextAction = String(localized: "Launch Stardew Valley with this test setup. After you know whether the problem still happens, return here and choose a result.")
+        static let endingExplanation = String(localized: "If Seed Box identifies one likely culprit, that mod is left disabled and your other mods are restored. If the search narrows to a group, finds no culprit, or is cancelled, your original mod states are restored.")
+        static let safetyNote = String(localized: "Seed Box changes mod states only for the active test and restores your original enabled and disabled states when the search ends.")
         static let problemStillHappens = String(localized: "Problem Still Happens")
         static let problemGone = String(localized: "Problem Is Gone")
         static let cancelSearch = String(localized: "Cancel Search")
 
-        static func stepSummary(step: Int, suspectCount: Int, testingCount: Int) -> String {
-            String(localized: "Step \(step): \(suspectCount) mods suspected, \(testingCount) enabled for this test.")
+        static func stepSummary(
+            step: Int,
+            estimatedTotalSteps: Int,
+            suspectCount: Int,
+            testingCount: Int
+        ) -> String {
+            String(localized: "Step \(step) of about \(estimatedTotalSteps): \(suspectCount) mods still suspected, \(testingCount) enabled for this test.")
         }
     }
 

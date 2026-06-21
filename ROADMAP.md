@@ -82,8 +82,6 @@ start with a baseline set and layer optional collections on top.
 - Keep improving Help content as workflows settle.
 - Do a hands-on accessibility pass with VoiceOver and keyboard navigation.
 - Build a native archive browser/search/filter experience.
-- Improve bisection guidance so users understand what changed, what to test, and
-  what happens after a culprit is found.
 
 ## Release Discipline
 

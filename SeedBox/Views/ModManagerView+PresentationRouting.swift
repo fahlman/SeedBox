@@ -109,6 +109,7 @@ extension ModManagerView {
             if let session = presentationState.state.bisectionSession {
                 BisectionSheet(
                     session: session,
+                    mods: presentationState.state.mods,
                     reportResult: { problemOccurred in
                         Task {
                             await viewModel.recordBisectionResult(problemOccurred: problemOccurred)

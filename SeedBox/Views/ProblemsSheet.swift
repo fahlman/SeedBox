@@ -53,7 +53,7 @@ struct ProblemsSheet: View {
                     Label(AppStrings.Problems.findProblemMod, systemImage: "stethoscope")
                 }
                 .disabled(!canStartBisection)
-                .help(AppStrings.Bisection.instructions)
+                .help(AppStrings.Bisection.startHelp)
 
                 Spacer()
             }
