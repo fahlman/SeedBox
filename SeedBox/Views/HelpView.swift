@@ -27,6 +27,10 @@ struct HelpView: View {
                     AppStrings.Help.troubleshootingBody
                 )
                 helpSection(
+                    AppStrings.Settings.diagnosticsSection,
+                    AppStrings.Settings.diagnosticsFooter
+                )
+                helpSection(
                     AppStrings.Help.privacyTitle,
                     AppStrings.Help.privacyBody
                 )
