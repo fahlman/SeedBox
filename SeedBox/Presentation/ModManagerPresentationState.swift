@@ -123,8 +123,20 @@ struct ModManagerPresentationState {
         readiness.canManageMods
     }
 
-    var canEditDisplayedModStates: Bool {
+    var canShowDisplayedModStates: Bool {
         canManageMods && librarySelection.selectedModSetID != nil
+    }
+
+    var canEditDisplayedModStates: Bool {
+        canManageMods && (selectedSet?.isUserEditable ?? false)
+    }
+
+    var includedModSetNotice: String? {
+        guard selectedSet?.isIncluded == true else {
+            return nil
+        }
+
+        return AppStrings.ModSets.includedModSetNotice
     }
 
     var canShowProblems: Bool {

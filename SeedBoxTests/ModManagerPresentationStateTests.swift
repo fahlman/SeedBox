@@ -34,9 +34,11 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         XCTAssertEqual(presentationState.selection.mod?.displayName, "Stardew Valley Expanded")
         XCTAssertEqual(presentationState.selection.dependencyStatuses.map(\.displayName), ["Content Patcher"])
         XCTAssertTrue(presentationState.canManageMods)
-        XCTAssertTrue(presentationState.canEditDisplayedModStates)
+        XCTAssertTrue(presentationState.canShowDisplayedModStates)
+        XCTAssertFalse(presentationState.canEditDisplayedModStates)
+        XCTAssertEqual(presentationState.includedModSetNotice, AppStrings.ModSets.includedModSetNotice)
         XCTAssertTrue(presentationState.canRevealSelectedMod)
-        XCTAssertTrue(presentationState.canDeleteSelectedMod)
+        XCTAssertFalse(presentationState.canDeleteSelectedMod)
         XCTAssertTrue(presentationState.canShowModInspector)
         XCTAssertTrue(presentationState.canShowProblems)
     }
@@ -244,6 +246,9 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         XCTAssertEqual(presentationState.selectedLibraryItem?.count, 1)
         XCTAssertEqual(presentationState.selectedLibraryItem?.kind, .userSmartModSet)
         XCTAssertEqual(presentationState.selectedLibraryItem?.isUserEditable, true)
+        XCTAssertFalse(presentationState.canShowDisplayedModStates)
+        XCTAssertFalse(presentationState.canEditDisplayedModStates)
+        XCTAssertNil(presentationState.includedModSetNotice)
     }
 
     func testUserSmartModSetCombinesSavedSearchWithCurrentSearch() throws {
@@ -344,6 +349,66 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         XCTAssertEqual(presentationState.modSetItems.first?.isUserEditable, true)
     }
 
+    func testUserModSetSelectionCanEditDisplayedModStates() throws {
+        let install = try makeInstall()
+        try makeInstalledMod(name: "Some Mod", in: install)
+
+        let mods = try ModLibrary.scan(install: install)
+        let userSet = ModSetStore.snapshotSet(
+            id: "favorites",
+            name: "Favorites",
+            from: mods,
+            isDefault: false,
+            isIncluded: false
+        )
+        var state = makeState(install: install, mods: mods, modSets: [userSet])
+        state.selectedModSetID = userSet.id
+        state.appliedModSetID = userSet.id
+
+        let mod = try XCTUnwrap(mods.first)
+        let presentationState = ModManagerPresentationState(
+            state: state,
+            searchText: "",
+            selectedModIDs: [mod.id],
+            selectedLibraryItemID: ModLibrarySelection.modSetID(userSet.id)
+        )
+
+        XCTAssertTrue(presentationState.canShowDisplayedModStates)
+        XCTAssertTrue(presentationState.canEditDisplayedModStates)
+        XCTAssertTrue(presentationState.canDeleteSelectedMod)
+        XCTAssertNil(presentationState.includedModSetNotice)
+    }
+
+    func testIncludedModSetSelectionShowsReadOnlyDisplayedModStates() throws {
+        let install = try makeInstall()
+        try makeInstalledMod(name: "Some Mod", in: install)
+
+        let mods = try ModLibrary.scan(install: install)
+        let noneSet = ModSet(
+            id: ModSetStore.noneSetID,
+            name: ModSetStore.noneSetName,
+            disabledFolderNames: mods.map(\.enabledFolderName),
+            isDefault: false,
+            isIncluded: true
+        )
+        var state = makeState(install: install, mods: mods, modSets: [noneSet])
+        state.selectedModSetID = noneSet.id
+        state.appliedModSetID = noneSet.id
+
+        let mod = try XCTUnwrap(mods.first)
+        let presentationState = ModManagerPresentationState(
+            state: state,
+            searchText: "",
+            selectedModIDs: [mod.id],
+            selectedLibraryItemID: ModLibrarySelection.modSetID(noneSet.id)
+        )
+
+        XCTAssertTrue(presentationState.canShowDisplayedModStates)
+        XCTAssertFalse(presentationState.canEditDisplayedModStates)
+        XCTAssertFalse(presentationState.canDeleteSelectedMod)
+        XCTAssertEqual(presentationState.includedModSetNotice, AppStrings.ModSets.includedModSetNotice)
+    }
+
     func testSmartModSetSelectionDisablesModSetCommands() throws {
         let install = try makeInstall()
         let modURL = install.modDirectoryURL.appendingPathComponent("SomeMod")
@@ -372,6 +437,8 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         )
 
         XCTAssertFalse(presentationState.canEditDisplayedModStates)
+        XCTAssertFalse(presentationState.canShowDisplayedModStates)
+        XCTAssertNil(presentationState.includedModSetNotice)
         XCTAssertTrue(presentationState.canRevealSelectedMod)
         XCTAssertFalse(presentationState.canDeleteSelectedMod)
         XCTAssertTrue(presentationState.canShowModInspector)
@@ -410,6 +477,8 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         )
 
         XCTAssertFalse(presentationState.canEditDisplayedModStates)
+        XCTAssertFalse(presentationState.canShowDisplayedModStates)
+        XCTAssertNil(presentationState.includedModSetNotice)
         XCTAssertTrue(presentationState.canRevealSelectedMod)
         XCTAssertFalse(presentationState.canDeleteSelectedMod)
         XCTAssertTrue(presentationState.canShowModInspector)

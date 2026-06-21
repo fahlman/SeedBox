@@ -3,6 +3,7 @@ import SwiftUI
 struct ModList: View {
     var mods: [ModInfo]
     var canManageMods: Bool
+    var showsStateColumn: Bool
     var canEditModStates: Bool
     var modFolderName: String
     @Binding var selectedModIDs: Set<String>
@@ -31,7 +32,7 @@ struct ModList: View {
             )
         } else {
             Table(rows, selection: $selectedModIDs, sortOrder: sortOrderBinding) {
-                if canEditModStates {
+                if showsStateColumn {
                     TableColumn(AppStrings.Table.state, value: \.enabledSortText) { row in
                         Toggle(row.enabledText, isOn: Binding(
                             get: { row.mod.isEnabled },
@@ -40,6 +41,7 @@ struct ModList: View {
                             }
                         ))
                         .labelsHidden()
+                        .disabled(!canEditModStates)
                     }
                     .width(min: 76, ideal: 92, max: 110)
                 }
@@ -108,7 +110,7 @@ struct ModList: View {
 
     private var currentSortOrder: [KeyPathComparator<ModTableRow>] {
         var column = ModListSortColumn(rawValue: storedSortColumn) ?? .mod
-        if column == .state && !canEditModStates {
+        if column == .state && !showsStateColumn {
             column = .mod
         }
         let direction = ModListSortDirection(rawValue: storedSortDirection) ?? .forward

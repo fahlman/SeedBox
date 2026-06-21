@@ -60,6 +60,10 @@ enum AppStrings {
         static let renameTitle = String(localized: "Rename Mod Set")
     }
 
+    enum ModSets {
+        static let includedModSetNotice = String(localized: "This Mod Set is included with Seed Box. You can apply it, but you cannot edit, rename, or delete it.")
+    }
+
     enum Search {
         static let prompt = String(localized: "Search Mods")
     }
