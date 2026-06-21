@@ -167,8 +167,11 @@ struct ModManagerView: View {
                 revealInFinder: viewModel.revealArchivedModsFolder,
                 pruneExpiredArchives: pruneExpiredArchives
             )
-        } else if presentationState.librarySelection.smartSet != nil && presentationState.filteredMods.isEmpty {
-            SmartModSetEmptyState(selection: presentationState.librarySelection)
+        } else if presentationState.librarySelection.isSmartModSet && presentationState.filteredMods.isEmpty {
+            SmartModSetEmptyState(
+                selection: presentationState.librarySelection,
+                state: presentationState.state
+            )
         } else {
             modListContent(presentationState)
         }

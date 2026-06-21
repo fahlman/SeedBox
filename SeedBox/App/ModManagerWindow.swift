@@ -19,7 +19,7 @@ struct ModManagerWindow: View {
         .task {
             await restoreWindowStateIfNeeded()
             await viewModel.refresh()
-            synchronizeSelectedModSetWithAvailableSets()
+            synchronizeLibrarySelectionWithAvailableItems()
         }
         .onReceive(
             NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
@@ -35,7 +35,10 @@ struct ModManagerWindow: View {
             selectedLibraryItemID = ModLibrarySelection.modSetID(selectedModSetID)
         }
         .onChange(of: viewModel.state.modSets) {
-            synchronizeSelectedModSetWithAvailableSets()
+            synchronizeLibrarySelectionWithAvailableItems()
+        }
+        .onChange(of: viewModel.state.userSmartModSets) {
+            synchronizeLibrarySelectionWithAvailableItems()
         }
     }
 
@@ -58,12 +61,7 @@ struct ModManagerWindow: View {
         restoredWindowState = true
     }
 
-    private func synchronizeSelectedModSetWithAvailableSets() {
-        let availableIDs = Set(viewModel.state.modSets.map(\.id))
-        guard !availableIDs.isEmpty else {
-            return
-        }
-
+    private func synchronizeLibrarySelectionWithAvailableItems() {
         let resolvedID = ModLibrarySelection.resolvedID(selectedLibraryItemID, in: viewModel.state)
         guard selectedLibraryItemID != resolvedID else {
             return

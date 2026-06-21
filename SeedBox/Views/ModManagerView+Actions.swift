@@ -154,7 +154,7 @@ extension ModManagerView {
         let selection = ModLibrarySelection(id: resolvedID)
 
         switch selection {
-        case .smart:
+        case .builtInSmart, .userSmart:
             selectedLibraryItemID = resolvedID
             selectedModIDs = []
         case .modSet(let id):

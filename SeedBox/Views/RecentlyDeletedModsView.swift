@@ -126,11 +126,12 @@ struct RecentlyDeletedModsView: View {
 
 struct SmartModSetEmptyState: View {
     var selection: ModLibrarySelection
+    var state: ModManagerState
 
     var body: some View {
         ContentUnavailableView(
             AppStrings.Library.noMatchingMods,
-            systemImage: selection.systemImage
+            systemImage: selection.systemImage(in: state)
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

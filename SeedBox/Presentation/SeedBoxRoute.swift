@@ -8,6 +8,7 @@ enum SeedBoxRoute: Hashable, Sendable {
     case activity
     case restoreHistory
     case smartModSet(SmartModSet)
+    case userSmartModSet(id: String)
     case modSet(id: String)
     case mod(id: String)
 }
@@ -53,6 +54,14 @@ struct SeedBoxRouteDispatcher {
             return .handled
         case .smartModSet(let smartSet):
             selectedLibraryItemID = ModLibrarySelection.smartID(smartSet)
+            selectedModIDs = []
+            presentation.dismissSheet()
+            return .handled
+        case .userSmartModSet(let id):
+            guard state.userSmartModSets.contains(where: { $0.id == id }) else {
+                return .unavailable
+            }
+            selectedLibraryItemID = ModLibrarySelection.userSmartID(id)
             selectedModIDs = []
             presentation.dismissSheet()
             return .handled

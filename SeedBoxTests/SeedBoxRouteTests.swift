@@ -68,6 +68,42 @@ final class SeedBoxRouteTests: XCTestCase {
         assertSmartRoute(.smartModSet(.updatesAvailable), selects: .updatesAvailable)
     }
 
+    func testDispatchesUserSmartModSetRoute() {
+        var presentation = ModManagerViewPresentation(sheet: .activity)
+        var selectedLibraryItemID = ModLibrarySelection.defaultID
+        var selectedModIDs: Set<String> = ["selected-mod"]
+
+        let result = makeDispatcher().dispatch(
+            .userSmartModSet(id: "visible"),
+            presentation: &presentation,
+            selectedLibraryItemID: &selectedLibraryItemID,
+            selectedModIDs: &selectedModIDs
+        )
+
+        XCTAssertEqual(result, .handled)
+        XCTAssertNil(presentation.sheet)
+        XCTAssertEqual(selectedLibraryItemID, ModLibrarySelection.userSmartID("visible"))
+        XCTAssertTrue(selectedModIDs.isEmpty)
+    }
+
+    func testMissingUserSmartModSetRouteIsUnavailable() {
+        var presentation = ModManagerViewPresentation(sheet: .activity)
+        var selectedLibraryItemID = ModLibrarySelection.defaultID
+        var selectedModIDs: Set<String> = ["selected-mod"]
+
+        let result = makeDispatcher().dispatch(
+            .userSmartModSet(id: "missing"),
+            presentation: &presentation,
+            selectedLibraryItemID: &selectedLibraryItemID,
+            selectedModIDs: &selectedModIDs
+        )
+
+        XCTAssertEqual(result, .unavailable)
+        XCTAssertEqual(presentation.sheet?.id, ModManagerSheet.activity.id)
+        XCTAssertEqual(selectedLibraryItemID, ModLibrarySelection.defaultID)
+        XCTAssertEqual(selectedModIDs, ["selected-mod"])
+    }
+
     func testDispatchesModSetRoute() {
         var presentation = ModManagerViewPresentation(sheet: .activity)
         var selectedLibraryItemID = ModLibrarySelection.defaultID
@@ -222,6 +258,13 @@ final class SeedBoxRouteTests: XCTestCase {
             ),
             hasLoadedMods: true,
             modSets: [defaultSet, favoritesSet],
+            userSmartModSets: [
+                UserSmartModSet(
+                    id: "visible",
+                    name: "Visible Mods",
+                    searchText: "Visible"
+                )
+            ],
             selectedModSetID: ModSetStore.defaultSetID,
             appliedModSetID: ModSetStore.defaultSetID,
             activityStatus: nil,

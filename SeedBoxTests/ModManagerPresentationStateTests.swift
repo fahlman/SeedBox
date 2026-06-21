@@ -205,8 +205,141 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
     func testLegacyProblemsSmartModSetSelectionMigratesToErrors() {
         XCTAssertEqual(
             ModLibrarySelection(id: "smart:problems"),
-            .smart(.errors)
+            .builtInSmart(.errors)
         )
+    }
+
+    func testUserSmartModSetFiltersUsingSavedSearch() throws {
+        let install = try makeInstall()
+        try makeInstalledMod(name: "Content Patcher", in: install)
+        try makeInstalledMod(name: "Farm Visuals", in: install)
+
+        let mods = try ModLibrary.scan(install: install)
+        let smartModSet = UserSmartModSet(
+            id: "farm",
+            name: "Farm Mods",
+            searchText: "Farm",
+            systemImageName: "leaf"
+        )
+        let state = makeState(
+            install: install,
+            mods: mods,
+            userSmartModSets: [smartModSet]
+        )
+
+        let presentationState = ModManagerPresentationState(
+            state: state,
+            searchText: "",
+            selectedModIDs: [],
+            selectedLibraryItemID: ModLibrarySelection.userSmartID(smartModSet.id)
+        )
+
+        XCTAssertEqual(presentationState.librarySelection, .userSmart(smartModSet.id))
+        XCTAssertEqual(presentationState.librarySelection.userSmartModSetID, smartModSet.id)
+        XCTAssertEqual(presentationState.filteredMods.map(\.displayName), ["Farm Visuals"])
+        XCTAssertEqual(presentationState.selectedLibraryItem?.title, "Farm Mods")
+        XCTAssertEqual(presentationState.selectedLibraryItem?.systemImage, "leaf")
+        XCTAssertEqual(presentationState.selectedLibraryItem?.count, 1)
+        XCTAssertEqual(presentationState.selectedLibraryItem?.kind, .userSmartModSet)
+        XCTAssertEqual(presentationState.selectedLibraryItem?.isUserEditable, true)
+    }
+
+    func testUserSmartModSetCombinesSavedSearchWithCurrentSearch() throws {
+        let install = try makeInstall()
+        try makeInstalledMod(name: "First Enabled", in: install)
+        try makeInstalledMod(name: "Second Enabled", in: install)
+        try makeInstalledMod(name: "Second Disabled", in: install, enabled: false)
+
+        let mods = try ModLibrary.scan(install: install)
+        let smartModSet = UserSmartModSet(
+            id: "enabled",
+            name: "Enabled Mods",
+            searchText: "state:enabled"
+        )
+        let state = makeState(
+            install: install,
+            mods: mods,
+            userSmartModSets: [smartModSet]
+        )
+
+        let presentationState = ModManagerPresentationState(
+            state: state,
+            searchText: "Second",
+            selectedModIDs: [],
+            selectedLibraryItemID: ModLibrarySelection.userSmartID(smartModSet.id)
+        )
+
+        XCTAssertEqual(presentationState.filteredMods.map(\.displayName), ["Second Enabled"])
+    }
+
+    func testMissingUserSmartModSetSelectionFallsBackToDefaultModSet() throws {
+        let install = try makeInstall()
+        try makeInstalledMod(name: "Some Mod", in: install)
+        let mods = try ModLibrary.scan(install: install)
+        let state = makeState(install: install, mods: mods)
+
+        let presentationState = ModManagerPresentationState(
+            state: state,
+            searchText: "",
+            selectedModIDs: [],
+            selectedLibraryItemID: ModLibrarySelection.userSmartID("missing")
+        )
+
+        XCTAssertEqual(presentationState.librarySelection, .modSet(ModSetStore.defaultSetID))
+        XCTAssertEqual(presentationState.selectedLibraryItem?.kind, .modSet)
+    }
+
+    func testLibraryItemsRepresentBuiltInUserSmartAndRegularModSets() throws {
+        let install = try makeInstall()
+        try makeInstalledMod(name: "Content Patcher", in: install)
+
+        let mods = try ModLibrary.scan(install: install)
+        let userSet = ModSetStore.snapshotSet(
+            id: "favorites",
+            name: "Favorites",
+            from: mods,
+            isDefault: false,
+            isIncluded: false
+        )
+        let smartModSet = UserSmartModSet(
+            id: "content-patcher",
+            name: "Content Patcher Search",
+            searchText: "Content",
+            systemImageName: "paintpalette"
+        )
+        let state = makeState(
+            install: install,
+            mods: mods,
+            modSets: [userSet],
+            userSmartModSets: [smartModSet]
+        )
+        let presentationState = ModManagerPresentationState(
+            state: state,
+            searchText: "",
+            selectedModIDs: []
+        )
+
+        XCTAssertTrue(presentationState.builtInSmartModSetItems.contains {
+            $0.selection == .builtInSmart(.allMods)
+                && $0.kind == .builtInSmartModSet
+                && !$0.isUserEditable
+        })
+        XCTAssertEqual(
+            presentationState.userSmartModSetItems,
+            [
+                ModLibraryItem(
+                    selection: .userSmart(smartModSet.id),
+                    title: smartModSet.name,
+                    systemImage: smartModSet.systemImageName,
+                    count: 1,
+                    kind: .userSmartModSet,
+                    isUserEditable: true
+                )
+            ]
+        )
+        XCTAssertEqual(presentationState.modSetItems.first?.selection, .modSet(userSet.id))
+        XCTAssertEqual(presentationState.modSetItems.first?.kind, .modSet)
+        XCTAssertEqual(presentationState.modSetItems.first?.isUserEditable, true)
     }
 
     func testSmartModSetSelectionDisablesModSetCommands() throws {
@@ -244,10 +377,43 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         XCTAssertFalse(ModManagerCommand.deleteModSet.isEnabled(in: presentationState))
     }
 
+    func testUserSmartModSetSelectionDisablesModSetCommands() throws {
+        let install = try makeInstall()
+        try makeInstalledMod(name: "Some Mod", in: install)
+
+        let mods = try ModLibrary.scan(install: install)
+        let smartModSet = UserSmartModSet(
+            id: "some",
+            name: "Some Mods",
+            searchText: "Some"
+        )
+        let state = makeState(
+            install: install,
+            mods: mods,
+            userSmartModSets: [smartModSet]
+        )
+
+        let presentationState = ModManagerPresentationState(
+            state: state,
+            searchText: "",
+            selectedModIDs: [],
+            selectedLibraryItemID: ModLibrarySelection.userSmartID(smartModSet.id)
+        )
+
+        XCTAssertNil(presentationState.selectedSet)
+        XCTAssertNil(presentationState.selectedRenamableSet)
+        XCTAssertNil(presentationState.selectedDeletableSet)
+        XCTAssertFalse(ModManagerCommand.compareModSet.isEnabled(in: presentationState))
+        XCTAssertFalse(ModManagerCommand.duplicateModSet.isEnabled(in: presentationState))
+        XCTAssertFalse(ModManagerCommand.renameModSet.isEnabled(in: presentationState))
+        XCTAssertFalse(ModManagerCommand.deleteModSet.isEnabled(in: presentationState))
+    }
+
     private func makeState(
         install: StardewInstall,
         mods: [ModInfo],
-        modSets: [ModSet]? = nil
+        modSets: [ModSet]? = nil,
+        userSmartModSets: [UserSmartModSet] = []
     ) -> ModManagerState {
         let sets = modSets ?? [
             ModSetStore.snapshotSet(
@@ -273,6 +439,7 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
             ),
             hasLoadedMods: true,
             modSets: sets,
+            userSmartModSets: userSmartModSets,
             selectedModSetID: ModSetStore.defaultSetID,
             appliedModSetID: ModSetStore.defaultSetID,
             activityStatus: nil,

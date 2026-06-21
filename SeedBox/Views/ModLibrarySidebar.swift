@@ -8,18 +8,24 @@ struct ModLibrarySidebar: View {
     var body: some View {
         List(selection: selectedItemBinding) {
             Section(AppStrings.Library.smartModSets) {
-                ForEach(SmartModSetDefinition.builtIn) { definition in
-                    Label(definition.title, systemImage: definition.systemImage)
-                        .badge(ModFilterEngine.count(for: definition.smartSet, in: presentationState.state))
-                        .tag(ModLibrarySelection.smartID(definition.smartSet))
+                ForEach(presentationState.builtInSmartModSetItems) { item in
+                    Label(item.title, systemImage: item.systemImage)
+                        .badge(item.count)
+                        .tag(item.id)
+                }
+
+                ForEach(presentationState.userSmartModSetItems) { item in
+                    Label(item.title, systemImage: item.systemImage)
+                        .badge(item.count)
+                        .tag(item.id)
                 }
             }
 
             Section(AppStrings.Help.modSetsTitle) {
-                ForEach(presentationState.modSetSelection.sets) { set in
-                    Label(set.name, systemImage: set.isUserEditable ? "folder" : "folder.badge.gearshape")
-                        .badge(modCount(for: set))
-                        .tag(ModLibrarySelection.modSetID(set.id))
+                ForEach(presentationState.modSetItems) { item in
+                    Label(item.title, systemImage: item.systemImage)
+                        .badge(item.count)
+                        .tag(item.id)
                 }
             }
         }
@@ -42,10 +48,4 @@ struct ModLibrarySidebar: View {
         )
     }
 
-    private func modCount(for set: ModSet) -> Int {
-        let resolvedSet = ModSetResolver.resolve(set)
-        return presentationState.state.mods.filter { mod in
-            resolvedSet.isEnabled(mod)
-        }.count
-    }
 }

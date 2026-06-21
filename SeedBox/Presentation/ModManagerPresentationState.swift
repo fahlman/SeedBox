@@ -83,6 +83,22 @@ struct ModManagerPresentationState {
         )
     }
 
+    var selectedLibraryItem: ModLibraryItem? {
+        librarySelection.item(in: state)
+    }
+
+    var builtInSmartModSetItems: [ModLibraryItem] {
+        ModLibrarySelection.builtInSmartItems(in: state)
+    }
+
+    var userSmartModSetItems: [ModLibraryItem] {
+        ModLibrarySelection.userSmartItems(in: state)
+    }
+
+    var modSetItems: [ModLibraryItem] {
+        ModLibrarySelection.modSetItems(in: state)
+    }
+
     var selectedSet: ModSet? {
         guard let selectedModSetID = librarySelection.selectedModSetID else {
             return nil

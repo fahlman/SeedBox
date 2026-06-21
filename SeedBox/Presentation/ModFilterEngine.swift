@@ -1,25 +1,5 @@
 import Foundation
 
-struct SmartModSetDefinition: Identifiable, Sendable {
-    var smartSet: SmartModSet
-    var title: String
-    var systemImage: String
-
-    var id: SmartModSet.ID {
-        smartSet.id
-    }
-
-    static var builtIn: [Self] {
-        SmartModSet.allCases.map { smartSet in
-            Self(
-                smartSet: smartSet,
-                title: smartSet.title,
-                systemImage: smartSet.systemImage
-            )
-        }
-    }
-}
-
 struct ModFilterContext {
     var state: ModManagerState
     var dependencyGraph: ModDependencyGraph
@@ -66,8 +46,13 @@ enum ModFilterEngine {
         context: ModFilterContext
     ) -> Bool {
         switch selection {
-        case .smart(let smartSet):
+        case .builtInSmart(let smartSet):
             return includes(mod, in: smartSet, context: context)
+        case .userSmart(let id):
+            guard let smartModSet = context.state.userSmartModSets.first(where: { $0.id == id }) else {
+                return false
+            }
+            return savedSearch(smartModSet.searchText, matches: mod, context: context)
         case .modSet:
             return true
         }
@@ -117,6 +102,28 @@ enum ModFilterEngine {
                     lhs.displayName.localizedStandardCompare(rhs.displayName) == .orderedAscending
                 }
             }
+    }
+
+    static func count(for smartModSet: UserSmartModSet, in state: ModManagerState) -> Int {
+        let context = ModFilterContext(
+            state: state,
+            dependencyGraph: ModDependencyGraph(mods: state.mods)
+        )
+        return state.mods.filter { mod in
+            savedSearch(smartModSet.searchText, matches: mod, context: context)
+        }.count
+    }
+
+    private static func savedSearch(
+        _ searchText: String,
+        matches mod: ModInfo,
+        context: ModFilterContext
+    ) -> Bool {
+        ModSearchQuery(searchText).matches(
+            mod,
+            in: context.dependencyGraph,
+            hasAvailableUpdate: context.state.availableUpdate(for: mod) != nil
+        )
     }
 
     private static func errorModIDs(in state: ModManagerState) -> Set<String> {
