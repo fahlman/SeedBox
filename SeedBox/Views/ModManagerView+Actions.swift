@@ -258,6 +258,14 @@ extension ModManagerView {
         }
     }
 
+    func syncAppShortcutRequest() {
+        guard let request = SeedBoxShortcutRouter.shared.consumePendingRequest() else {
+            return
+        }
+
+        presentation.sheet = request.sheet
+    }
+
     func requestSetModEnabled(_ mod: ModInfo, enabled: Bool) {
         guard mod.isEnabled != enabled else {
             return

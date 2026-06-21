@@ -102,6 +102,10 @@ struct ModManagerView: View {
                 syncSourceCleanupOffer()
                 syncBisectionSheet()
                 syncLastSessionNotice()
+                syncAppShortcutRequest()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: SeedBoxShortcutRouter.didRequestShortcutNotification)) { _ in
+                syncAppShortcutRequest()
             }
             .focusedValue(\.modManagerCommandContext, commandContext(presentationState))
     }
