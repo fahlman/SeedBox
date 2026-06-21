@@ -92,6 +92,11 @@ Legend:
   surfaced in Problems and Smart Mod Sets. No App Store or Steam-specific
   constraint was found. Verified with full `Seed Box` and `Seed Box Steam`
   scheme test runs.
+- 2026-06-20: Dependency warnings run before enabling mods with unsatisfied
+  required dependencies, disabling mods required by enabled dependents, and
+  applying mod sets that would create unresolved required dependencies. No App
+  Store or Steam-specific constraint was found. Verified with full `Seed Box`
+  and `Seed Box Steam` scheme test runs.
 
 ## Release Decision Rule
 
