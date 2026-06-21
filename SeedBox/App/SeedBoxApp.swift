@@ -11,6 +11,8 @@ struct SeedBoxApp: App {
                 .frame(minWidth: 780, minHeight: 560)
         }
         .windowStyle(.titleBar)
+        .windowResizability(.contentMinSize)
+        .defaultSize(width: 1100, height: 720)
         .defaultLaunchBehavior(.presented)
         .commandsRemoved()
         .commands {

@@ -142,6 +142,7 @@ struct ModManagerView: View {
                 .padding(.vertical, 10)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func managedLibraryContent(_ presentationState: ModManagerPresentationState) -> some View {
@@ -154,6 +155,7 @@ struct ModManagerView: View {
         } detail: {
             managedContent(presentationState)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
