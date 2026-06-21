@@ -28,6 +28,7 @@ struct ModLibrarySidebar: View {
             }
         }
         .listStyle(.sidebar)
+        .id("mod-library-sidebar-v2")
         .navigationTitle(AppStrings.Library.library)
         .navigationSplitViewColumnWidth(min: 190, ideal: 230, max: 280)
     }

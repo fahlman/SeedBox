@@ -213,6 +213,7 @@ struct ModManagerView: View {
                     revealSelectedMod: revealSelectedMod,
                     requestDeleteSelectedMod: requestDeleteSelectedMod
                 )
+                .id(modListIdentity(for: presentationState))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -253,6 +254,14 @@ struct ModManagerView: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
+    }
+
+    private func modListIdentity(for presentationState: ModManagerPresentationState) -> String {
+        [
+            "mod-list-v2",
+            presentationState.librarySelection.id,
+            presentationState.searchText
+        ].joined(separator: "|")
     }
 
 }

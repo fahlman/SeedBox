@@ -5,7 +5,7 @@ struct ModManagerWindow: View {
     private let viewModel = ModManagerViewModel.shared
     @SceneStorage("modManager.selectedLibraryItemID") private var selectedLibraryItemID = ModLibrarySelection.initialID
     @SceneStorage("modManager.searchText") private var searchText = ""
-    @SceneStorage("modManager.selectedModIDs") private var selectedModIDsStorage = "[]"
+    @State private var selectedModIDs = Set<String>()
     @State private var restoredWindowState = false
 
     var body: some View {
@@ -13,7 +13,7 @@ struct ModManagerWindow: View {
             viewModel: viewModel,
             searchText: $searchText,
             selectedLibraryItemID: $selectedLibraryItemID,
-            selectedModIDs: selectedModIDsBinding
+            selectedModIDs: $selectedModIDs
         )
         .navigationTitle(windowTitle)
         .task {
@@ -39,6 +39,9 @@ struct ModManagerWindow: View {
         }
         .onChange(of: viewModel.state.userSmartModSets) {
             synchronizeLibrarySelectionWithAvailableItems()
+        }
+        .onChange(of: selectedLibraryItemID) {
+            selectedModIDs = []
         }
     }
 
@@ -75,34 +78,6 @@ struct ModManagerWindow: View {
         }
     }
 
-    private var selectedModIDsBinding: Binding<Set<String>> {
-        Binding(
-            get: { Self.decodeSelectedModIDs(selectedModIDsStorage) },
-            set: { selectedModIDs in
-                selectedModIDsStorage = Self.encodeSelectedModIDs(selectedModIDs)
-            }
-        )
-    }
-
-    private static func decodeSelectedModIDs(_ storedValue: String) -> Set<String> {
-        guard let data = storedValue.data(using: .utf8),
-              let ids = try? JSONDecoder().decode([String].self, from: data)
-        else {
-            return []
-        }
-
-        return Set(ids)
-    }
-
-    private static func encodeSelectedModIDs(_ ids: Set<String>) -> String {
-        guard let data = try? JSONEncoder().encode(ids.sorted()),
-              let storedValue = String(data: data, encoding: .utf8)
-        else {
-            return "[]"
-        }
-
-        return storedValue
-    }
 }
 
 struct SettingsSceneView: View {
