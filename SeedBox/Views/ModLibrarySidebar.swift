@@ -7,31 +7,35 @@ struct ModLibrarySidebar: View {
 
     var body: some View {
         List(selection: selectedItemBinding) {
-            Section(AppStrings.Library.smartModSets) {
+            Section {
                 ForEach(presentationState.builtInSmartModSetItems) { item in
-                    Label(item.title, systemImage: item.systemImage)
-                        .badge(item.count)
-                        .tag(item.id)
+                    sidebarRow(for: item)
                 }
+            }
 
-                ForEach(presentationState.userSmartModSetItems) { item in
-                    Label(item.title, systemImage: item.systemImage)
-                        .badge(item.count)
-                        .tag(item.id)
+            if !presentationState.userSmartModSetItems.isEmpty {
+                Section(AppStrings.Library.smartModSets) {
+                    ForEach(presentationState.userSmartModSetItems) { item in
+                        sidebarRow(for: item)
+                    }
                 }
             }
 
             Section(AppStrings.Help.modSetsTitle) {
                 ForEach(presentationState.modSetItems) { item in
-                    Label(item.title, systemImage: item.systemImage)
-                        .badge(item.count)
-                        .tag(item.id)
+                    sidebarRow(for: item)
                 }
             }
         }
         .listStyle(.sidebar)
         .navigationTitle(AppStrings.Library.library)
         .navigationSplitViewColumnWidth(min: 190, ideal: 230, max: 280)
+    }
+
+    private func sidebarRow(for item: ModLibraryItem) -> some View {
+        Label(item.title, systemImage: item.systemImage)
+            .badge(item.count)
+            .tag(item.id)
     }
 
     private var selectedItemBinding: Binding<String?> {
