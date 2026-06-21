@@ -139,6 +139,11 @@ Legend:
   creating, duplicating, renaming, deleting, selecting, and persisting user
   sets. No App Store or Steam-specific constraint was found. Verified with full
   `Seed Box` and `Seed Box Steam` scheme test runs.
+- 2026-06-20: Enabling and disabling mods is implemented by renaming folders
+  inside the approved Mods folder, updates the selected editable Mod Set, and
+  records audit entries. Its App Store status remains Risky because it mutates
+  user-selected game mod folders, but no build-specific code constraint was
+  found. Verified with full `Seed Box` and `Seed Box Steam` scheme test runs.
 
 ## Release Decision Rule
 
