@@ -134,6 +134,11 @@ Legend:
   mutates user-selected game mod folders, but no build-specific code constraint
   was found. Verified with full `Seed Box` and `Seed Box Steam` scheme test
   runs.
+- 2026-06-20: Mod Sets are stored as plists in Application Support, include
+  generated All/None/Default sets, prevent editing included sets, and support
+  creating, duplicating, renaming, deleting, selecting, and persisting user
+  sets. No App Store or Steam-specific constraint was found. Verified with full
+  `Seed Box` and `Seed Box Steam` scheme test runs.
 
 ## Release Decision Rule
 
