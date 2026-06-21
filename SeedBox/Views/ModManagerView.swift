@@ -30,7 +30,7 @@ struct ModManagerView: View {
         // reconstruct the dependency graph and re-run the search filter.
         let presentationState = presentationState
 
-        content(presentationState)
+        windowContent(presentationState)
             .background(.background)
             .overlay {
                 dropOverlay(presentationState)
@@ -111,63 +111,24 @@ struct ModManagerView: View {
     }
 
     @ViewBuilder
-    private func content(_ presentationState: ModManagerPresentationState) -> some View {
-        Group {
-            if presentationState.canManageMods {
-                managedLibraryContent(presentationState)
-            } else {
-                SetupEmptyState(
-                    readiness: presentationState.readiness,
-                    modFolderName: viewModel.modFolderName,
-                    chooseModsFolder: chooseModsFolder,
-                    createModFolder: createModFolder
+    private func windowContent(_ presentationState: ModManagerPresentationState) -> some View {
+        if presentationState.canManageMods {
+            NavigationSplitView {
+                ModLibrarySidebar(
+                    presentationState: presentationState,
+                    selectedItemID: $selectedLibraryItemID,
+                    selectItem: selectLibraryItem(id:)
                 )
+            } detail: {
+                managedContent(presentationState)
             }
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            statusLine(presentationState)
-        }
-    }
-
-    @ViewBuilder
-    private func statusLine(_ presentationState: ModManagerPresentationState) -> some View {
-        if !presentationState.statusLineMessage.isEmpty {
-            VStack(spacing: 0) {
-                Divider()
-                HStack(spacing: 6) {
-                    statusLineIcon(presentationState)
-
-                    Text(presentationState.statusLineMessage)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 10)
-            }
-            .background(.background)
-        }
-    }
-
-    @ViewBuilder
-    private func statusLineIcon(_ presentationState: ModManagerPresentationState) -> some View {
-        if presentationState.statusLineSeverity == .error {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-                .accessibilityLabel(AppStrings.Problems.title)
-        }
-    }
-
-    private func managedLibraryContent(_ presentationState: ModManagerPresentationState) -> some View {
-        NavigationSplitView {
-            ModLibrarySidebar(
-                presentationState: presentationState,
-                selectedItemID: $selectedLibraryItemID,
-                selectItem: selectLibraryItem(id:)
+        } else {
+            SetupEmptyState(
+                readiness: presentationState.readiness,
+                modFolderName: viewModel.modFolderName,
+                chooseModsFolder: chooseModsFolder,
+                createModFolder: createModFolder
             )
-        } detail: {
-            managedContent(presentationState)
         }
     }
 
@@ -213,7 +174,6 @@ struct ModManagerView: View {
                     revealSelectedMod: revealSelectedMod,
                     requestDeleteSelectedMod: requestDeleteSelectedMod
                 )
-                .id(modListIdentity(for: presentationState))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -254,14 +214,6 @@ struct ModManagerView: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
-    }
-
-    private func modListIdentity(for presentationState: ModManagerPresentationState) -> String {
-        [
-            "mod-list-v2",
-            presentationState.librarySelection.id,
-            presentationState.searchText
-        ].joined(separator: "|")
     }
 
 }
