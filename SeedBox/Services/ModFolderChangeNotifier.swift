@@ -2,7 +2,6 @@ import Foundation
 @preconcurrency import UserNotifications
 
 protocol ModFolderChangeNotifying {
-    func requestAuthorization()
     func notifyModsFolderChanged()
 }
 
@@ -11,18 +10,19 @@ final class UserNotificationModFolderChangeNotifier: NSObject, @unchecked Sendab
 
     private override init() {}
 
-    func requestAuthorization() {
-        let center = UNUserNotificationCenter.current()
-        center.delegate = self
-        center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
-    }
-
     func notifyModsFolderChanged() {
         let center = UNUserNotificationCenter.current()
+        center.delegate = self
         center.getNotificationSettings { settings in
             switch settings.authorizationStatus {
             case .authorized, .provisional:
                 Self.postModsFolderChangedNotification()
+            case .notDetermined:
+                center.requestAuthorization(options: [.alert, .sound]) { isGranted, _ in
+                    if isGranted {
+                        Self.postModsFolderChangedNotification()
+                    }
+                }
             default:
                 break
             }

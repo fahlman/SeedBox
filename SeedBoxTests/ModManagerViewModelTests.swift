@@ -978,12 +978,7 @@ private final class SpyModsFolderMonitor: ModsFolderMonitoring {
 }
 
 private final class SpyModFolderChangeNotifier: ModFolderChangeNotifying {
-    private(set) var authorizationRequestCount = 0
     private(set) var notificationCount = 0
-
-    func requestAuthorization() {
-        authorizationRequestCount += 1
-    }
 
     func notifyModsFolderChanged() {
         notificationCount += 1
