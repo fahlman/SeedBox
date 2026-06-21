@@ -64,6 +64,11 @@ Legend:
   surfaced in the Activity sheet, and have no known App Store or Steam-specific
   constraint. Verified with full `Seed Box` and `Seed Box Steam` scheme test
   runs.
+- 2026-06-20: Problem-mod bisection is user-initiated, persists its session, and
+  restores the original enabled states when the search ends or is cancelled. Its
+  App Store status remains Risky because it temporarily renames mod folders as a
+  troubleshooting workflow, but no build-specific code constraint was found.
+  Verified with full `Seed Box` and `Seed Box Steam` scheme test runs.
 
 ## Release Decision Rule
 
