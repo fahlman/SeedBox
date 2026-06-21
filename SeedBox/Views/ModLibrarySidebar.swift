@@ -7,14 +7,14 @@ struct ModLibrarySidebar: View {
 
     var body: some View {
         List(selection: selectedItemBinding) {
-            Section(AppStrings.Library.smartModSets) {
+            Section(AppStrings.Library.library) {
                 ForEach(presentationState.builtInSmartModSetItems) { item in
                     sidebarRow(for: item)
                 }
             }
 
             if !presentationState.userSmartModSetItems.isEmpty {
-                Section(AppStrings.Library.savedSmartModSets) {
+                Section(AppStrings.Library.smartModSets) {
                     ForEach(presentationState.userSmartModSetItems) { item in
                         sidebarRow(for: item)
                     }
