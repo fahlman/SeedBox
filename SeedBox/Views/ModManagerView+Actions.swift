@@ -29,13 +29,13 @@ extension ModManagerView {
                 }
             },
             showProblems: {
-                presentation.sheet = .problems
+                openRoute(.problems)
             },
             showActivity: {
-                presentation.sheet = .activity
+                openRoute(.activity)
             },
             showRestoreHistory: {
-                presentation.sheet = .restoreHistory
+                openRoute(.restoreHistory)
             },
             showModInspector: showModInspector,
             createModSet: createModSet,
@@ -54,6 +54,16 @@ extension ModManagerView {
 
     func chooseModsFolder() {
         presentation.isChoosingModsFolder = true
+    }
+
+    @discardableResult
+    func openRoute(_ route: SeedBoxRoute) -> SeedBoxRouteDispatchResult {
+        SeedBoxRouteDispatcher(state: presentationState.state).dispatch(
+            route,
+            presentation: &presentation,
+            selectedLibraryItemID: &selectedLibraryItemID,
+            selectedModIDs: &selectedModIDs
+        )
     }
 
     func addMods() {
@@ -263,7 +273,7 @@ extension ModManagerView {
             return
         }
 
-        presentation.sheet = request.sheet
+        openRoute(request.route)
     }
 
     func requestSetModEnabled(_ mod: ModInfo, enabled: Bool) {

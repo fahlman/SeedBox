@@ -3,10 +3,10 @@ import XCTest
 
 @MainActor
 final class SeedBoxShortcutsTests: XCTestCase {
-    func testShortcutRequestsMapToSheets() {
-        XCTAssertEqual(SeedBoxShortcutRequest.showProblems.sheet.id, ModManagerSheet.problems.id)
-        XCTAssertEqual(SeedBoxShortcutRequest.showActivity.sheet.id, ModManagerSheet.activity.id)
-        XCTAssertEqual(SeedBoxShortcutRequest.showRestoreHistory.sheet.id, ModManagerSheet.restoreHistory.id)
+    func testShortcutRequestsMapToRoutes() {
+        XCTAssertEqual(SeedBoxShortcutRequest.showProblems.route, .problems)
+        XCTAssertEqual(SeedBoxShortcutRequest.showActivity.route, .activity)
+        XCTAssertEqual(SeedBoxShortcutRequest.showRestoreHistory.route, .restoreHistory)
     }
 
     func testShortcutRouterStoresAndConsumesPendingRequest() {

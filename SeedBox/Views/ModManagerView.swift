@@ -204,7 +204,7 @@ struct ModManagerView: View {
                     archiveSummary: presentationState.archiveSummary,
                     restorePreviousVersion: restorePreviousVersion,
                     showRestoreHistory: {
-                        presentation.sheet = .restoreHistory
+                        openRoute(.restoreHistory)
                     },
                     revealSelectedMod: revealSelectedMod,
                     pruneExpiredArchives: pruneExpiredArchives

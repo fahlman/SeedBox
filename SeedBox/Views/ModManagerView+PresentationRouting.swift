@@ -187,7 +187,7 @@ extension ModManagerView {
         case .lastSessionNotice:
             Button(AppStrings.Alerts.reviewProblems) {
                 presentation.dismissAlert()
-                presentation.sheet = .problems
+                openRoute(.problems)
                 Task {
                     await viewModel.dismissLastSessionNotice()
                 }

@@ -8,7 +8,7 @@ enum SeedBoxShortcutRequest: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
-    var sheet: ModManagerSheet {
+    var route: SeedBoxRoute {
         switch self {
         case .showProblems:
             return .problems
