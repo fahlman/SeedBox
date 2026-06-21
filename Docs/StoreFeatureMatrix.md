@@ -60,6 +60,10 @@ Legend:
 - 2026-06-20: MetricKit diagnostics are local-only, support user-initiated ZIP
   export, and have no known App Store or Steam-specific constraint. Verified
   with full `Seed Box` and `Seed Box Steam` scheme test runs.
+- 2026-06-20: Audit trail entries are stored locally in Application Support,
+  surfaced in the Activity sheet, and have no known App Store or Steam-specific
+  constraint. Verified with full `Seed Box` and `Seed Box Steam` scheme test
+  runs.
 
 ## Release Decision Rule
 
