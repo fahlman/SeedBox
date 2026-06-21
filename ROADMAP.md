@@ -62,7 +62,6 @@ start with a baseline set and layer optional collections on top.
 - Finish the About box and credits review before public release.
 - Keep improving Help content as workflows settle.
 - Do a hands-on accessibility pass with VoiceOver and keyboard navigation.
-- Add visible diagnostics/export support if support conversations need it.
 
 ## Release Discipline
 

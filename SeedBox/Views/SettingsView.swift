@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -5,6 +6,8 @@ struct SettingsView: View {
     var viewModel: ModManagerViewModel
     @State private var isChoosingModsFolder = false
     @State private var isChoosingLogFolder = false
+    @State private var diagnosticsPayloadCount = 0
+    @State private var diagnosticsStatus: StatusEvent?
 
     private var presentationState: ModManagerSettingsPresentationState {
         ModManagerSettingsPresentationState(viewModel: viewModel)
@@ -121,6 +124,45 @@ struct SettingsView: View {
                 }
             }
 
+            Section(AppStrings.Settings.diagnosticsSection) {
+                LabeledContent(AppStrings.Settings.storedDiagnostics) {
+                    Text(AppStrings.Settings.diagnosticPayloadCount(diagnosticsPayloadCount))
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(AppStrings.Settings.diagnosticsFooter)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                HStack {
+                    Button {
+                        revealDiagnosticsFolder()
+                    } label: {
+                        Label(AppStrings.Settings.revealDiagnostics, systemImage: "eye")
+                    }
+
+                    Button {
+                        exportDiagnostics()
+                    } label: {
+                        Label(AppStrings.Settings.exportDiagnostics, systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(diagnosticsPayloadCount == 0)
+
+                    Spacer()
+                }
+
+                if let diagnosticsStatus {
+                    Label(
+                        diagnosticsStatus.message,
+                        systemImage: diagnosticsStatus.severity == .error
+                            ? "exclamationmark.triangle.fill"
+                            : "checkmark.circle.fill"
+                    )
+                    .foregroundStyle(diagnosticsStatus.severity == .error ? .red : .secondary)
+                    .font(.callout)
+                }
+            }
+
             Section(AppStrings.Settings.modUpdatesSection) {
                 Toggle(
                     AppStrings.Settings.checkForModUpdatesToggle,
@@ -188,6 +230,7 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .padding(20)
         .frame(width: 560)
+        .onAppear(perform: refreshDiagnosticsPayloadCount)
         .fileImporter(
             isPresented: $isChoosingModsFolder,
             allowedContentTypes: [.folder]
@@ -205,14 +248,65 @@ struct SettingsView: View {
 
     /// Bridges a state-backed value and an async actor-routed setter into a
     /// SwiftUI binding.
+    @MainActor
     private func settingBinding<Value: Sendable>(
-        get: @escaping () -> Value,
-        set: @escaping (Value) async -> Void
+        get: @escaping @MainActor @Sendable () -> Value,
+        set: @escaping @MainActor @Sendable (Value) async -> Void
     ) -> Binding<Value> {
         Binding(get: get) { newValue in
-            Task {
+            Task { @MainActor in
                 await set(newValue)
             }
         }
+    }
+
+    @MainActor
+    private func revealDiagnosticsFolder() {
+        do {
+            let diagnosticsDirectory = CrashDiagnosticsCollector.defaultDiagnosticsDirectory()
+            try FileManager.default.createDirectory(
+                at: diagnosticsDirectory,
+                withIntermediateDirectories: true
+            )
+            NSWorkspace.shared.activateFileViewerSelecting([diagnosticsDirectory])
+            refreshDiagnosticsPayloadCount()
+        } catch {
+            diagnosticsStatus = StatusEvent(
+                severity: .error,
+                message: AppStrings.Status.couldNotRevealDiagnostics(error.localizedDescription)
+            )
+        }
+    }
+
+    @MainActor
+    private func exportDiagnostics() {
+        let savePanel = NSSavePanel()
+        savePanel.canCreateDirectories = true
+        savePanel.nameFieldStringValue = CrashDiagnosticsExporter.defaultArchiveName()
+        if let zipType = UTType(filenameExtension: "zip") {
+            savePanel.allowedContentTypes = [zipType]
+        }
+
+        guard savePanel.runModal() == .OK, let destinationURL = savePanel.url else {
+            return
+        }
+
+        do {
+            let summary = try CrashDiagnosticsExporter.exportArchive(to: destinationURL)
+            diagnosticsStatus = StatusEvent(
+                severity: .info,
+                message: AppStrings.Status.exportedDiagnostics(count: summary.payloadCount)
+            )
+            refreshDiagnosticsPayloadCount()
+        } catch {
+            diagnosticsStatus = StatusEvent(
+                severity: .error,
+                message: AppStrings.Status.couldNotExportDiagnostics(error.localizedDescription)
+            )
+        }
+    }
+
+    private func refreshDiagnosticsPayloadCount() {
+        diagnosticsPayloadCount = CrashDiagnosticsExporter.diagnosticPayloadCount()
     }
 }

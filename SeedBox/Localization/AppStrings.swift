@@ -128,6 +128,11 @@ enum AppStrings {
         static let logFolder = String(localized: "Log Folder")
         static let chooseLogFolder = String(localized: "Choose Log Folder…")
         static let smapiLogFooter = String(localized: "Seed Box reads SMAPI's log to show what happened in your last game session. The usual location is ~/.config/StardewValley/ErrorLogs.")
+        static let diagnosticsSection = String(localized: "Diagnostics")
+        static let storedDiagnostics = String(localized: "Stored Diagnostics")
+        static let diagnosticsFooter = String(localized: "Seed Box stores Apple crash diagnostics locally on this Mac. Export them only when you choose to share them for support.")
+        static let exportDiagnostics = String(localized: "Export Diagnostics…")
+        static let revealDiagnostics = String(localized: "Reveal Diagnostics")
         static let modUpdatesSection = String(localized: "Mod Updates")
         static let checkForModUpdatesToggle = String(localized: "Check for mod updates over the network")
         static let modUpdatesPrivacyFooter = String(localized: "Checks send each mod's unique ID, version, and update keys to smapi.io.")
@@ -141,6 +146,10 @@ enum AppStrings {
         static let reveal = String(localized: "Reveal")
         static let saved = String(localized: "Saved")
         static let suppressAddModsSuccessNotification = String(localized: "Do not display notification after successfully adding mods")
+
+        static func diagnosticPayloadCount(_ count: Int) -> String {
+            String(localized: "\(count) files")
+        }
 
         static func days(_ count: Int) -> String {
             String(localized: "\(count) days")
@@ -400,6 +409,10 @@ enum AppStrings {
             String(localized: "Could not reveal Mods folder: \(errorDescription)")
         }
 
+        static func couldNotRevealDiagnostics(_ errorDescription: String) -> String {
+            String(localized: "Could not reveal diagnostics: \(errorDescription)")
+        }
+
         static func couldNotSaveFolderAccess(_ errorDescription: String) -> String {
             String(localized: "Could not save folder access: \(errorDescription)")
         }
@@ -417,6 +430,16 @@ enum AppStrings {
         }
 
         static let couldNotApplySetSelectionMissing = String(localized: "Could not apply set: selection is missing.")
+        static let noDiagnosticsToExport = String(localized: "No diagnostics to export.")
+
+        static func exportedDiagnostics(count: Int) -> String {
+            String(localized: "Exported \(count) diagnostic files.")
+        }
+
+        static func couldNotExportDiagnostics(_ errorDescription: String) -> String {
+            String(localized: "Could not export diagnostics: \(errorDescription)")
+        }
+
         static func prunedExpiredArchives(count: Int) -> String {
             String(localized: "Pruned \(count) expired archive folders.")
         }

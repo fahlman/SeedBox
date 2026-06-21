@@ -25,7 +25,7 @@ launch the game.
 - Can opt in to SMAPI mod update checks through `api.smapi.io`.
 - Can read SMAPI's latest log, surface last-session mod problems, and start
   problem-mod bisection.
-- Stores local-only MetricKit diagnostic payloads for crash-awareness support.
+- Stores and exports local-only MetricKit diagnostic payloads for crash-awareness support.
 - Includes localized app strings in the string catalog.
 
 ## Mod Sets

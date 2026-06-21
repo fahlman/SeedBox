@@ -20,4 +20,64 @@ final class CrashDiagnosticsCollectorTests: SeedBoxTestCase {
             payload
         )
     }
+
+    func testFindsOnlyJSONDiagnosticPayloadsSortedByName() throws {
+        let diagnosticsDirectory = temporaryDirectory.appendingPathComponent("Diagnostics", isDirectory: true)
+        try FileManager.default.createDirectory(at: diagnosticsDirectory, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: diagnosticsDirectory.appendingPathComponent("B.json"))
+        try Data("{}".utf8).write(to: diagnosticsDirectory.appendingPathComponent("A.json"))
+        try Data("ignored".utf8).write(to: diagnosticsDirectory.appendingPathComponent("notes.txt"))
+        try FileManager.default.createDirectory(
+            at: diagnosticsDirectory.appendingPathComponent("Nested.json", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+
+        let payloads = try CrashDiagnosticsExporter.diagnosticPayloadURLs(
+            in: diagnosticsDirectory,
+            fileManager: .default
+        )
+
+        XCTAssertEqual(payloads.map(\.lastPathComponent), ["A.json", "B.json"])
+    }
+
+    func testExportsDiagnosticPayloadsAsZipArchive() throws {
+        let diagnosticsDirectory = temporaryDirectory.appendingPathComponent("Diagnostics", isDirectory: true)
+        let archiveURL = temporaryDirectory.appendingPathComponent("Seed Box Diagnostics.zip")
+        try FileManager.default.createDirectory(at: diagnosticsDirectory, withIntermediateDirectories: true)
+        try Data(#"{"first": true}"#.utf8)
+            .write(to: diagnosticsDirectory.appendingPathComponent("First.json"))
+        try Data(#"{"second": true}"#.utf8)
+            .write(to: diagnosticsDirectory.appendingPathComponent("Second.json"))
+
+        let summary = try CrashDiagnosticsExporter.exportArchive(
+            from: diagnosticsDirectory,
+            to: archiveURL,
+            generatedAt: Date(timeIntervalSince1970: 1_750_000_000),
+            fileManager: .default
+        )
+
+        let archiveData = try Data(contentsOf: archiveURL)
+        XCTAssertEqual(summary.payloadCount, 2)
+        XCTAssertEqual(summary.archiveByteCount, archiveData.count)
+        XCTAssertTrue(archiveData.starts(with: Data([0x50, 0x4B])))
+    }
+
+    func testNoDiagnosticsExportDoesNotReplaceDestinationFile() throws {
+        let diagnosticsDirectory = temporaryDirectory.appendingPathComponent("Empty Diagnostics", isDirectory: true)
+        let archiveURL = temporaryDirectory.appendingPathComponent("Existing.zip")
+        let existingData = Data("keep me".utf8)
+        try FileManager.default.createDirectory(at: diagnosticsDirectory, withIntermediateDirectories: true)
+        try existingData.write(to: archiveURL)
+
+        XCTAssertThrowsError(
+            try CrashDiagnosticsExporter.exportArchive(
+                from: diagnosticsDirectory,
+                to: archiveURL,
+                fileManager: .default
+            )
+        ) { error in
+            XCTAssertEqual(error as? CrashDiagnosticsExportError, .noDiagnostics)
+        }
+        XCTAssertEqual(try Data(contentsOf: archiveURL), existingData)
+    }
 }
