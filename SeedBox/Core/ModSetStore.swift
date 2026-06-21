@@ -23,6 +23,8 @@ enum ModSetStoreError: Error, Equatable, LocalizedError, Sendable {
 enum ModSetStore {
     static let allSetID = "all"
     static let allSetName = AppStrings.ModSetNames.all
+    static let defaultSetID = "smapi-default"
+    static let defaultSetName = AppStrings.ModSetNames.defaultSet
     static let noneSetID = "none"
     static let noneSetName = AppStrings.ModSetNames.none
     /// Kept as "default" on disk so existing installs continue to load their
@@ -31,6 +33,7 @@ enum ModSetStore {
     static let initialSetName = AppStrings.ModSetNames.myMods
     static let includedSetIDs: Set<String> = [
         allSetID,
+        defaultSetID,
         noneSetID
     ]
 
@@ -60,11 +63,13 @@ enum ModSetStore {
         }
 
         let allSet = allIncludedSet()
+        let defaultSet = defaultIncludedSet(from: currentMods)
         let noneSet = noneIncludedSet(from: currentMods)
         try saveIncludedSet(allSet, install: install, fileManager: fileManager)
+        try saveIncludedSet(defaultSet, install: install, fileManager: fileManager)
         try saveIncludedSet(noneSet, install: install, fileManager: fileManager)
 
-        return [allSet, noneSet] + userSets.sorted {
+        return [allSet, defaultSet, noneSet] + userSets.sorted {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
     }
@@ -226,6 +231,19 @@ enum ModSetStore {
             id: allSetID,
             name: allSetName,
             disabledFolderNames: [],
+            isIncluded: true
+        )
+    }
+
+    private static func defaultIncludedSet(from mods: [ModInfo]) -> ModSet {
+        ModSet(
+            id: defaultSetID,
+            name: defaultSetName,
+            disabledFolderNames: normalizeFolderNames(
+                mods
+                    .filter { !SMAPIIdentifiers.isBundledMod($0) }
+                    .map(\.enabledFolderName)
+            ),
             isIncluded: true
         )
     }

@@ -13,6 +13,7 @@ enum AppStrings {
 
     enum ModSetNames {
         static let all = String(localized: "All")
+        static let defaultSet = String(localized: "Default")
         static let none = String(localized: "None")
         static let myMods = String(localized: "My Mods")
         static let current = String(localized: "Current")
@@ -486,6 +487,18 @@ enum AppStrings {
 
         static func deletedModSet(_ setName: String) -> String {
             String(localized: "Deleted mod set \(setName).")
+        }
+
+        static func deletedModSetAppliedDefault(_ setName: String, changedCount: Int) -> String {
+            String(localized: "Deleted mod set \(setName). Applied Default (\(changedCount) changes).")
+        }
+
+        static func deletedModSetChooseFolderAgainToApplyDefault(_ setName: String) -> String {
+            String(localized: "Deleted mod set \(setName). Choose the Mods folder again to apply Default.")
+        }
+
+        static func deletedModSetCouldNotApplyDefault(_ setName: String, errorDescription: String) -> String {
+            String(localized: "Deleted mod set \(setName), but could not apply Default: \(errorDescription)")
         }
 
         static func duplicatedSelectedMod(_ displayName: String) -> String {

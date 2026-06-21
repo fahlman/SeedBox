@@ -14,6 +14,7 @@ extension ModManagerService {
 
     func shouldEnableAddedMods(appliedModSetID: String?) -> Bool {
         appliedModSetID != ModSetStore.noneSetID
+            && appliedModSetID != ModSetStore.defaultSetID
     }
 
     func guardCanManageMods(in state: inout ModManagerState) -> Bool {

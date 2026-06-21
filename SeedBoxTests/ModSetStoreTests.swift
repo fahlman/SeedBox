@@ -26,8 +26,9 @@ final class ModSetStoreTests: SeedBoxTestCase {
         let mods = try ModLibrary.scan(install: install)
         let sets = try ModSetStore.loadSets(install: install, currentMods: mods)
 
-        XCTAssertEqual(sets.prefix(3).map(\.name), [
+        XCTAssertEqual(sets.prefix(4).map(\.name), [
             ModSetStore.allSetName,
+            ModSetStore.defaultSetName,
             ModSetStore.noneSetName,
             ModSetStore.initialSetName
         ])
@@ -36,6 +37,14 @@ final class ModSetStoreTests: SeedBoxTestCase {
         XCTAssertTrue(allSet.isIncluded)
         XCTAssertFalse(allSet.isUserEditable)
         XCTAssertEqual(allSet.disabledFolderNames, [])
+
+        let defaultSet = try XCTUnwrap(sets.first { $0.id == ModSetStore.defaultSetID })
+        XCTAssertTrue(defaultSet.isIncluded)
+        XCTAssertFalse(defaultSet.isUserEditable)
+        XCTAssertFalse(defaultSet.isUserRenamable)
+        XCTAssertFalse(defaultSet.isUserDeletable)
+        XCTAssertEqual(defaultSet.name, ModSetStore.defaultSetName)
+        XCTAssertEqual(defaultSet.disabledFolderNames, ["ContentPatcher"])
 
         let noneSet = try XCTUnwrap(sets.first { $0.id == ModSetStore.noneSetID })
         XCTAssertTrue(noneSet.isIncluded)
@@ -59,6 +68,55 @@ final class ModSetStoreTests: SeedBoxTestCase {
                 )
             )
         }
+    }
+
+    func testDefaultIncludedSetUsesSMAPIBundledModsOnly() throws {
+        let install = try makeInstall()
+        try makeInstalledMod(
+            name: "Console Commands",
+            in: install,
+            folderName: "ConsoleCommands",
+            enabled: false,
+            uniqueID: "SMAPI.ConsoleCommands"
+        )
+        try makeInstalledMod(
+            name: "Save Backup",
+            in: install,
+            folderName: "SaveBackup",
+            enabled: false,
+            uniqueID: "SMAPI.SaveBackup"
+        )
+        try makeInstalledMod(
+            name: "Content Patcher",
+            in: install,
+            folderName: "ContentPatcher"
+        )
+
+        let mods = try ModLibrary.scan(install: install)
+        let sets = try ModSetStore.loadSets(install: install, currentMods: mods)
+
+        let defaultSet = try XCTUnwrap(sets.first { $0.id == ModSetStore.defaultSetID })
+        XCTAssertEqual(defaultSet.disabledFolderNames, ["ContentPatcher"])
+    }
+
+    func testDefaultIncludedSetRequiresSMAPIUniqueIDs() throws {
+        let install = try makeInstall()
+        try makeInstalledMod(
+            name: "Console Commands",
+            in: install,
+            folderName: "ConsoleCommands"
+        )
+        try makeInstalledMod(
+            name: "Save Backup",
+            in: install,
+            folderName: "SaveBackup"
+        )
+
+        let mods = try ModLibrary.scan(install: install)
+        let sets = try ModSetStore.loadSets(install: install, currentMods: mods)
+
+        let defaultSet = try XCTUnwrap(sets.first { $0.id == ModSetStore.defaultSetID })
+        XCTAssertEqual(defaultSet.disabledFolderNames, ["ConsoleCommands", "SaveBackup"])
     }
 
     func testInitialSetCapturesFirstObservedModState() throws {
@@ -302,6 +360,25 @@ final class ModSetStoreTests: SeedBoxTestCase {
             )
         ) { error in
             XCTAssertEqual(error as? ModSetStoreError, .duplicateSetName("stardew valley expanded"))
+        }
+    }
+
+    func testRejectsUserSetNamedDefault() throws {
+        let install = try makeInstall()
+        try makeInstalledMod(name: "Content Patcher", in: install)
+
+        let mods = try ModLibrary.scan(install: install)
+        let loadedSets = try ModSetStore.loadSets(install: install, currentMods: mods)
+        let initialSet = try XCTUnwrap(loadedSets.first { $0.id == ModSetStore.initialSetID })
+
+        XCTAssertThrowsError(
+            try ModSetStore.createSet(
+                named: "default",
+                from: initialSet,
+                existingSets: loadedSets
+            )
+        ) { error in
+            XCTAssertEqual(error as? ModSetStoreError, .duplicateSetName("default"))
         }
     }
 

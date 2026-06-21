@@ -45,14 +45,16 @@ enum SMAPIIdentifiers {
         "SMAPI.SaveBackup".normalizedDependencyID
     ]
 
+    static func isBundledMod(_ mod: ModInfo) -> Bool {
+        guard let uniqueID = mod.manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID else {
+            return false
+        }
+        return bundledModIDs.contains(uniqueID)
+    }
+
     static func detectedSMAPIVersion(in mods: [ModInfo]) -> String? {
         mods.lazy
-            .filter { mod in
-                guard let uniqueID = mod.manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID else {
-                    return false
-                }
-                return bundledModIDs.contains(uniqueID)
-            }
+            .filter(isBundledMod)
             .compactMap { $0.manifest?.version?.trimmedNonEmpty }
             .first
     }

@@ -91,6 +91,7 @@ extension ModManagerService {
 
     private func fallbackSelectedModSetID(in sets: [ModSet]) -> String {
         sets.first { !$0.isIncluded }?.id
+            ?? sets.first { $0.id == ModSetStore.defaultSetID }?.id
             ?? sets.first?.id
             ?? ModSetStore.initialSetID
     }

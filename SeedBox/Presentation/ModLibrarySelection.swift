@@ -300,6 +300,9 @@ enum ModLibrarySelection: Hashable, Sendable {
         if let firstUserSetID = state.modSets.first(where: { !$0.isIncluded })?.id {
             return modSetID(firstUserSetID)
         }
+        if availableIDs.contains(ModSetStore.defaultSetID) {
+            return modSetID(ModSetStore.defaultSetID)
+        }
         if let firstSetID = state.modSets.first?.id {
             return modSetID(firstSetID)
         }

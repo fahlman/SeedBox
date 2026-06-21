@@ -260,12 +260,45 @@ extension ModManagerService {
             return refreshedState
         }
 
-        if nextState.appliedModSetID == set.id {
+        guard let defaultSet = nextState.modSets.first(where: { $0.id == ModSetStore.defaultSetID }) else {
+            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
             nextState.appliedModSetID = nil
+            record(AppStrings.Status.deletedModSet(set.name), in: &nextState)
+            var refreshedState = refreshedState(from: nextState)
+            auditDeletedModSet(set, wasSelected: true, in: &refreshedState)
+            return refreshedState
         }
-        var refreshedState = refreshedState(from: nextState)
-        record(AppStrings.Status.deletedModSet(set.name), in: &refreshedState)
-        auditDeletedModSet(set, wasSelected: true, in: &refreshedState)
-        return refreshedState
+
+        do {
+            let changedCount = try applyModSet(defaultSet, in: nextState, state: &nextState)
+            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
+            nextState.appliedModSetID = ModSetStore.defaultSetID
+            record(
+                AppStrings.Status.deletedModSetAppliedDefault(set.name, changedCount: changedCount),
+                in: &nextState
+            )
+            var refreshedState = refreshedState(from: nextState)
+            auditDeletedModSet(
+                set,
+                wasSelected: true,
+                details: [
+                    "fallback_mod_set_id": defaultSet.id,
+                    "fallback_mod_set_name": defaultSet.name,
+                    "fallback_changed_count": "\(changedCount)"
+                ],
+                in: &refreshedState
+            )
+            return refreshedState
+        } catch is SecurityScopedFolderAccessError {
+            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
+            nextState.appliedModSetID = nil
+            record(AppStrings.Status.deletedModSetChooseFolderAgainToApplyDefault(set.name), in: &nextState)
+            return refreshedState(from: nextState)
+        } catch {
+            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
+            nextState.appliedModSetID = nil
+            record(AppStrings.Status.deletedModSetCouldNotApplyDefault(set.name, errorDescription: error.localizedDescription), in: &nextState)
+            return refreshedState(from: nextState)
+        }
     }
 }
