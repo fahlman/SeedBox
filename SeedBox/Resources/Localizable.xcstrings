@@ -5144,7 +5144,7 @@
       }
     },
     "Check for mod updates over the network" : {
-      "comment" : "Settings toggle that enables the opt-in network update check.",
+      "comment" : "Settings toggle that controls the network update check.",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -31440,6 +31440,396 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Will archive and update %@."
+          }
+        }
+      }
+    },
+    "Allow Network Update Checks?" : {
+      "comment" : "Alert title asking the user to enable network-based mod update checks.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Allow Network Update Checks?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Allow Network Update Checks?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Allow Network Update Checks?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Allow Network Update Checks?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Allow Network Update Checks?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Allow Network Update Checks?"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Allow Network Update Checks?"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Allow Network Update Checks?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Allow Network Update Checks?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Allow Network Update Checks?"
+          }
+        }
+      }
+    },
+    "Enable and Check Now" : {
+      "comment" : "Button title that enables network update checks and immediately checks for available mod updates.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable and Check Now"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable and Check Now"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable and Check Now"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable and Check Now"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable and Check Now"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable and Check Now"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable and Check Now"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable and Check Now"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable and Check Now"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable and Check Now"
+          }
+        }
+      }
+    },
+    "Enable network update checks to check for mod updates." : {
+      "comment" : "Status message shown when a mod update check is requested while network update checks are disabled.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable network update checks to check for mod updates."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable network update checks to check for mod updates."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable network update checks to check for mod updates."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable network update checks to check for mod updates."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable network update checks to check for mod updates."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable network update checks to check for mod updates."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable network update checks to check for mod updates."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable network update checks to check for mod updates."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable network update checks to check for mod updates."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable network update checks to check for mod updates."
+          }
+        }
+      }
+    },
+    "Seed Box can check smapi.io for mod updates. It sends each mod's ID, version, and update keys only when a check runs." : {
+      "comment" : "Alert message explaining what data is sent when the user enables network-based mod update checks.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box can check smapi.io for mod updates. It sends each mod's ID, version, and update keys only when a check runs."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box can check smapi.io for mod updates. It sends each mod's ID, version, and update keys only when a check runs."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box can check smapi.io for mod updates. It sends each mod's ID, version, and update keys only when a check runs."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box can check smapi.io for mod updates. It sends each mod's ID, version, and update keys only when a check runs."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box can check smapi.io for mod updates. It sends each mod's ID, version, and update keys only when a check runs."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box can check smapi.io for mod updates. It sends each mod's ID, version, and update keys only when a check runs."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box can check smapi.io for mod updates. It sends each mod's ID, version, and update keys only when a check runs."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box can check smapi.io for mod updates. It sends each mod's ID, version, and update keys only when a check runs."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box can check smapi.io for mod updates. It sends each mod's ID, version, and update keys only when a check runs."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box can check smapi.io for mod updates. It sends each mod's ID, version, and update keys only when a check runs."
+          }
+        }
+      }
+    },
+    "Seed Box compares your installed mods against smapi.io when update checks are enabled. Available updates appear in the Updates column and in each mod's details. Seed Box checks; you choose what to download and install." : {
+      "comment" : "Help window content describing the mod update check feature.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box compares your installed mods against smapi.io when update checks are enabled. Available updates appear in the Updates column and in each mod's details. Seed Box checks; you choose what to download and install."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box compares your installed mods against smapi.io when update checks are enabled. Available updates appear in the Updates column and in each mod's details. Seed Box checks; you choose what to download and install."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box compares your installed mods against smapi.io when update checks are enabled. Available updates appear in the Updates column and in each mod's details. Seed Box checks; you choose what to download and install."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box compares your installed mods against smapi.io when update checks are enabled. Available updates appear in the Updates column and in each mod's details. Seed Box checks; you choose what to download and install."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box compares your installed mods against smapi.io when update checks are enabled. Available updates appear in the Updates column and in each mod's details. Seed Box checks; you choose what to download and install."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box compares your installed mods against smapi.io when update checks are enabled. Available updates appear in the Updates column and in each mod's details. Seed Box checks; you choose what to download and install."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box compares your installed mods against smapi.io when update checks are enabled. Available updates appear in the Updates column and in each mod's details. Seed Box checks; you choose what to download and install."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box compares your installed mods against smapi.io when update checks are enabled. Available updates appear in the Updates column and in each mod's details. Seed Box checks; you choose what to download and install."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box compares your installed mods against smapi.io when update checks are enabled. Available updates appear in the Updates column and in each mod's details. Seed Box checks; you choose what to download and install."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box compares your installed mods against smapi.io when update checks are enabled. Available updates appear in the Updates column and in each mod's details. Seed Box checks; you choose what to download and install."
+          }
+        }
+      }
+    },
+    "Seed Box keeps mod management local. When update checks are enabled, it sends each mod's ID, version, and update keys to smapi.io only when a check runs. Seed Box has no accounts, analytics, tracking, or automatic diagnostic uploads." : {
+      "comment" : "Privacy statement shown in the help window for local mod management and network update checks.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box keeps mod management local. When update checks are enabled, it sends each mod's ID, version, and update keys to smapi.io only when a check runs. Seed Box has no accounts, analytics, tracking, or automatic diagnostic uploads."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box keeps mod management local. When update checks are enabled, it sends each mod's ID, version, and update keys to smapi.io only when a check runs. Seed Box has no accounts, analytics, tracking, or automatic diagnostic uploads."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box keeps mod management local. When update checks are enabled, it sends each mod's ID, version, and update keys to smapi.io only when a check runs. Seed Box has no accounts, analytics, tracking, or automatic diagnostic uploads."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box keeps mod management local. When update checks are enabled, it sends each mod's ID, version, and update keys to smapi.io only when a check runs. Seed Box has no accounts, analytics, tracking, or automatic diagnostic uploads."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box keeps mod management local. When update checks are enabled, it sends each mod's ID, version, and update keys to smapi.io only when a check runs. Seed Box has no accounts, analytics, tracking, or automatic diagnostic uploads."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box keeps mod management local. When update checks are enabled, it sends each mod's ID, version, and update keys to smapi.io only when a check runs. Seed Box has no accounts, analytics, tracking, or automatic diagnostic uploads."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box keeps mod management local. When update checks are enabled, it sends each mod's ID, version, and update keys to smapi.io only when a check runs. Seed Box has no accounts, analytics, tracking, or automatic diagnostic uploads."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box keeps mod management local. When update checks are enabled, it sends each mod's ID, version, and update keys to smapi.io only when a check runs. Seed Box has no accounts, analytics, tracking, or automatic diagnostic uploads."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box keeps mod management local. When update checks are enabled, it sends each mod's ID, version, and update keys to smapi.io only when a check runs. Seed Box has no accounts, analytics, tracking, or automatic diagnostic uploads."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Seed Box keeps mod management local. When update checks are enabled, it sends each mod's ID, version, and update keys to smapi.io only when a check runs. Seed Box has no accounts, analytics, tracking, or automatic diagnostic uploads."
           }
         }
       }

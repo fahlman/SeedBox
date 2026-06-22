@@ -187,6 +187,7 @@ extension ModManagerView {
         case .lastSessionNotice:
             Button(AppStrings.Alerts.reviewProblems) {
                 presentation.dismissAlert()
+                syncLaunchModUpdateCheck(presentationState)
                 openRoute(.problems)
                 Task {
                     await viewModel.dismissLastSessionNotice()
@@ -195,9 +196,22 @@ extension ModManagerView {
 
             Button(AppStrings.Alerts.notNow, role: .cancel) {
                 presentation.dismissAlert()
+                syncLaunchModUpdateCheck(presentationState)
                 Task {
                     await viewModel.dismissLastSessionNotice()
                 }
+            }
+        case .modUpdateNetworkAccess:
+            Button(AppStrings.Alerts.enableAndCheckNow) {
+                presentation.dismissAlert()
+                Task {
+                    await viewModel.setChecksForModUpdates(true)
+                    await viewModel.checkForModUpdates()
+                }
+            }
+
+            Button(AppStrings.Alerts.notNow, role: .cancel) {
+                presentation.dismissAlert()
             }
         case .message:
             Button(AppStrings.Common.ok) {
@@ -223,6 +237,8 @@ extension ModManagerView {
             Text(confirmation.message)
         case .lastSessionNotice(let notice):
             Text(lastSessionNoticeMessage(for: notice))
+        case .modUpdateNetworkAccess:
+            Text(AppStrings.Alerts.allowModUpdateNetworkAccessMessage)
         case .message(let alert):
             Text(alert.message)
         }
@@ -250,6 +266,7 @@ extension ModManagerView {
                         }
                     }
                     presentation.dismissAlert()
+                    syncLaunchModUpdateCheck(presentationState)
                 }
             }
         )

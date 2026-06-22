@@ -187,6 +187,28 @@ extension ModManagerView {
         }
     }
 
+    func syncLaunchModUpdateCheck(_ presentationState: ModManagerPresentationState) {
+        guard !presentation.hasHandledLaunchModUpdateCheck,
+              presentationState.state.hasLoadedMods,
+              presentationState.canManageMods
+        else {
+            return
+        }
+
+        presentation.hasHandledLaunchModUpdateCheck = true
+        if presentationState.state.checksForModUpdates {
+            Task {
+                await viewModel.checkForModUpdates()
+            }
+        } else {
+            guard presentation.alert == nil else {
+                presentation.hasHandledLaunchModUpdateCheck = false
+                return
+            }
+            presentation.alert = .modUpdateNetworkAccess
+        }
+    }
+
     func previewMods(from urls: [URL]) {
         switch viewModel.prepareImportPreview(from: urls) {
         case .success(let preview):

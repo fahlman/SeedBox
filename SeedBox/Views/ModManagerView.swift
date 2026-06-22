@@ -97,11 +97,18 @@ struct ModManagerView: View {
             .onChange(of: presentationState.state.modSets) {
                 syncLibrarySelection(presentationState)
             }
+            .onChange(of: presentationState.state.hasLoadedMods) {
+                syncLaunchModUpdateCheck(presentationState)
+            }
+            .onChange(of: presentationState.state.checksForModUpdates) {
+                syncLaunchModUpdateCheck(presentationState)
+            }
             .onAppear {
                 syncLibrarySelection(presentationState)
                 syncSourceCleanupOffer()
                 syncBisectionSheet()
                 syncLastSessionNotice()
+                syncLaunchModUpdateCheck(presentationState)
                 syncAppShortcutRequest()
             }
             .onReceive(NotificationCenter.default.publisher(for: SeedBoxShortcutRouter.didRequestShortcutNotification)) { _ in

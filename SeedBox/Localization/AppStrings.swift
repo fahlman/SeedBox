@@ -183,6 +183,9 @@ enum AppStrings {
         static let unresolvedRequiredDependencies = String(localized: "Unresolved Required Dependencies")
         static let applyAnyway = String(localized: "Apply Anyway")
         static let couldNotPreviewModsTitle = String(localized: "Could Not Preview Mods")
+        static let allowModUpdateNetworkAccessTitle = String(localized: "Allow Network Update Checks?")
+        static let allowModUpdateNetworkAccessMessage = String(localized: "Seed Box can check smapi.io for mod updates. It sends each mod's ID, version, and update keys only when a check runs.")
+        static let enableAndCheckNow = String(localized: "Enable and Check Now")
         static let lastSessionNoticeTitle = String(localized: "Problems in Your Last Game Session")
         static let reviewProblems = String(localized: "Review Problems")
         static let notNow = String(localized: "Not Now")
@@ -506,7 +509,7 @@ enum AppStrings {
 
         static let modsUpToDate = String(localized: "All mods are up to date.")
 
-        static let enableModUpdateChecksFirst = String(localized: "Turn on update checks in Settings to check for mod updates.")
+        static let enableModUpdateChecksFirst = String(localized: "Enable network update checks to check for mod updates.")
 
         static let noModsToCheckForUpdates = String(localized: "No installed mods declare a unique ID to check for updates.")
 
@@ -938,7 +941,7 @@ enum AppStrings {
         static let modSetsTitle = String(localized: "Mod Sets")
         static let modSetsBody = String(localized: "A mod set remembers which mods are enabled. Switch sets to swap loadouts before launching the game; changes made while a custom set is active are saved back into it.")
         static let updatesTitle = String(localized: "Updates")
-        static let updatesBody = String(localized: "Turn on update checks in Settings to compare your installed mods against smapi.io. Available updates appear in the Updates column and in each mod's details. Seed Box checks; you choose what to download and install.")
+        static let updatesBody = String(localized: "Seed Box compares your installed mods against smapi.io when update checks are enabled. Available updates appear in the Updates column and in each mod's details. Seed Box checks; you choose what to download and install.")
         static let restoreHistoryTitle = String(localized: "Restore History")
         static let restoreHistoryBody = String(localized: "When Seed Box deletes, updates, or replaces a mod, it archives the previous copy in Restore History. Search or filter archives, restore a previous version, reveal the archive folder, or permanently remove archived copies you no longer need.")
         static let smapiLogTitle = String(localized: "SMAPI Logs")
@@ -947,7 +950,7 @@ enum AppStrings {
         static let troubleshootingBody = String(localized: "Open Problems in the toolbar to see errors, warnings, duplicates, SMAPI version issues, and last-session log findings. If the game misbehaves and no mod is named, Find Problem Mod narrows it down automatically and restores your original mod states when the search ends.")
         static let diagnosticsBody = String(localized: "Seed Box keeps Apple MetricKit diagnostics locally for crash-awareness support. Export a diagnostics bundle from Settings only when you choose to share it; Seed Box never sends diagnostics automatically.")
         static let privacyTitle = String(localized: "Privacy")
-        static let privacyBody = String(localized: "Everything Seed Box does happens on your Mac unless you turn on update checks in Settings. Update checks send each mod's ID, version, and update keys to smapi.io only when a check runs. Seed Box has no accounts, analytics, tracking, or automatic diagnostic uploads.")
+        static let privacyBody = String(localized: "Seed Box keeps mod management local. When update checks are enabled, it sends each mod's ID, version, and update keys to smapi.io only when a check runs. Seed Box has no accounts, analytics, tracking, or automatic diagnostic uploads.")
         static let supportTitle = String(localized: "Report a Problem")
         static let supportBody = String(localized: "Found a bug or need help? Report it on GitHub and describe what you were doing when it happened. If diagnostics are relevant, export a support bundle from Settings and choose whether to attach it.")
         static let openIssues = String(localized: "Open GitHub Issues")

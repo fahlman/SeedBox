@@ -80,11 +80,14 @@ struct ModManagerPreferences {
         }
     }
 
-    /// Off by default: checking sends mod metadata over the network, so the
-    /// user opts in explicitly.
+    /// On by default because update awareness is core app behavior. Users can
+    /// still disable it; checks only send mod metadata to smapi.io.
     var checksForModUpdates: Bool {
         get {
-            defaults.bool(forKey: Key.checksForModUpdates)
+            if defaults.object(forKey: Key.checksForModUpdates) == nil {
+                return true
+            }
+            return defaults.bool(forKey: Key.checksForModUpdates)
         }
         nonmutating set {
             defaults.set(newValue, forKey: Key.checksForModUpdates)

@@ -10,6 +10,12 @@ final class ModUpdateCheckTests: SeedBoxTestCase {
         )
     }
 
+    func testUpdateChecksDefaultToEnabled() throws {
+        let defaults = try makeIsolatedUserDefaults()
+
+        XCTAssertTrue(ModManagerPreferences(defaults: defaults).checksForModUpdates)
+    }
+
     func testCheckFindsUpdatesAndAuditsResult() async throws {
         let install = try makeInstall()
         let defaults = try makeIsolatedUserDefaults()
@@ -74,6 +80,7 @@ final class ModUpdateCheckTests: SeedBoxTestCase {
     func testCheckIsRefusedWhileOptOutAndSendsNothing() async throws {
         let install = try makeInstall()
         let defaults = try makeIsolatedUserDefaults()
+        ModManagerPreferences(defaults: defaults).checksForModUpdates = false
         let checker = SpyModUpdateChecker(results: [])
         let modURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
         try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
@@ -92,7 +99,7 @@ final class ModUpdateCheckTests: SeedBoxTestCase {
         XCTAssertTrue(viewModel.state.availableUpdates.isEmpty)
         XCTAssertEqual(
             viewModel.state.statusLineMessage,
-            "Turn on update checks in Settings to check for mod updates."
+            "Enable network update checks to check for mod updates."
         )
     }
 
