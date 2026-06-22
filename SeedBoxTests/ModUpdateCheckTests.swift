@@ -3,6 +3,13 @@ import XCTest
 
 @MainActor
 final class ModUpdateCheckTests: SeedBoxTestCase {
+    func testClientUsesCurrentSMAPIUpdateRoute() {
+        XCTAssertEqual(
+            SMAPIModUpdateClient.endpoint.absoluteString,
+            "https://smapi.io/api/v3.0/mods"
+        )
+    }
+
     func testCheckFindsUpdatesAndAuditsResult() async throws {
         let install = try makeInstall()
         let defaults = try makeIsolatedUserDefaults()

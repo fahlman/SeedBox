@@ -6,8 +6,10 @@ struct SettingsView: View {
     var viewModel: ModManagerViewModel
     @State private var isChoosingModsFolder = false
     @State private var isChoosingLogFolder = false
+    @State private var isCheckingForModUpdates = false
     @State private var diagnosticsSummary = CrashDiagnosticsSummary.empty
     @State private var diagnosticsStatus: StatusEvent?
+    @State private var modUpdateStatus: StatusEvent?
 
     private var presentationState: ModManagerSettingsPresentationState {
         ModManagerSettingsPresentationState(viewModel: viewModel)
@@ -192,16 +194,35 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
 
                 Button {
-                    Task {
-                        await viewModel.checkForModUpdates()
-                    }
+                    checkForModUpdates()
                 } label: {
-                    Label(AppStrings.Settings.checkForUpdatesNow, systemImage: "arrow.triangle.2.circlepath")
+                    if isCheckingForModUpdates {
+                        Label {
+                            Text(AppStrings.Status.checkingForModUpdates)
+                        } icon: {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                    } else {
+                        Label(AppStrings.Settings.checkForUpdatesNow, systemImage: "arrow.triangle.2.circlepath")
+                    }
                 }
                 .disabled(
-                    !viewModel.state.checksForModUpdates
+                    isCheckingForModUpdates
+                        || !viewModel.state.checksForModUpdates
                         || !presentationState.readiness.canManageMods
                 )
+
+                if let modUpdateStatus {
+                    Label(
+                        modUpdateStatus.message,
+                        systemImage: modUpdateStatus.severity == .error
+                            ? "exclamationmark.triangle.fill"
+                            : "checkmark.circle.fill"
+                    )
+                    .foregroundStyle(modUpdateStatus.severity == .error ? .red : .secondary)
+                    .font(.callout)
+                }
 
                 if let smapiUpdate = viewModel.state.smapiUpdate {
                     HStack(spacing: 8) {
@@ -332,5 +353,25 @@ struct SettingsView: View {
     @MainActor
     private func refreshDiagnosticsSummary() {
         diagnosticsSummary = CrashDiagnosticsExporter.diagnosticSummary()
+    }
+
+    @MainActor
+    private func checkForModUpdates() {
+        guard !isCheckingForModUpdates else {
+            return
+        }
+
+        isCheckingForModUpdates = true
+        modUpdateStatus = StatusEvent(
+            severity: .info,
+            message: AppStrings.Status.checkingForModUpdates
+        )
+
+        Task { @MainActor in
+            await viewModel.checkForModUpdates()
+            modUpdateStatus = viewModel.state.activityStatus
+                ?? StatusEvent(severity: viewModel.state.statusLineSeverity, message: viewModel.state.statusLineMessage)
+            isCheckingForModUpdates = false
+        }
     }
 }

@@ -23,7 +23,7 @@ launch the game.
   versions can be restored or permanently removed.
 - Watches the Mods folder and reconciles changes made outside the app.
 - Records an audit trail for mod and mod-set actions.
-- Can opt in to SMAPI mod update checks through `api.smapi.io`.
+- Can opt in to SMAPI mod update checks through `smapi.io`.
 - Can read SMAPI's latest log, surface last-session mod problems, and start
   problem-mod bisection.
 - Stores local-only MetricKit diagnostic payloads, surfaces recent diagnostics
