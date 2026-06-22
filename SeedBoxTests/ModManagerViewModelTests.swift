@@ -226,6 +226,26 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(favoritesSet.disabledFolderNames, ["ConsoleCommands"])
     }
 
+    func testPreparingInvalidZipForImportPreviewReturnsErrorOutcome() async throws {
+        let install = try makeInstall()
+        let downloadsURL = try makeDownloadsDirectory()
+        let defaults = try makeIsolatedUserDefaults()
+        let invalidZipURL = downloadsURL.appendingPathComponent("NotAMod.zip")
+        try Data("not a zip archive".utf8).write(to: invalidZipURL)
+
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+
+        switch viewModel.prepareImportPreview(from: [invalidZipURL]) {
+        case .success:
+            XCTFail("Invalid mod archives should not produce an import preview.")
+        case .failure(.recorded(let event)):
+            XCTAssertEqual(event.severity, .error)
+            XCTAssertTrue(event.message.contains("Could not preview mods"))
+        case .failure(let outcome):
+            XCTFail("Expected a recorded preview error, got \(outcome).")
+        }
+    }
+
     func testDismissingSourceCleanupOfferKeepsOriginalFile() async throws {
         let install = try makeInstall()
         let downloadsURL = try makeDownloadsDirectory()

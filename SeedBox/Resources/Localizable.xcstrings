@@ -7478,6 +7478,71 @@
         }
       }
     },
+    "Could Not Preview Mods" : {
+      "comment" : "Alert title shown when dropped or selected mod archives cannot be previewed for installation.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Could Not Preview Mods"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Could Not Preview Mods"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Could Not Preview Mods"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Could Not Preview Mods"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Could Not Preview Mods"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Could Not Preview Mods"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Could Not Preview Mods"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Could Not Preview Mods"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Could Not Preview Mods"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Could Not Preview Mods"
+          }
+        }
+      }
+    },
     "Could not preview mods: %@" : {
       "comment" : "Status message shown when Seed Box cannot inspect selected mod sources before installing.",
       "localizations" : {

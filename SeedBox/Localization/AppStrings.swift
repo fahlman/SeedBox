@@ -85,6 +85,7 @@ enum AppStrings {
     enum Common {
         static let cancel = String(localized: "Cancel")
         static let delete = String(localized: "Delete")
+        static let ok = String(localized: "OK")
     }
 
     enum Commands {
@@ -181,6 +182,7 @@ enum AppStrings {
         static let requiredByEnabledMods = String(localized: "Required by Enabled Mods")
         static let unresolvedRequiredDependencies = String(localized: "Unresolved Required Dependencies")
         static let applyAnyway = String(localized: "Apply Anyway")
+        static let couldNotPreviewModsTitle = String(localized: "Could Not Preview Mods")
         static let lastSessionNoticeTitle = String(localized: "Problems in Your Last Game Session")
         static let reviewProblems = String(localized: "Review Problems")
         static let notNow = String(localized: "Not Now")

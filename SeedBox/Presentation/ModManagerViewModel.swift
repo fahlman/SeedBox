@@ -113,17 +113,19 @@ final class ModManagerViewModel {
         commit(await service.createModFolder())
     }
 
-    func prepareImportPreview(from selectedURLs: [URL]) -> ModImportPreview? {
-        switch importPreviewCoordinator.prepareImportPreview(
+    func prepareImportPreview(from selectedURLs: [URL]) -> ModImportPreviewResult {
+        let result = importPreviewCoordinator.prepareImportPreview(
             from: selectedURLs,
             install: install,
             readiness: state.readiness
-        ) {
+        )
+
+        switch result {
         case .success(let preview):
-            return preview
+            return .success(preview)
         case .failure(let outcome):
             apply(outcome)
-            return nil
+            return .failure(outcome)
         }
     }
 

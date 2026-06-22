@@ -188,11 +188,36 @@ extension ModManagerView {
     }
 
     func previewMods(from urls: [URL]) {
-        guard let preview = viewModel.prepareImportPreview(from: urls) else {
-            return
+        switch viewModel.prepareImportPreview(from: urls) {
+        case .success(let preview):
+            presentation.sheet = .importPreview(preview)
+        case .failure(let outcome):
+            presentImportPreviewFailure(outcome)
         }
+    }
 
-        presentation.sheet = .importPreview(preview)
+    func presentImportPreviewFailure(_ outcome: WorkspaceActionOutcome) {
+        switch outcome {
+        case .completed:
+            break
+        case .recorded(let event):
+            presentation.alert = .message(
+                MessageAlert(
+                    title: AppStrings.Alerts.couldNotPreviewModsTitle,
+                    message: event.message
+                )
+            )
+        case .folderAccessLost(let message):
+            guard let message else {
+                return
+            }
+            presentation.alert = .message(
+                MessageAlert(
+                    title: AppStrings.Alerts.couldNotPreviewModsTitle,
+                    message: message
+                )
+            )
+        }
     }
 
     func installPreviewedMods(_ preview: ModImportPreview) {

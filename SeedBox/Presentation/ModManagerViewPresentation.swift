@@ -59,6 +59,7 @@ enum ModManagerAlert: Identifiable {
     case deleteModSet(ModSet)
     case dependency(DependencyConfirmation)
     case lastSessionNotice(LastSessionNotice)
+    case message(MessageAlert)
 
     var id: String {
         switch self {
@@ -70,6 +71,8 @@ enum ModManagerAlert: Identifiable {
             return "dependency-\(confirmation.id)"
         case .lastSessionNotice(let notice):
             return "last-session-notice-\(notice.id)"
+        case .message(let alert):
+            return "message-\(alert.id)"
         }
     }
 
@@ -83,8 +86,16 @@ enum ModManagerAlert: Identifiable {
             return confirmation.title
         case .lastSessionNotice:
             return AppStrings.Alerts.lastSessionNoticeTitle
+        case .message(let alert):
+            return alert.title
         }
     }
+}
+
+struct MessageAlert: Identifiable {
+    var id = UUID()
+    var title: String
+    var message: String
 }
 
 struct DependencyConfirmation: Identifiable {

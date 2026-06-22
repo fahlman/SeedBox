@@ -199,6 +199,10 @@ extension ModManagerView {
                     await viewModel.dismissLastSessionNotice()
                 }
             }
+        case .message:
+            Button(AppStrings.Common.ok) {
+                presentation.dismissAlert()
+            }
         }
     }
 
@@ -219,6 +223,8 @@ extension ModManagerView {
             Text(confirmation.message)
         case .lastSessionNotice(let notice):
             Text(lastSessionNoticeMessage(for: notice))
+        case .message(let alert):
+            Text(alert.message)
         }
     }
 
