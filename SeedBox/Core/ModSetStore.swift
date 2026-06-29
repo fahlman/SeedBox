@@ -93,7 +93,11 @@ enum ModSetStore {
             id: set.id,
             name: set.name,
             disabledFolderNames: normalizeFolderNames(set.disabledFolderNames),
-            isEditable: set.isEditable
+            isEditable: set.isEditable,
+            parentID: set.parentID,
+            enabledFolderNames: set.enabledFolderNames.isEmpty
+                ? nil
+                : normalizeFolderNames(set.enabledFolderNames)
         )
         try saveStoredSet(
             storedSet,
@@ -159,6 +163,8 @@ enum ModSetStore {
         var name: String
         var disabledFolderNames: [String]
         var isEditable: Bool?
+        var parentID: String?
+        var enabledFolderNames: [String]?
     }
 
     private static func setFileURLs(
@@ -190,14 +196,18 @@ enum ModSetStore {
                 id: stored.id,
                 name: stored.name,
                 disabledFolderNames: normalizeFolderNames(stored.disabledFolderNames),
-                isEditable: isEditable
+                isEditable: isEditable,
+                parentID: stored.parentID,
+                enabledFolderNames: normalizeFolderNames(stored.enabledFolderNames ?? [])
             )
             set = appProvidedSet(for: set.id, currentMods: currentMods) ?? set
 
             if stored.isEditable == nil
                 || stored.isEditable != set.isEditable
                 || set.name != stored.name
-                || set.disabledFolderNames != stored.disabledFolderNames {
+                || set.disabledFolderNames != stored.disabledFolderNames
+                || set.parentID != stored.parentID
+                || set.enabledFolderNames != normalizeFolderNames(stored.enabledFolderNames ?? []) {
                 try saveSet(set, install: install, fileManager: fileManager)
             }
             sets.append(set)
