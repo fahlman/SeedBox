@@ -47,4 +47,33 @@ enum ModUndoRegistrar {
             appliedValue ? AppStrings.Undo.enableMod : AppStrings.Undo.disableMod
         )
     }
+
+    /// Registers undo for applying a Mod Set. Undo re-applies the previously
+    /// selected set, and only when the set this action applied is still the
+    /// selected one, so a later selection is not silently reverted.
+    static func registerModSetApply(
+        in undoManager: UndoManager,
+        viewModel: ModManagerViewModel,
+        previousSetID: String,
+        appliedSetID: String
+    ) {
+        undoManager.registerUndo(withTarget: viewModel) { viewModel in
+            MainActor.assumeIsolated {
+                guard viewModel.state.selectedModSetID == appliedSetID else {
+                    return
+                }
+
+                registerModSetApply(
+                    in: undoManager,
+                    viewModel: viewModel,
+                    previousSetID: appliedSetID,
+                    appliedSetID: previousSetID
+                )
+
+                Task { await viewModel.selectModSet(id: previousSetID) }
+            }
+        }
+
+        undoManager.setActionName(AppStrings.Undo.applyModSet)
+    }
 }

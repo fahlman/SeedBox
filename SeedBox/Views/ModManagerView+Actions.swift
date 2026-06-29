@@ -171,10 +171,23 @@ extension ModManagerView {
     }
 
     func selectModSet(id: String) {
+        let previousSetID = viewModel.state.selectedModSetID
         selectedLibraryItemID = ModLibrarySelection.modSetID(id)
         selectedModIDs = []
         Task {
             await viewModel.selectModSet(id: id)
+
+            // Register undo only when the switch actually applied.
+            if previousSetID != id,
+               viewModel.state.selectedModSetID == id,
+               let undoManager {
+                ModUndoRegistrar.registerModSetApply(
+                    in: undoManager,
+                    viewModel: viewModel,
+                    previousSetID: previousSetID,
+                    appliedSetID: id
+                )
+            }
         }
     }
 

@@ -129,6 +129,7 @@ enum AppStrings {
     enum Undo {
         static let enableMod = String(localized: "Enable Mod")
         static let disableMod = String(localized: "Disable Mod")
+        static let applyModSet = String(localized: "Apply Mod Set")
     }
 
     enum Toolbar {

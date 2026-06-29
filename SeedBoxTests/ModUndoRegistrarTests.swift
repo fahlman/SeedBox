@@ -75,6 +75,45 @@ final class ModUndoRegistrarTests: SeedBoxTestCase {
         XCTAssertFalse(undoManager.canRedo)
     }
 
+    func testUndoApplyModSetReappliesPreviousSet() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        try makeInstalledMod(name: "Content Patcher", in: install, folderName: "ContentPatcher")
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+
+        // Two distinct sets: "All" (nothing disabled) and "None" (all disabled).
+        let startSetID = viewModel.state.selectedModSetID
+        await viewModel.selectModSet(id: ModSetStore.noneSetID)
+        XCTAssertEqual(viewModel.state.selectedModSetID, ModSetStore.noneSetID)
+        XCTAssertEqual(installedState(of: "Content Patcher", in: viewModel), false)
+
+        await viewModel.selectModSet(id: ModSetStore.allSetID)
+        XCTAssertEqual(installedState(of: "Content Patcher", in: viewModel), true)
+        undoManager.beginUndoGrouping()
+        ModUndoRegistrar.registerModSetApply(
+            in: undoManager,
+            viewModel: viewModel,
+            previousSetID: ModSetStore.noneSetID,
+            appliedSetID: ModSetStore.allSetID
+        )
+        undoManager.endUndoGrouping()
+
+        // Undo re-applies the "None" set, disabling the mod again.
+        undoManager.undo()
+        try await waitUntil { viewModel.state.selectedModSetID == ModSetStore.noneSetID }
+        XCTAssertEqual(installedState(of: "Content Patcher", in: viewModel), false)
+        XCTAssertTrue(undoManager.canRedo)
+
+        // Redo re-applies "All".
+        undoManager.redo()
+        try await waitUntil { viewModel.state.selectedModSetID == ModSetStore.allSetID }
+        XCTAssertEqual(installedState(of: "Content Patcher", in: viewModel), true)
+
+        _ = startSetID
+    }
+
     private func installedState(of displayName: String, in viewModel: ModManagerViewModel) -> Bool? {
         viewModel.state.mods.first { $0.displayName == displayName }?.isEnabled
     }
