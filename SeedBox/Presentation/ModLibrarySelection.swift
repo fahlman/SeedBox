@@ -100,6 +100,9 @@ struct ModLibraryItem: Identifiable, Equatable, Sendable {
     var count: Int
     var kind: Kind
     var isUserEditable: Bool
+    /// The name of the base set this Mod Set inherits from, or nil when the set
+    /// is standalone. Drives the sidebar's inheritance indicator.
+    var inheritsFromName: String? = nil
 
     var id: String {
         selection.id
@@ -258,13 +261,17 @@ enum ModLibrarySelection: Hashable, Sendable {
             guard let modSet = state.modSets.first(where: { $0.id == id }) else {
                 return nil
             }
+            let baseName = modSet.parentID.flatMap { parentID in
+                state.modSets.first { $0.id == parentID }?.name
+            }
             return ModLibraryItem(
                 selection: self,
                 title: modSet.name,
                 systemImage: "folder",
                 count: Self.modCount(for: modSet, in: state),
                 kind: .modSet,
-                isUserEditable: modSet.isUserEditable
+                isUserEditable: modSet.isUserEditable,
+                inheritsFromName: baseName
             )
         }
     }

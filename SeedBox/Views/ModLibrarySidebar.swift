@@ -33,9 +33,21 @@ struct ModLibrarySidebar: View {
     }
 
     private func sidebarRow(for item: ModLibraryItem) -> some View {
-        Label(item.title, systemImage: item.systemImage)
-            .badge(item.count)
-            .tag(item.id)
+        Label {
+            HStack(spacing: 4) {
+                Text(item.title)
+                if let baseSetName = item.inheritsFromName {
+                    Image(systemName: "arrow.triangle.branch")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel(AppStrings.Library.inheritsFrom(baseSetName))
+                }
+            }
+        } icon: {
+            Image(systemName: item.systemImage)
+        }
+        .badge(item.count)
+        .tag(item.id)
     }
 
     private var selectedItemBinding: Binding<String?> {

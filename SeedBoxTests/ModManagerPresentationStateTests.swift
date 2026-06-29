@@ -511,6 +511,31 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         XCTAssertFalse(ModManagerCommand.deleteSelectedMod.isEnabled(in: presentationState))
     }
 
+    func testModSetItemsCarryInheritanceIndicator() throws {
+        let install = try makeInstall()
+        let mods = try ModLibrary.scan(install: install)
+        let sets = [
+            ModSet(id: "base", name: "Base", disabledFolderNames: []),
+            ModSet(id: "child", name: "Child", disabledFolderNames: [], parentID: "base"),
+            ModSet(id: "orphan", name: "Orphan", disabledFolderNames: [], parentID: "deleted")
+        ]
+        let state = makeState(install: install, mods: mods, modSets: sets)
+        let presentationState = ModManagerPresentationState(
+            state: state,
+            searchText: "",
+            selectedModIDs: [],
+            selectedLibraryItemID: ModLibrarySelection.modSetID("base")
+        )
+
+        let itemsByID = Dictionary(
+            uniqueKeysWithValues: presentationState.modSetItems.map { ($0.selection.id, $0) }
+        )
+        XCTAssertNil(itemsByID[ModLibrarySelection.modSetID("base")]?.inheritsFromName)
+        XCTAssertEqual(itemsByID[ModLibrarySelection.modSetID("child")]?.inheritsFromName, "Base")
+        // A dangling base id shows no indicator rather than a broken one.
+        XCTAssertNil(itemsByID[ModLibrarySelection.modSetID("orphan")]?.inheritsFromName)
+    }
+
     func testAvailableBaseSetsForNewSetIncludesAllSetsSorted() throws {
         let install = try makeInstall()
         let mods = try ModLibrary.scan(install: install)

@@ -82,6 +82,10 @@ enum AppStrings {
         static let smapiMods = String(localized: "SMAPI Mods")
         static let updatesAvailable = String(localized: "Updates Available")
         static let warnings = String(localized: "Warnings")
+
+        static func inheritsFrom(_ baseSetName: String) -> String {
+            String(localized: "Inherits from \(baseSetName)")
+        }
     }
 
     enum Common {
