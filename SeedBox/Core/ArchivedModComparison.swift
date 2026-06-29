@@ -64,7 +64,7 @@ struct ArchivedModComparison: Equatable, Sendable {
         _ archived: ArchivedModInfo,
         against installedMods: [ModInfo]
     ) -> ArchivedModComparison {
-        let installed = installedMatch(for: archived, in: installedMods)
+        let installed = ModArchive.currentMod(for: archived, in: installedMods)
         let fields = Field.allCases.map { field in
             FieldComparison(
                 field: field,
@@ -80,23 +80,6 @@ struct ArchivedModComparison: Equatable, Sendable {
             fields: fields,
             installedFolderName: installed?.enabledFolderName
         )
-    }
-
-    /// Finds the installed mod that the archive corresponds to: first by unique
-    /// ID, then by folder name, so renamed-but-same-folder mods still match.
-    private static func installedMatch(
-        for archived: ArchivedModInfo,
-        in mods: [ModInfo]
-    ) -> ModInfo? {
-        if let archivedID = archived.manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID,
-           let byID = mods.first(where: {
-               $0.manifest?.uniqueID?.trimmedNonEmpty?.normalizedDependencyID == archivedID
-           }) {
-            return byID
-        }
-
-        let token = archived.enabledFolderName.normalizedFolderToken
-        return mods.first { $0.enabledFolderName.normalizedFolderToken == token }
     }
 
     private static func versionRelation(

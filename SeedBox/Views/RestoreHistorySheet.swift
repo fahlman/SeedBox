@@ -42,10 +42,12 @@ struct RestoreHistorySheet: View {
                         showsReasonColumn: true,
                         selectedArchiveIDs: $selectedArchiveIDs
                     )
-                    .frame(minHeight: 320)
+                    .frame(minHeight: 260)
                     .onChange(of: filteredArchivedMods.map(\.id)) {
                         selectedArchiveIDs.formIntersection(Set(filteredArchivedMods.map(\.id)))
                     }
+
+                    comparisonSection
                 }
             }
 
@@ -143,6 +145,104 @@ struct RestoreHistorySheet: View {
             Spacer()
 
             SheetCloseButton(close: close)
+        }
+    }
+
+    private var comparisonSection: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(AppStrings.RestoreHistory.comparisonHeading)
+                    .font(.headline)
+
+                if let comparison = selectedComparison {
+                    comparisonContent(comparison)
+                } else {
+                    Text(AppStrings.RestoreHistory.comparisonSelectOne)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private func comparisonContent(_ comparison: ArchivedModComparison) -> some View {
+        Text(comparisonSummary(comparison))
+            .font(.callout)
+            .foregroundStyle(.secondary)
+
+        if comparison.hasDifferences {
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 4) {
+                GridRow {
+                    Text("")
+                    Text(AppStrings.ModInspector.archived)
+                        .fontWeight(.semibold)
+                    Text(AppStrings.RestoreHistory.comparisonInstalledColumn)
+                        .fontWeight(.semibold)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                ForEach(comparison.differences, id: \.field) { difference in
+                    GridRow {
+                        Text(fieldLabel(difference.field))
+                            .foregroundStyle(.secondary)
+                        Text(difference.archivedValue ?? AppStrings.RestoreHistory.comparisonNoValue)
+                        Text(difference.installedValue ?? AppStrings.RestoreHistory.comparisonNoValue)
+                    }
+                    .font(.callout)
+                }
+            }
+            .textSelection(.enabled)
+        }
+    }
+
+    private var selectedComparison: ArchivedModComparison? {
+        guard
+            selectedArchivedMods.count == 1,
+            let archived = selectedArchivedMods.first
+        else {
+            return nil
+        }
+
+        return ArchivedModComparison.compare(archived, against: currentMods)
+    }
+
+    private func comparisonSummary(_ comparison: ArchivedModComparison) -> String {
+        switch comparison.installStatus {
+        case .notInstalled:
+            return AppStrings.RestoreHistory.comparisonNotInstalled
+        case .installed:
+            guard comparison.hasDifferences else {
+                return AppStrings.RestoreHistory.comparisonMatches
+            }
+
+            switch comparison.versionRelation {
+            case .archivedIsOlder:
+                return AppStrings.RestoreHistory.comparisonArchivedOlder
+            case .archivedIsNewer:
+                return AppStrings.RestoreHistory.comparisonArchivedNewer
+            case .same, .unknown:
+                return AppStrings.RestoreHistory.comparisonSameVersion
+            }
+        }
+    }
+
+    private func fieldLabel(_ field: ArchivedModComparison.Field) -> String {
+        switch field {
+        case .name:
+            return AppStrings.RestoreHistory.comparisonFieldName
+        case .version:
+            return AppStrings.RestoreHistory.versionColumn
+        case .uniqueID:
+            return AppStrings.RestoreHistory.comparisonFieldUniqueID
+        case .updateKeys:
+            return AppStrings.RestoreHistory.comparisonFieldUpdateKeys
+        case .dependencies:
+            return AppStrings.ModInspector.dependenciesSection
+        case .contentPackFor:
+            return AppStrings.RestoreHistory.comparisonFieldContentPack
         }
     }
 

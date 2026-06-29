@@ -908,6 +908,22 @@ enum AppStrings {
             String(localized: "Currently installed: \(version)")
         }
 
+        // MARK: Comparison
+
+        static let comparisonHeading = String(localized: "Compared to installed version")
+        static let comparisonNotInstalled = String(localized: "This mod is not currently installed, so there is nothing to compare.")
+        static let comparisonMatches = String(localized: "This archived copy matches the installed version.")
+        static let comparisonArchivedOlder = String(localized: "This archived copy is older than the installed version.")
+        static let comparisonArchivedNewer = String(localized: "This archived copy is newer than the installed version.")
+        static let comparisonSameVersion = String(localized: "Same version as installed, with other differences.")
+        static let comparisonSelectOne = String(localized: "Select a single archived mod to compare it with the installed version.")
+        static let comparisonInstalledColumn = String(localized: "Installed")
+        static let comparisonFieldName = String(localized: "Name")
+        static let comparisonFieldUniqueID = String(localized: "Unique ID")
+        static let comparisonFieldUpdateKeys = String(localized: "Update Keys")
+        static let comparisonFieldContentPack = String(localized: "Content Pack For")
+        static let comparisonNoValue = String(localized: "—")
+
     }
 
     enum Bisection {
