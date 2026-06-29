@@ -79,7 +79,7 @@ struct ModManagerWindow: View {
     private func openSpotlightResult(_ activity: NSUserActivity) {
         guard
             let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
-            let route = SeedBoxSpotlightIndex.route(forSpotlightIdentifier: identifier)
+            let route = SeedBoxEntityCatalog.route(forSystemIdentifier: identifier)
         else {
             return
         }

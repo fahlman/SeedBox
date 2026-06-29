@@ -14,9 +14,7 @@ enum SeedBoxSpotlightIndexer {
         }
 
         let items = SeedBoxSpotlightIndex.searchableItems(
-            mods: state.mods,
-            modSets: state.modSets,
-            userSmartModSets: state.userSmartModSets
+            for: SeedBoxEntityCatalog.entities(from: state, on: .spotlight)
         )
 
         let index = CSSearchableIndex.default()
