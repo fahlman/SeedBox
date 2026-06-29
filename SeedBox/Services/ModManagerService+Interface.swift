@@ -198,6 +198,10 @@ extension ModManagerService {
         commit(deleteModSet(set, in: state))
     }
 
+    func restoreModSet(_ set: ModSet) -> ModManagerState {
+        commit(restoreModSet(set, in: state))
+    }
+
     func moveSourceFilesToTrash(
         for offer: SourceCleanupOffer,
         remembersChoice: Bool = false

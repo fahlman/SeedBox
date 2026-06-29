@@ -284,6 +284,34 @@ extension ModManagerService {
         }
     }
 
+    /// Restores a previously deleted (or duplicated-then-undone) Mod Set from
+    /// its exact stored definition, keeping its id so inheritance references and
+    /// selection stay valid. Used by undo; it rewrites the definition only and
+    /// does not change mod folders.
+    func restoreModSet(_ set: ModSet, in state: ModManagerState) -> ModManagerState {
+        var nextState = state
+        guard guardCanManageMods(in: &nextState) else {
+            return nextState
+        }
+
+        do {
+            try ModSetStore.saveSet(set, install: install(for: nextState))
+            var refreshed = refreshedState(from: nextState)
+            if refreshed.modSets.contains(where: { $0.id == set.id }) {
+                setSelectedModSetID(set.id, in: &refreshed)
+            }
+            record(AppStrings.Status.createdModSet(set.name), in: &refreshed)
+            return refreshed
+        } catch {
+            record(
+                AppStrings.Status.couldNotCreateModSet(error.localizedDescription),
+                severity: .error,
+                in: &nextState
+            )
+            return nextState
+        }
+    }
+
     func selectModSet(id: String, in state: ModManagerState) -> ModManagerState {
         var nextState = state
         let isReapplyingSelectedSet = nextState.selectedModSetID == id

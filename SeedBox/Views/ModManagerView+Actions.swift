@@ -426,6 +426,17 @@ extension ModManagerView {
             await viewModel.createModSet(named: name, parentID: parentID)
         case .duplicate:
             await viewModel.duplicateSelectedModSet(named: name, parentID: parentID)
+            if let newSet = viewModel.state.modSetSelection.selectedSet,
+               newSet.name == name,
+               let undoManager {
+                ModUndoRegistrar.registerModSetExistence(
+                    in: undoManager,
+                    viewModel: viewModel,
+                    set: newSet,
+                    deleted: false,
+                    actionName: AppStrings.Undo.duplicateModSet
+                )
+            }
         case .rename(let set):
             await viewModel.renameSelectedModSet(to: name)
             if set.name != name,

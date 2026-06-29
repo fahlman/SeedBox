@@ -131,6 +131,8 @@ enum AppStrings {
         static let disableMod = String(localized: "Disable Mod")
         static let applyModSet = String(localized: "Apply Mod Set")
         static let renameModSet = String(localized: "Rename Mod Set")
+        static let deleteModSet = String(localized: "Delete Mod Set")
+        static let duplicateModSet = String(localized: "Duplicate Mod Set")
     }
 
     enum Toolbar {

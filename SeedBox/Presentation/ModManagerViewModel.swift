@@ -264,6 +264,10 @@ final class ModManagerViewModel {
         commit(await service.deleteModSet(set))
     }
 
+    func restoreModSet(_ set: ModSet) async {
+        commit(await service.restoreModSet(set))
+    }
+
     private func record(_ message: String, severity: StatusEvent.Severity = .info) {
         Task {
             commit(await service.recordActivity(message, severity: severity))

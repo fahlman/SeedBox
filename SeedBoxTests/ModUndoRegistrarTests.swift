@@ -145,6 +145,74 @@ final class ModUndoRegistrarTests: SeedBoxTestCase {
         try await waitUntil { viewModel.state.modSetSelection.selectedSet?.name == "Keepers" }
     }
 
+    func testUndoDeleteModSetRestoresItByDefinition() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        try makeInstalledMod(name: "Content Patcher", in: install, folderName: "ContentPatcher")
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+
+        await viewModel.createModSet(named: "Favorites")
+        let favorites = try XCTUnwrap(viewModel.state.modSetSelection.selectedSet)
+
+        await viewModel.deleteModSet(favorites)
+        XCTAssertFalse(viewModel.state.modSets.contains { $0.id == favorites.id })
+        undoManager.beginUndoGrouping()
+        ModUndoRegistrar.registerModSetExistence(
+            in: undoManager,
+            viewModel: viewModel,
+            set: favorites,
+            deleted: true,
+            actionName: AppStrings.Undo.deleteModSet
+        )
+        undoManager.endUndoGrouping()
+
+        // Undo restores the set with its original id and name.
+        undoManager.undo()
+        try await waitUntil { viewModel.state.modSets.contains { $0.id == favorites.id } }
+        XCTAssertEqual(viewModel.state.modSets.first { $0.id == favorites.id }?.name, "Favorites")
+        XCTAssertTrue(undoManager.canRedo)
+
+        // Redo deletes it again.
+        undoManager.redo()
+        try await waitUntil { !viewModel.state.modSets.contains { $0.id == favorites.id } }
+    }
+
+    func testUndoDuplicateModSetDeletesTheCopy() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        try makeInstalledMod(name: "Content Patcher", in: install, folderName: "ContentPatcher")
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+
+        await viewModel.createModSet(named: "Favorites")
+        await viewModel.duplicateSelectedModSet(named: "Favorites Copy")
+        let copy = try XCTUnwrap(viewModel.state.modSetSelection.selectedSet)
+        XCTAssertEqual(copy.name, "Favorites Copy")
+
+        undoManager.beginUndoGrouping()
+        ModUndoRegistrar.registerModSetExistence(
+            in: undoManager,
+            viewModel: viewModel,
+            set: copy,
+            deleted: false,
+            actionName: AppStrings.Undo.duplicateModSet
+        )
+        undoManager.endUndoGrouping()
+
+        // Undo removes the duplicate.
+        undoManager.undo()
+        try await waitUntil { !viewModel.state.modSets.contains { $0.id == copy.id } }
+        XCTAssertTrue(undoManager.canRedo)
+
+        // Redo brings the duplicate back.
+        undoManager.redo()
+        try await waitUntil { viewModel.state.modSets.contains { $0.id == copy.id } }
+        XCTAssertEqual(viewModel.state.modSets.first { $0.id == copy.id }?.name, "Favorites Copy")
+    }
+
     private func installedState(of displayName: String, in viewModel: ModManagerViewModel) -> Bool? {
         viewModel.state.mods.first { $0.displayName == displayName }?.isEnabled
     }

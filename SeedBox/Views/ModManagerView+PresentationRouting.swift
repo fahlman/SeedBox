@@ -165,6 +165,16 @@ extension ModManagerView {
             Button(AppStrings.Common.delete, role: .destructive) {
                 Task {
                     await viewModel.deleteModSet(set)
+                    if !viewModel.state.modSets.contains(where: { $0.id == set.id }),
+                       let undoManager {
+                        ModUndoRegistrar.registerModSetExistence(
+                            in: undoManager,
+                            viewModel: viewModel,
+                            set: set,
+                            deleted: true,
+                            actionName: AppStrings.Undo.deleteModSet
+                        )
+                    }
                     presentation.dismissAlert()
                 }
             }

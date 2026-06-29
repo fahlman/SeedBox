@@ -114,4 +114,43 @@ enum ModUndoRegistrar {
 
         undoManager.setActionName(AppStrings.Undo.renameModSet)
     }
+
+    /// Registers undo for an action that created or removed a Mod Set.
+    ///
+    /// `deleted` describes the state the action produced: `true` when the set
+    /// was deleted (undo restores it), `false` when it was created/duplicated
+    /// (undo deletes it). The undo runs only when the set's presence still
+    /// matches what the action produced, so a later change is not clobbered.
+    static func registerModSetExistence(
+        in undoManager: UndoManager,
+        viewModel: ModManagerViewModel,
+        set: ModSet,
+        deleted: Bool,
+        actionName: String
+    ) {
+        undoManager.registerUndo(withTarget: viewModel) { viewModel in
+            MainActor.assumeIsolated {
+                let exists = viewModel.state.modSets.contains { $0.id == set.id }
+                guard exists == !deleted else {
+                    return
+                }
+
+                registerModSetExistence(
+                    in: undoManager,
+                    viewModel: viewModel,
+                    set: set,
+                    deleted: !deleted,
+                    actionName: actionName
+                )
+
+                if deleted {
+                    Task.detached { await viewModel.restoreModSet(set) }
+                } else {
+                    Task.detached { await viewModel.deleteModSet(set) }
+                }
+            }
+        }
+
+        undoManager.setActionName(actionName)
+    }
 }
