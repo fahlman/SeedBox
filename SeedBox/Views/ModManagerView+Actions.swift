@@ -356,8 +356,20 @@ extension ModManagerView {
     }
 
     func setMod(_ mod: ModInfo, enabled: Bool) {
+        let previousEnabled = mod.isEnabled
         Task {
             await viewModel.setMod(mod, enabled: enabled)
+
+            // Register undo only for an actual change, after it is applied.
+            if previousEnabled != enabled, let undoManager {
+                ModUndoRegistrar.registerModToggle(
+                    in: undoManager,
+                    viewModel: viewModel,
+                    modID: mod.id,
+                    restoringTo: previousEnabled,
+                    appliedValue: enabled
+                )
+            }
         }
     }
 

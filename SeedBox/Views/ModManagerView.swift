@@ -7,6 +7,7 @@ struct ModManagerView: View {
     @Binding var selectedLibraryItemID: String
     @Binding var selectedModIDs: Set<String>
     @State var presentation = ModManagerViewPresentation()
+    @Environment(\.undoManager) var undoManager
 
     static var addableModContentTypes: [UTType] {
         var contentTypes: [UTType] = [.folder]

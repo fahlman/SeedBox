@@ -126,6 +126,11 @@ enum AppStrings {
         static let revertToBaseSet = String(localized: "Revert to Base Set")
     }
 
+    enum Undo {
+        static let enableMod = String(localized: "Enable Mod")
+        static let disableMod = String(localized: "Disable Mod")
+    }
+
     enum Toolbar {
         static let activity = String(localized: "Activity")
         static let addMods = String(localized: "Add Mods")
