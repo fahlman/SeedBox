@@ -361,6 +361,21 @@ extension ModManagerView {
         }
     }
 
+    /// Reverts the selected mod's local override back to the base set's state.
+    /// Setting the mod to the inherited value lets the set's delta recompute
+    /// drop the override automatically.
+    func revertSelectedModToBase() {
+        guard
+            let mod = presentationState.selection.mod,
+            let context = presentationState.selectedSetInheritanceContext,
+            context.state(for: mod) == .overridden
+        else {
+            return
+        }
+
+        setMod(mod, enabled: context.baseEnabled(for: mod))
+    }
+
     func setMods(_ mods: [ModInfo], enabled: Bool) {
         Task {
             await viewModel.setMods(mods, enabled: enabled)

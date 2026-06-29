@@ -41,6 +41,18 @@ final class ModSetInheritanceWorkflowTests: SeedBoxTestCase {
         XCTAssertEqual(storedChild.parentID, baseID)
         XCTAssertEqual(storedChild.disabledFolderNames, ["Beta"])
 
+        // Reverting Beta to the base (which leaves it enabled) drops the local
+        // override, so the child once again matches the base.
+        let disabledBeta = try XCTUnwrap(viewModel.state.mods.first { $0.displayName == "Beta" })
+        await viewModel.setMod(disabledBeta, enabled: true)
+        storedChild = try reloadSet(id: childID, install: install, mods: viewModel.state.mods)
+        XCTAssertEqual(storedChild.disabledFolderNames, [])
+        XCTAssertEqual(storedChild.parentID, baseID)
+
+        // Re-disable Beta so the apply assertion below exercises an override.
+        let enabledBeta = try XCTUnwrap(viewModel.state.mods.first { $0.displayName == "Beta" })
+        await viewModel.setMod(enabledBeta, enabled: false)
+
         // Applying the child resolves the chain: Alpha (inherited) and Beta
         // (own) are disabled, Gamma stays enabled.
         await viewModel.selectModSet(id: baseID)

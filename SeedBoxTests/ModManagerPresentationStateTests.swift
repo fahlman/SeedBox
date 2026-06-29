@@ -511,6 +511,56 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         XCTAssertFalse(ModManagerCommand.deleteSelectedMod.isEnabled(in: presentationState))
     }
 
+    func testSelectedSetInheritanceContextClassifiesInheritedAndOverriddenMods() throws {
+        let install = try makeInstall()
+        try makeInstalledMod(name: "Alpha", in: install, folderName: "Alpha")
+        try makeInstalledMod(name: "Beta", in: install, folderName: "Beta")
+        let mods = try ModLibrary.scan(install: install)
+        let base = ModSet(id: "base", name: "Base", disabledFolderNames: ["Alpha"])
+        let child = ModSet(
+            id: "child",
+            name: "Child",
+            disabledFolderNames: ["Beta"],
+            parentID: "base"
+        )
+        var state = makeState(install: install, mods: mods, modSets: [base, child])
+        state.selectedModSetID = "child"
+        let presentationState = ModManagerPresentationState(
+            state: state,
+            searchText: "",
+            selectedModIDs: [],
+            selectedLibraryItemID: ModLibrarySelection.modSetID("child")
+        )
+
+        let context = try XCTUnwrap(presentationState.selectedSetInheritanceContext)
+        XCTAssertEqual(context.baseSetName, "Base")
+
+        let alpha = try XCTUnwrap(mods.first { $0.enabledFolderName == "Alpha" })
+        let beta = try XCTUnwrap(mods.first { $0.enabledFolderName == "Beta" })
+        XCTAssertEqual(context.state(for: alpha), .inherited)
+        XCTAssertEqual(context.state(for: beta), .overridden)
+        // Alpha is disabled by the base, Beta is not.
+        XCTAssertFalse(context.baseEnabled(for: alpha))
+        XCTAssertTrue(context.baseEnabled(for: beta))
+    }
+
+    func testStandaloneSetHasNoInheritanceContext() throws {
+        let install = try makeInstall()
+        let mods = try ModLibrary.scan(install: install)
+        let standalone = ModSet(id: "solo", name: "Solo", disabledFolderNames: [])
+        var state = makeState(install: install, mods: mods, modSets: [standalone])
+        state.selectedModSetID = "solo"
+        let presentationState = ModManagerPresentationState(
+            state: state,
+            searchText: "",
+            selectedModIDs: [],
+            selectedLibraryItemID: ModLibrarySelection.modSetID("solo")
+        )
+
+        XCTAssertNil(presentationState.selectedSetInheritanceContext)
+        XCTAssertFalse(presentationState.canRevertSelectedModToBase)
+    }
+
     func testModSetItemsCarryInheritanceIndicator() throws {
         let install = try makeInstall()
         let mods = try ModLibrary.scan(install: install)

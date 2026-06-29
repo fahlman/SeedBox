@@ -171,10 +171,13 @@ struct ModManagerView: View {
                 selectedModIDs: $selectedModIDs,
                 selectedMod: presentationState.selection.mod,
                 availableUpdate: presentationState.state.availableUpdate(for:),
+                inheritanceContext: presentationState.selectedSetInheritanceContext,
+                canRevertSelectedMod: presentationState.canRevertSelectedModToBase,
                 addMods: addMods,
                 requestSetModEnabled: requestSetModEnabled,
                 revealSelectedMod: revealSelectedMod,
-                requestDeleteSelectedMod: requestDeleteSelectedMod
+                requestDeleteSelectedMod: requestDeleteSelectedMod,
+                revertSelectedModToBase: revertSelectedModToBase
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 

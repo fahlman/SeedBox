@@ -9,10 +9,13 @@ struct ModList: View {
     @Binding var selectedModIDs: Set<String>
     var selectedMod: ModInfo?
     var availableUpdate: (ModInfo) -> ModAvailableUpdate?
+    var inheritanceContext: ModSetInheritanceContext?
+    var canRevertSelectedMod: Bool
     var addMods: () -> Void
     var requestSetModEnabled: (ModInfo, Bool) -> Void
     var revealSelectedMod: () -> Void
     var requestDeleteSelectedMod: () -> Void
+    var revertSelectedModToBase: () -> Void
     @SceneStorage("modList.sortColumn") private var storedSortColumn = ModListSortColumn.mod.rawValue
     @SceneStorage("modList.sortDirection") private var storedSortDirection = ModListSortDirection.forward.rawValue
 
@@ -34,16 +37,22 @@ struct ModList: View {
             Table(rows, selection: $selectedModIDs, sortOrder: sortOrderBinding) {
                 if showsStateColumn {
                     TableColumn(AppStrings.Table.state, value: \.enabledSortText) { row in
-                        Toggle(row.enabledText, isOn: Binding(
-                            get: { row.mod.isEnabled },
-                            set: { enabled in
-                                requestSetModEnabled(row.mod, enabled)
+                        HStack(spacing: 6) {
+                            Toggle(row.enabledText, isOn: Binding(
+                                get: { row.mod.isEnabled },
+                                set: { enabled in
+                                    requestSetModEnabled(row.mod, enabled)
+                                }
+                            ))
+                            .labelsHidden()
+                            .disabled(!canEditModStates)
+
+                            if let inheritanceContext {
+                                inheritanceIndicator(for: row.mod, context: inheritanceContext)
                             }
-                        ))
-                        .labelsHidden()
-                        .disabled(!canEditModStates)
+                        }
                     }
-                    .width(min: 76, ideal: 92, max: 110)
+                    .width(min: 76, ideal: inheritanceContext == nil ? 92 : 108, max: 130)
                 }
 
                 TableColumn(AppStrings.Table.mod, value: \.nameSortText) { row in
@@ -77,6 +86,17 @@ struct ModList: View {
                 .width(min: 110, ideal: 130, max: 170)
             }
             .contextMenu {
+                if inheritanceContext != nil {
+                    Button {
+                        revertSelectedModToBase()
+                    } label: {
+                        Label(AppStrings.Table.revertToBaseSet, systemImage: "arrow.uturn.backward")
+                    }
+                    .disabled(!canRevertSelectedMod)
+
+                    Divider()
+                }
+
                 Button {
                     revealSelectedMod()
                 } label: {
@@ -91,6 +111,27 @@ struct ModList: View {
                 }
                 .disabled(selectedMod == nil || !canEditModStates)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func inheritanceIndicator(
+        for mod: ModInfo,
+        context: ModSetInheritanceContext
+    ) -> some View {
+        switch context.state(for: mod) {
+        case .inherited:
+            Image(systemName: "arrow.triangle.branch")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .help(AppStrings.Table.inheritedFromBaseSet(context.baseSetName))
+                .accessibilityLabel(AppStrings.Table.inheritedFromBaseSet(context.baseSetName))
+        case .overridden:
+            Image(systemName: "pencil.circle.fill")
+                .font(.caption2)
+                .foregroundStyle(.orange)
+                .help(AppStrings.Table.changedInThisSet)
+                .accessibilityLabel(AppStrings.Table.changedInThisSet)
         }
     }
 

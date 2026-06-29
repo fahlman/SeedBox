@@ -107,6 +107,42 @@ struct ModManagerPresentationState {
         return modSet(withID: selectedModSetID)
     }
 
+    /// Inheritance context for the selected Mod Set, or nil when the selection
+    /// is standalone (so the table shows no inheritance indicators).
+    var selectedSetInheritanceContext: ModSetInheritanceContext? {
+        guard
+            let selectedSet,
+            let parentID = selectedSet.parentID,
+            let parent = state.modSets.first(where: { $0.id == parentID })
+        else {
+            return nil
+        }
+
+        let parentDisabledTokens = ModSetResolver
+            .resolve(parent, in: state.modSets)
+            .disabledFolderTokens
+        return ModSetInheritanceContext(
+            baseSetName: parent.name,
+            parentDisabledTokens: parentDisabledTokens,
+            ownDisabledTokens: selectedSet.disabledFolderTokens,
+            ownEnabledTokens: selectedSet.enabledFolderTokens
+        )
+    }
+
+    /// Whether the selected mod can be reverted to its base set state — only
+    /// when the selected set inherits, the mod is locally overridden, and mod
+    /// states are editable.
+    var canRevertSelectedModToBase: Bool {
+        guard
+            canEditDisplayedModStates,
+            let mod = selection.mod,
+            let context = selectedSetInheritanceContext
+        else {
+            return false
+        }
+        return context.state(for: mod) == .overridden
+    }
+
     var selectedRenamableSet: ModSet? {
         guard let selectedSet, selectedSet.isUserRenamable else {
             return nil

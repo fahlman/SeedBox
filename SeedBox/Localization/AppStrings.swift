@@ -122,6 +122,12 @@ enum AppStrings {
         static let state = String(localized: "State")
         static let type = String(localized: "Type")
         static let updates = String(localized: "Updates")
+        static let changedInThisSet = String(localized: "Changed in this set")
+        static let revertToBaseSet = String(localized: "Revert to Base Set")
+
+        static func inheritedFromBaseSet(_ baseSetName: String) -> String {
+            String(localized: "Inherited from \(baseSetName)")
+        }
     }
 
     enum Toolbar {
