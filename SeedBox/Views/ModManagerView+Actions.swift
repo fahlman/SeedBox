@@ -348,11 +348,12 @@ extension ModManagerView {
     }
 
     func syncAppShortcutRequest() {
-        guard let request = SeedBoxShortcutRouter.shared.consumePendingRequest() else {
-            return
+        if let request = SeedBoxShortcutRouter.shared.consumePendingRequest() {
+            openRoute(request.route)
         }
-
-        openRoute(request.route)
+        if let route = SeedBoxShortcutRouter.shared.consumePendingRoute() {
+            openRoute(route)
+        }
     }
 
     func requestSetModEnabled(_ mod: ModInfo, enabled: Bool) {

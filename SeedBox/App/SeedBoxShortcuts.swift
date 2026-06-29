@@ -27,6 +27,7 @@ final class SeedBoxShortcutRouter {
 
     private let notificationCenter: NotificationCenter
     private var pendingRequest: SeedBoxShortcutRequest?
+    private var pendingRoute: SeedBoxRoute?
 
     init(notificationCenter: NotificationCenter = .default) {
         self.notificationCenter = notificationCenter
@@ -40,11 +41,27 @@ final class SeedBoxShortcutRouter {
         )
     }
 
+    /// Requests navigation to an arbitrary route (e.g. from a Spotlight result).
+    func request(route: SeedBoxRoute) {
+        pendingRoute = route
+        notificationCenter.post(
+            name: Self.didRequestShortcutNotification,
+            object: nil
+        )
+    }
+
     func consumePendingRequest() -> SeedBoxShortcutRequest? {
         defer {
             pendingRequest = nil
         }
         return pendingRequest
+    }
+
+    func consumePendingRoute() -> SeedBoxRoute? {
+        defer {
+            pendingRoute = nil
+        }
+        return pendingRoute
     }
 }
 

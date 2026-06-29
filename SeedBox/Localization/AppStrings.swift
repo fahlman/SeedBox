@@ -129,6 +129,15 @@ enum AppStrings {
         static let revertToBaseSet = String(localized: "Revert to Base Set")
     }
 
+    enum Spotlight {
+        static let modSetDescription = String(localized: "Mod Set")
+        static let smartModSetDescription = String(localized: "Smart Mod Set")
+
+        static func version(_ version: String) -> String {
+            String(localized: "Version \(version)")
+        }
+    }
+
     enum SeedBoxSet {
         static let malformedData = String(localized: "This file isn’t a valid Seed Box Mod Set.")
         static let unsupportedKind = String(localized: "This Seed Box file isn’t a Mod Set.")

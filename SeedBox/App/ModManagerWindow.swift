@@ -1,4 +1,5 @@
 import AppKit
+import CoreSpotlight
 import SwiftUI
 
 struct ModManagerWindow: View {
@@ -20,6 +21,15 @@ struct ModManagerWindow: View {
             await restoreWindowStateIfNeeded()
             await viewModel.refresh()
             synchronizeLibrarySelectionWithAvailableItems()
+            SeedBoxSpotlightIndexer.reindex(from: viewModel.state)
+        }
+        .onChange(of: viewModel.state.mods.map(\.id)) {
+            // Reindex only when mods are added or removed (id is stable across
+            // enable/disable), not on every toggle.
+            SeedBoxSpotlightIndexer.reindex(from: viewModel.state)
+        }
+        .onContinueUserActivity(CSSearchableItemActionType) { activity in
+            openSpotlightResult(activity)
         }
         .onReceive(
             NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
@@ -36,9 +46,11 @@ struct ModManagerWindow: View {
         }
         .onChange(of: viewModel.state.modSets) {
             synchronizeLibrarySelectionWithAvailableItems()
+            SeedBoxSpotlightIndexer.reindex(from: viewModel.state)
         }
         .onChange(of: viewModel.state.userSmartModSets) {
             synchronizeLibrarySelectionWithAvailableItems()
+            SeedBoxSpotlightIndexer.reindex(from: viewModel.state)
         }
         .onChange(of: selectedLibraryItemID) {
             selectedModIDs = []
@@ -61,6 +73,17 @@ struct ModManagerWindow: View {
                 url.stopAccessingSecurityScopedResource()
             }
         }
+    }
+
+    /// Routes a tapped Spotlight result to the matching in-app view.
+    private func openSpotlightResult(_ activity: NSUserActivity) {
+        guard
+            let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
+            let route = SeedBoxSpotlightIndex.route(forSpotlightIdentifier: identifier)
+        else {
+            return
+        }
+        SeedBoxShortcutRouter.shared.request(route: route)
     }
 
     private var windowTitle: String {
