@@ -43,6 +43,24 @@ struct ModManagerWindow: View {
         .onChange(of: selectedLibraryItemID) {
             selectedModIDs = []
         }
+        .onOpenURL { url in
+            openSeedBoxSetFile(url)
+        }
+    }
+
+    /// Imports a `.seedboxset` file the user double-clicked or opened with Seed
+    /// Box. Security-scoped access is held for the read.
+    private func openSeedBoxSetFile(_ url: URL) {
+        guard url.pathExtension.lowercased() == SeedBoxSetDocument.fileExtension else {
+            return
+        }
+        Task {
+            let didAccess = url.startAccessingSecurityScopedResource()
+            await viewModel.importModSet(fromFileAt: url)
+            if didAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
     }
 
     private var windowTitle: String {

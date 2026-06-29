@@ -102,6 +102,8 @@ enum AppStrings {
         static let deleteModSet = String(localized: "Delete Mod Set")
         static let deleteSelectedMod = String(localized: "Delete Selected Mod")
         static let duplicateModSet = String(localized: "Duplicate Mod Set")
+        static let exportModSet = String(localized: "Export Mod Set...")
+        static let importModSet = String(localized: "Import Mod Set...")
         static let modSetMenu = String(localized: "Mod Set")
         static let modsMenu = String(localized: "Mods")
         static let newModSet = String(localized: "New Mod Set")

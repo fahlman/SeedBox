@@ -1,4 +1,5 @@
 import Foundation
+import UniformTypeIdentifiers
 
 /// Errors raised when reading an untrusted `.seedboxset` file.
 enum SeedBoxSetError: Error, Equatable, LocalizedError, Sendable {
@@ -48,6 +49,12 @@ struct SeedBoxSetDocument: Codable, Equatable, Sendable {
     static let contentTypeIdentifier = "com.fahlsing.seedbox.modset"
     static let modSetKind = "modSet"
     static let generatorName = "Seed Box"
+
+    /// The registered content type, used by file panels and document opening.
+    /// Falls back to JSON before the exported type is registered.
+    static var contentType: UTType {
+        UTType(contentTypeIdentifier) ?? .json
+    }
 
     var schemaVersion: Int
     var kind: String
