@@ -175,7 +175,9 @@ struct RestoreHistorySheet: View {
         if comparison.hasDifferences {
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 4) {
                 GridRow {
-                    Text("")
+                    // Empty corner cell; verbatim so it is not extracted as a
+                    // localizable string.
+                    Text(verbatim: "")
                     Text(AppStrings.ModInspector.archived)
                         .fontWeight(.semibold)
                     Text(AppStrings.RestoreHistory.comparisonInstalledColumn)

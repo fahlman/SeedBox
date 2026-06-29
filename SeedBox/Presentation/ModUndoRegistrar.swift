@@ -39,7 +39,10 @@ enum ModUndoRegistrar {
                     appliedValue: previousEnabled
                 )
 
-                Task { await viewModel.setMod(current, enabled: previousEnabled) }
+                // Detached so the inverse does not inherit the caller's
+                // task-local context (e.g. an async test's), whose teardown can
+                // race the spawned task. The call still hops to the main actor.
+                Task.detached { await viewModel.setMod(current, enabled: previousEnabled) }
             }
         }
 
@@ -70,7 +73,7 @@ enum ModUndoRegistrar {
                     appliedSetID: previousSetID
                 )
 
-                Task { await viewModel.selectModSet(id: previousSetID) }
+                Task.detached { await viewModel.selectModSet(id: previousSetID) }
             }
         }
 
@@ -105,7 +108,7 @@ enum ModUndoRegistrar {
                     newName: previousName
                 )
 
-                Task { await viewModel.renameSelectedModSet(to: previousName) }
+                Task.detached { await viewModel.renameSelectedModSet(to: previousName) }
             }
         }
 
