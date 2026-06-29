@@ -213,6 +213,37 @@ final class ModUndoRegistrarTests: SeedBoxTestCase {
         XCTAssertEqual(viewModel.state.modSets.first { $0.id == copy.id }?.name, "Favorites Copy")
     }
 
+    func testUndoDeleteModRestoresItFromArchive() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        try makeInstalledMod(name: "Content Patcher", in: install, folderName: "ContentPatcher")
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+
+        let mod = try XCTUnwrap(viewModel.state.mods.first { $0.displayName == "Content Patcher" })
+        await viewModel.deleteMod(mod)
+        XCTAssertFalse(viewModel.state.mods.contains { $0.displayName == "Content Patcher" })
+        XCTAssertTrue(ModUndoRegistrar.canUndoDeletion(of: "ContentPatcher", in: viewModel.state))
+
+        undoManager.beginUndoGrouping()
+        ModUndoRegistrar.registerModDeletion(
+            in: undoManager,
+            viewModel: viewModel,
+            folderName: "ContentPatcher"
+        )
+        undoManager.endUndoGrouping()
+
+        // Undo restores the archived mod.
+        undoManager.undo()
+        try await waitUntil { viewModel.state.mods.contains { $0.displayName == "Content Patcher" } }
+        XCTAssertTrue(undoManager.canRedo)
+
+        // Redo deletes it again.
+        undoManager.redo()
+        try await waitUntil { !viewModel.state.mods.contains { $0.displayName == "Content Patcher" } }
+    }
+
     private func installedState(of displayName: String, in viewModel: ModManagerViewModel) -> Bool? {
         viewModel.state.mods.first { $0.displayName == displayName }?.isEnabled
     }

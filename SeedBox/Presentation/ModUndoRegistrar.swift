@@ -115,6 +115,63 @@ enum ModUndoRegistrar {
         undoManager.setActionName(AppStrings.Undo.renameModSet)
     }
 
+    /// Whether a just-deleted mod can still be restored (its deleted archive is
+    /// present), used to decide whether to register the undo at all.
+    static func canUndoDeletion(of folderName: String, in state: ModManagerState) -> Bool {
+        mostRecentDeletedArchive(for: folderName, in: state) != nil
+    }
+
+    /// Registers undo for deleting (archiving) a mod. Undo restores the mod's
+    /// most recent deleted archive; redo deletes it again. Each direction looks
+    /// up the current archive/mod by folder name and skips if it is gone, so a
+    /// later manual change is not clobbered.
+    static func registerModDeletion(
+        in undoManager: UndoManager,
+        viewModel: ModManagerViewModel,
+        folderName: String
+    ) {
+        undoManager.registerUndo(withTarget: viewModel) { viewModel in
+            MainActor.assumeIsolated {
+                guard let archive = mostRecentDeletedArchive(for: folderName, in: viewModel.state) else {
+                    return
+                }
+                registerModRestoration(in: undoManager, viewModel: viewModel, folderName: folderName)
+                Task.detached { await viewModel.restoreArchivedMods([archive]) }
+            }
+        }
+        undoManager.setActionName(AppStrings.Undo.deleteMod)
+    }
+
+    private static func registerModRestoration(
+        in undoManager: UndoManager,
+        viewModel: ModManagerViewModel,
+        folderName: String
+    ) {
+        undoManager.registerUndo(withTarget: viewModel) { viewModel in
+            MainActor.assumeIsolated {
+                let token = folderName.normalizedFolderToken
+                guard let mod = viewModel.state.mods.first(where: {
+                    $0.enabledFolderName.normalizedFolderToken == token
+                }) else {
+                    return
+                }
+                registerModDeletion(in: undoManager, viewModel: viewModel, folderName: folderName)
+                Task.detached { await viewModel.deleteMod(mod) }
+            }
+        }
+        undoManager.setActionName(AppStrings.Undo.deleteMod)
+    }
+
+    private static func mostRecentDeletedArchive(
+        for folderName: String,
+        in state: ModManagerState
+    ) -> ArchivedModInfo? {
+        let token = folderName.normalizedFolderToken
+        return state.archivedMods
+            .filter { $0.reason == .deleted && $0.enabledFolderName.normalizedFolderToken == token }
+            .max { ($0.archivedDate ?? .distantPast) < ($1.archivedDate ?? .distantPast) }
+    }
+
     /// Registers undo for an action that created or removed a Mod Set.
     ///
     /// `deleted` describes the state the action produced: `true` when the set

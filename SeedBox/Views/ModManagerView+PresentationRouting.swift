@@ -154,6 +154,14 @@ extension ModManagerView {
                 Task {
                     await viewModel.deleteMod(mod)
                     removeSelectedModID(mod.id)
+                    if let undoManager,
+                       ModUndoRegistrar.canUndoDeletion(of: mod.enabledFolderName, in: viewModel.state) {
+                        ModUndoRegistrar.registerModDeletion(
+                            in: undoManager,
+                            viewModel: viewModel,
+                            folderName: mod.enabledFolderName
+                        )
+                    }
                     presentation.dismissAlert()
                 }
             }
