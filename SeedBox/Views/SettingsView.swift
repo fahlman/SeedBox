@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var diagnosticsSummary = CrashDiagnosticsSummary.empty
     @State private var diagnosticsStatus: StatusEvent?
     @State private var modUpdateStatus: StatusEvent?
+    @AppStorage(MenuBarCompanion.enabledDefaultsKey) private var menuBarCompanionEnabled = false
 
     private var presentationState: ModManagerSettingsPresentationState {
         ModManagerSettingsPresentationState(viewModel: viewModel)
@@ -68,6 +69,14 @@ struct SettingsView: View {
 
                     Spacer()
                 }
+            }
+
+            Section(AppStrings.Settings.menuBarSection) {
+                Toggle(AppStrings.MenuBar.showItem, isOn: $menuBarCompanionEnabled)
+
+                Text(AppStrings.Settings.menuBarFooter)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section(AppStrings.Settings.addingModsSection) {

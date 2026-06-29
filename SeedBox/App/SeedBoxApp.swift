@@ -31,10 +31,18 @@ struct SeedBoxApp: App {
     }
 }
 
+/// Shared constants for the optional menu bar companion.
+enum MenuBarCompanion {
+    static let enabledDefaultsKey = "seedbox.menuBarCompanionEnabled"
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let menuBarController = MenuBarController()
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         CrashDiagnosticsCollector.shared.start()
+        menuBarController.start()
     }
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {

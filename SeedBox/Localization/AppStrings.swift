@@ -129,6 +129,34 @@ enum AppStrings {
         static let revertToBaseSet = String(localized: "Revert to Base Set")
     }
 
+    enum MenuBar {
+        static let showItem = String(localized: "Show Menu Bar Item")
+        static let noFolder = String(localized: "No Mods folder chosen")
+        static let openSeedBox = String(localized: "Open Seed Box")
+        static let openProblems = String(localized: "Open Problems")
+        static let openWarnings = String(localized: "Open Warnings")
+        static let openErrors = String(localized: "Open Errors")
+        static let openRestoreHistory = String(localized: "Open Restore History")
+        static let checkForUpdates = String(localized: "Check for Updates")
+        static let lastSessionProblems = String(localized: "Last session had problems")
+
+        static func currentSet(_ name: String) -> String {
+            String(localized: "Mod Set: \(name)")
+        }
+
+        static func warnings(_ count: Int) -> String {
+            String(localized: "\(count) Warnings")
+        }
+
+        static func errors(_ count: Int) -> String {
+            String(localized: "\(count) Errors")
+        }
+
+        static func updates(_ count: Int) -> String {
+            String(localized: "\(count) Updates")
+        }
+    }
+
     enum Spotlight {
         static let modSetDescription = String(localized: "Mod Set")
         static let smartModSetDescription = String(localized: "Smart Mod Set")
@@ -171,6 +199,8 @@ enum AppStrings {
     enum Settings {
         static let addingModsSection = String(localized: "Adding Mods")
         static let archivesSection = String(localized: "Archives")
+        static let menuBarSection = String(localized: "Menu Bar")
+        static let menuBarFooter = String(localized: "Show a Seed Box item in the menu bar for quick status and actions.")
         static let automaticallyPruneExpiredArchives = String(localized: "Automatically prune expired archives")
         static let smapiLogSection = String(localized: "SMAPI Log")
         static let logFolder = String(localized: "Log Folder")
