@@ -47,12 +47,10 @@ struct ModList: View {
                             .labelsHidden()
                             .disabled(!canEditModStates)
 
-                            if let inheritanceContext {
-                                inheritanceIndicator(for: row.mod, context: inheritanceContext)
-                            }
+                            overrideIndicator(for: row.mod)
                         }
                     }
-                    .width(min: 76, ideal: inheritanceContext == nil ? 92 : 108, max: 130)
+                    .width(min: 76, ideal: 100, max: 130)
                 }
 
                 TableColumn(AppStrings.Table.mod, value: \.nameSortText) { row in
@@ -114,19 +112,12 @@ struct ModList: View {
         }
     }
 
+    /// Marks only mods whose state is a local override of the base set. Inherited
+    /// mods are left unmarked so the table stays quiet when a set inherits; the
+    /// sidebar already signals that the set has a base.
     @ViewBuilder
-    private func inheritanceIndicator(
-        for mod: ModInfo,
-        context: ModSetInheritanceContext
-    ) -> some View {
-        switch context.state(for: mod) {
-        case .inherited:
-            Image(systemName: "arrow.triangle.branch")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .help(AppStrings.Table.inheritedFromBaseSet(context.baseSetName))
-                .accessibilityLabel(AppStrings.Table.inheritedFromBaseSet(context.baseSetName))
-        case .overridden:
+    private func overrideIndicator(for mod: ModInfo) -> some View {
+        if inheritanceContext?.state(for: mod) == .overridden {
             Image(systemName: "pencil.circle.fill")
                 .font(.caption2)
                 .foregroundStyle(.orange)
