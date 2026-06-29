@@ -113,6 +113,35 @@ final class SeedBoxSetDocumentTests: SeedBoxTestCase {
         XCTAssertEqual(decoded.modSet.name, "x")
     }
 
+    func testImportedModSetAvoidsNameCollisions() throws {
+        let existing = [
+            ModSet(id: "a", name: "Favorites", disabledFolderNames: []),
+            ModSet(id: "b", name: "Favorites 2", disabledFolderNames: [])
+        ]
+        let document = SeedBoxSetCodec.makeDocument(
+            name: "Favorites",
+            disabledFolderNames: ["ContentPatcher"],
+            installedMods: []
+        )
+
+        let imported = SeedBoxSetCodec.importedModSet(from: document, existingSets: existing)
+        XCTAssertEqual(imported.name, "Favorites 3")
+        XCTAssertEqual(imported.disabledFolderNames, ["ContentPatcher"])
+        XCTAssertFalse(existing.contains { $0.id == imported.id })
+    }
+
+    func testImportedModSetKeepsUniqueNameUnchanged() throws {
+        let existing = [ModSet(id: "a", name: "Favorites", disabledFolderNames: [])]
+        let document = SeedBoxSetCodec.makeDocument(
+            name: "Stardew Valley Expanded",
+            disabledFolderNames: [],
+            installedMods: []
+        )
+
+        let imported = SeedBoxSetCodec.importedModSet(from: document, existingSets: existing)
+        XCTAssertEqual(imported.name, "Stardew Valley Expanded")
+    }
+
     private func makeMod(
         folder: String,
         name: String,

@@ -176,6 +176,37 @@ enum SeedBoxSetCodec {
         )
     }
 
+    /// Builds a Mod Set ready to add to `existingSets`, giving it a fresh id and
+    /// a name that does not collide with an existing set (appending a number
+    /// when needed) so importing never overwrites or duplicates a set.
+    static func importedModSet(
+        from document: SeedBoxSetDocument,
+        existingSets: [ModSet],
+        id: String = UUID().uuidString
+    ) -> ModSet {
+        let baseName = document.modSet.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return ModSet(
+            id: id,
+            name: uniqueName(baseName, among: existingSets),
+            disabledFolderNames: document.modSet.disabledMods.map(\.folderName)
+        )
+    }
+
+    private static func uniqueName(_ base: String, among existingSets: [ModSet]) -> String {
+        let takenNames = Set(
+            existingSets.map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        )
+        guard takenNames.contains(base.lowercased()) else {
+            return base
+        }
+
+        var suffix = 2
+        while takenNames.contains("\(base) \(suffix)".lowercased()) {
+            suffix += 1
+        }
+        return "\(base) \(suffix)"
+    }
+
     /// Minimal header used to validate version and kind before a full decode.
     private struct Envelope: Decodable {
         var schemaVersion: Int
