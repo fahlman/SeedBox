@@ -102,8 +102,23 @@ extension ModManagerView {
         }
 
         presentation.dismissSheet()
+        let restoredFolderNames = archivedMods.map(\.enabledFolderName)
         Task {
             await viewModel.restoreArchivedMods(archivedMods)
+
+            // Register one undo (grouped within this event) that re-archives all
+            // the mods this restore brought back.
+            if let undoManager {
+                for folderName in restoredFolderNames
+                where ModUndoRegistrar.canUndoRestoration(of: folderName, in: viewModel.state) {
+                    ModUndoRegistrar.registerModRestoration(
+                        in: undoManager,
+                        viewModel: viewModel,
+                        folderName: folderName,
+                        actionName: AppStrings.Undo.restoreMod
+                    )
+                }
+            }
         }
     }
 

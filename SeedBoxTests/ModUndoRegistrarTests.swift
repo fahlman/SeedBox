@@ -244,6 +244,40 @@ final class ModUndoRegistrarTests: SeedBoxTestCase {
         try await waitUntil { !viewModel.state.mods.contains { $0.displayName == "Content Patcher" } }
     }
 
+    func testUndoRestoreArchivedModReArchivesIt() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        try makeInstalledMod(name: "Content Patcher", in: install, folderName: "ContentPatcher")
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+
+        // Delete then restore the mod, so we have a genuine restore to undo.
+        let mod = try XCTUnwrap(viewModel.state.mods.first { $0.displayName == "Content Patcher" })
+        await viewModel.deleteMod(mod)
+        let archive = try XCTUnwrap(viewModel.state.archivedMods.first { $0.reason == .deleted })
+        await viewModel.restoreArchivedMods([archive])
+        XCTAssertTrue(viewModel.state.mods.contains { $0.displayName == "Content Patcher" })
+        XCTAssertTrue(ModUndoRegistrar.canUndoRestoration(of: "ContentPatcher", in: viewModel.state))
+
+        undoManager.beginUndoGrouping()
+        ModUndoRegistrar.registerModRestoration(
+            in: undoManager,
+            viewModel: viewModel,
+            folderName: "ContentPatcher"
+        )
+        undoManager.endUndoGrouping()
+
+        // Undo re-archives the mod (removes it from the install).
+        undoManager.undo()
+        try await waitUntil { !viewModel.state.mods.contains { $0.displayName == "Content Patcher" } }
+        XCTAssertTrue(undoManager.canRedo)
+
+        // Redo restores it again.
+        undoManager.redo()
+        try await waitUntil { viewModel.state.mods.contains { $0.displayName == "Content Patcher" } }
+    }
+
     private func installedState(of displayName: String, in viewModel: ModManagerViewModel) -> Bool? {
         viewModel.state.mods.first { $0.displayName == displayName }?.isEnabled
     }

@@ -121,31 +121,49 @@ enum ModUndoRegistrar {
         mostRecentDeletedArchive(for: folderName, in: state) != nil
     }
 
+    /// Whether a just-restored mod can be re-archived (it is currently
+    /// installed), used to decide whether to register the undo.
+    static func canUndoRestoration(of folderName: String, in state: ModManagerState) -> Bool {
+        let token = folderName.normalizedFolderToken
+        return state.mods.contains { $0.enabledFolderName.normalizedFolderToken == token }
+    }
+
     /// Registers undo for deleting (archiving) a mod. Undo restores the mod's
     /// most recent deleted archive; redo deletes it again. Each direction looks
     /// up the current archive/mod by folder name and skips if it is gone, so a
-    /// later manual change is not clobbered.
+    /// later manual change is not clobbered. `actionName` names the originating
+    /// action and is preserved across the undo/redo cycle.
     static func registerModDeletion(
         in undoManager: UndoManager,
         viewModel: ModManagerViewModel,
-        folderName: String
+        folderName: String,
+        actionName: String = AppStrings.Undo.deleteMod
     ) {
         undoManager.registerUndo(withTarget: viewModel) { viewModel in
             MainActor.assumeIsolated {
                 guard let archive = mostRecentDeletedArchive(for: folderName, in: viewModel.state) else {
                     return
                 }
-                registerModRestoration(in: undoManager, viewModel: viewModel, folderName: folderName)
+                registerModRestoration(
+                    in: undoManager,
+                    viewModel: viewModel,
+                    folderName: folderName,
+                    actionName: actionName
+                )
                 Task.detached { await viewModel.restoreArchivedMods([archive]) }
             }
         }
-        undoManager.setActionName(AppStrings.Undo.deleteMod)
+        undoManager.setActionName(actionName)
     }
 
-    private static func registerModRestoration(
+    /// Registers undo for restoring an archived mod. Undo deletes (re-archives)
+    /// it; redo restores it. Used both as the inverse step of a deletion and as
+    /// the entry point when the user restores from Restore History.
+    static func registerModRestoration(
         in undoManager: UndoManager,
         viewModel: ModManagerViewModel,
-        folderName: String
+        folderName: String,
+        actionName: String = AppStrings.Undo.restoreMod
     ) {
         undoManager.registerUndo(withTarget: viewModel) { viewModel in
             MainActor.assumeIsolated {
@@ -155,11 +173,16 @@ enum ModUndoRegistrar {
                 }) else {
                     return
                 }
-                registerModDeletion(in: undoManager, viewModel: viewModel, folderName: folderName)
+                registerModDeletion(
+                    in: undoManager,
+                    viewModel: viewModel,
+                    folderName: folderName,
+                    actionName: actionName
+                )
                 Task.detached { await viewModel.deleteMod(mod) }
             }
         }
-        undoManager.setActionName(AppStrings.Undo.deleteMod)
+        undoManager.setActionName(actionName)
     }
 
     private static func mostRecentDeletedArchive(
