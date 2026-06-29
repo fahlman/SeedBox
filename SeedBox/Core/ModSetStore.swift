@@ -57,14 +57,16 @@ enum ModSetStore {
     static func createSet(
         named name: String,
         from sourceSet: ModSet,
-        existingSets: [ModSet]
+        existingSets: [ModSet],
+        parentID: String? = nil
     ) throws -> ModSet {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else {
             return ModSet(
                 id: UUID().uuidString,
                 name: AppStrings.ModSetNames.untitledSet,
-                disabledFolderNames: normalizeFolderNames(sourceSet.disabledFolderNames)
+                disabledFolderNames: normalizeFolderNames(sourceSet.disabledFolderNames),
+                parentID: parentID
             )
         }
 
@@ -79,7 +81,8 @@ enum ModSetStore {
         return ModSet(
             id: UUID().uuidString,
             name: trimmedName,
-            disabledFolderNames: normalizeFolderNames(sourceSet.disabledFolderNames)
+            disabledFolderNames: normalizeFolderNames(sourceSet.disabledFolderNames),
+            parentID: parentID
         )
     }
 

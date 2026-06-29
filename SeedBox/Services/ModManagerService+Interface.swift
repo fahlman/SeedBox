@@ -164,12 +164,16 @@ extension ModManagerService {
         commit(pruneExpiredArchives(in: state))
     }
 
-    func createModSet(named name: String, from sourceSet: ModSet? = nil) -> ModManagerState {
-        commit(createModSet(named: name, from: sourceSet, in: state))
+    func createModSet(
+        named name: String,
+        from sourceSet: ModSet? = nil,
+        parentID: String? = nil
+    ) -> ModManagerState {
+        commit(createModSet(named: name, from: sourceSet, parentID: parentID, in: state))
     }
 
-    func duplicateSelectedModSet(named name: String) -> ModManagerState {
-        commit(duplicateSelectedModSet(named: name, in: state))
+    func duplicateSelectedModSet(named name: String, parentID: String? = nil) -> ModManagerState {
+        commit(duplicateSelectedModSet(named: name, parentID: parentID, in: state))
     }
 
     func renameSelectedModSet(to requestedName: String) -> ModManagerState {

@@ -511,6 +511,49 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         XCTAssertFalse(ModManagerCommand.deleteSelectedMod.isEnabled(in: presentationState))
     }
 
+    func testAvailableBaseSetsForNewSetIncludesAllSetsSorted() throws {
+        let install = try makeInstall()
+        let mods = try ModLibrary.scan(install: install)
+        let sets = [
+            ModSet(id: "b", name: "Bravo", disabledFolderNames: []),
+            ModSet(id: "a", name: "Alpha", disabledFolderNames: [])
+        ]
+        let state = makeState(install: install, mods: mods, modSets: sets)
+        let presentationState = ModManagerPresentationState(
+            state: state,
+            searchText: "",
+            selectedModIDs: [],
+            selectedLibraryItemID: ModLibrarySelection.modSetID("a")
+        )
+
+        // Creating a brand-new set: every existing set is an eligible base,
+        // sorted by name.
+        let eligible = presentationState.availableBaseSets(forEditing: nil)
+        XCTAssertEqual(eligible.map(\.name), ["Alpha", "Bravo"])
+    }
+
+    func testAvailableBaseSetsExcludesSelfAndCycleCreatingChoices() throws {
+        let install = try makeInstall()
+        let mods = try ModLibrary.scan(install: install)
+        let sets = [
+            ModSet(id: "root", name: "Root", disabledFolderNames: []),
+            ModSet(id: "child", name: "Child", disabledFolderNames: [], parentID: "root"),
+            ModSet(id: "other", name: "Other", disabledFolderNames: [])
+        ]
+        let state = makeState(install: install, mods: mods, modSets: sets)
+        let presentationState = ModManagerPresentationState(
+            state: state,
+            searchText: "",
+            selectedModIDs: [],
+            selectedLibraryItemID: ModLibrarySelection.modSetID("root")
+        )
+
+        // Editing "root": it cannot inherit from itself or from its descendant
+        // "child" (that would form a cycle), but "other" is fine.
+        let eligible = presentationState.availableBaseSets(forEditing: "root")
+        XCTAssertEqual(eligible.map(\.id), ["other"])
+    }
+
     private func makeState(
         install: StardewInstall,
         mods: [ModInfo],

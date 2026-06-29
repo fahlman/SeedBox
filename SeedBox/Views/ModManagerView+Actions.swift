@@ -380,12 +380,12 @@ extension ModManagerView {
         }
     }
 
-    func commitModSetEditor(mode: ModSetEditorMode, name: String) async {
+    func commitModSetEditor(mode: ModSetEditorMode, name: String, parentID: String?) async {
         switch mode {
         case .create:
-            await viewModel.createModSet(named: name)
+            await viewModel.createModSet(named: name, parentID: parentID)
         case .duplicate:
-            await viewModel.duplicateSelectedModSet(named: name)
+            await viewModel.duplicateSelectedModSet(named: name, parentID: parentID)
         case .rename:
             await viewModel.renameSelectedModSet(to: name)
         }

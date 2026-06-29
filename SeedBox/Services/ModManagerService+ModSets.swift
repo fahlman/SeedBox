@@ -61,19 +61,31 @@ extension ModManagerService {
     /// explicit re-enables) so the relationship to the base set is preserved;
     /// for a standalone set the full disabled list is stored as before.
     func currentStateSnapshot(for set: ModSet, in state: ModManagerState) -> ModSet {
-        var updatedSet = set
-        let fullDisabledNames = ModSetStore.snapshotSet(
-            id: set.id,
-            name: set.name,
-            from: state.mods
+        let currentDisabledTokens = Set(
+            state.mods
+                .filter { !$0.isEnabled }
+                .map { $0.enabledFolderName.normalizedFolderToken }
         )
-        .disabledFolderNames
+        return storedSet(for: set, disabledTokens: currentDisabledTokens, in: state)
+    }
+
+    /// Produces the persisted form of `set` for a desired full set of disabled
+    /// folder tokens. A standalone set stores the full disabled list; an
+    /// inheriting set stores only the difference from its resolved parent.
+    func storedSet(
+        for set: ModSet,
+        disabledTokens: Set<String>,
+        in state: ModManagerState
+    ) -> ModSet {
+        var updatedSet = set
 
         guard
             let parentID = set.parentID,
             let parent = state.modSets.first(where: { $0.id == parentID })
         else {
-            updatedSet.disabledFolderNames = fullDisabledNames
+            updatedSet.disabledFolderNames = state.mods
+                .filter { disabledTokens.contains($0.enabledFolderName.normalizedFolderToken) }
+                .map(\.enabledFolderName)
             updatedSet.enabledFolderNames = []
             return updatedSet
         }
@@ -85,10 +97,11 @@ extension ModManagerService {
         var reEnabled: [String] = []
         for mod in state.mods {
             let token = mod.enabledFolderName.normalizedFolderToken
+            let childDisables = disabledTokens.contains(token)
             let parentDisables = parentDisabledTokens.contains(token)
-            if !mod.isEnabled, !parentDisables {
+            if childDisables, !parentDisables {
                 extraDisabled.append(mod.enabledFolderName)
-            } else if mod.isEnabled, parentDisables {
+            } else if !childDisables, parentDisables {
                 reEnabled.append(mod.enabledFolderName)
             }
         }
@@ -133,6 +146,7 @@ extension ModManagerService {
     func createModSet(
         named name: String,
         from sourceSet: ModSet? = nil,
+        parentID: String? = nil,
         in state: ModManagerState
     ) -> ModManagerState {
         var nextState = state
@@ -146,12 +160,33 @@ extension ModManagerService {
             from: nextState.mods
         )
 
+        // Only honor a base that still exists; an unknown id is ignored so the
+        // new set is simply standalone.
+        let resolvedParentID = parentID.flatMap { id in
+            nextState.modSets.contains { $0.id == id } ? id : nil
+        }
+
         do {
-            let newSet = try ModSetStore.createSet(
+            var newSet = try ModSetStore.createSet(
                 named: name,
                 from: source,
-                existingSets: nextState.modSets
+                existingSets: nextState.modSets,
+                parentID: resolvedParentID
             )
+
+            // When the new set inherits, store its mods as a delta against the
+            // resolved parent rather than a full snapshot. The desired full
+            // state comes from the source set so duplicating preserves it.
+            if resolvedParentID != nil {
+                let sourceDisabledTokens = ModSetResolver
+                    .resolve(source, in: nextState.modSets)
+                    .disabledFolderTokens
+                newSet = storedSet(
+                    for: newSet,
+                    disabledTokens: sourceDisabledTokens,
+                    in: nextState
+                )
+            }
 
             try ModSetStore.saveSet(
                 newSet,
@@ -181,12 +216,16 @@ extension ModManagerService {
         }
     }
 
-    func duplicateSelectedModSet(named name: String, in state: ModManagerState) -> ModManagerState {
+    func duplicateSelectedModSet(
+        named name: String,
+        parentID: String? = nil,
+        in state: ModManagerState
+    ) -> ModManagerState {
         guard let selectedSet = state.modSetSelection.selectedSet else {
             return state
         }
 
-        return createModSet(named: name, from: selectedSet, in: state)
+        return createModSet(named: name, from: selectedSet, parentID: parentID, in: state)
     }
 
     func renameSelectedModSet(to requestedName: String, in state: ModManagerState) -> ModManagerState {

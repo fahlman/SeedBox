@@ -187,6 +187,28 @@ struct ModManagerPresentationState {
         state.modSets.first { $0.id == id }
     }
 
+    /// Mod Sets eligible to serve as a base (parent) for a set being created or
+    /// edited, sorted for display. Excludes the set itself and any choice that
+    /// would create an inheritance cycle. Smart Mod Sets live in a separate
+    /// store and are never included.
+    func availableBaseSets(forEditing editingSetID: String?) -> [ModSet] {
+        state.modSets
+            .filter { candidate in
+                guard let editingSetID else {
+                    return true
+                }
+                guard candidate.id != editingSetID else {
+                    return false
+                }
+                return !ModSetResolver.wouldCreateCycle(
+                    assigning: candidate.id,
+                    to: editingSetID,
+                    in: state.modSets
+                )
+            }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
     func modSetIsAlreadyApplied(_ id: String) -> Bool {
         state.selectedModSetID == id && state.appliedModSetID == id
     }

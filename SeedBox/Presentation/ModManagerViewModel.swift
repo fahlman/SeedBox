@@ -240,12 +240,12 @@ final class ModManagerViewModel {
         commit(await service.cancelBisection())
     }
 
-    func createModSet(named name: String, from sourceSet: ModSet? = nil) async {
-        commit(await service.createModSet(named: name, from: sourceSet))
+    func createModSet(named name: String, from sourceSet: ModSet? = nil, parentID: String? = nil) async {
+        commit(await service.createModSet(named: name, from: sourceSet, parentID: parentID))
     }
 
-    func duplicateSelectedModSet(named name: String) async {
-        commit(await service.duplicateSelectedModSet(named: name))
+    func duplicateSelectedModSet(named name: String, parentID: String? = nil) async {
+        commit(await service.duplicateSelectedModSet(named: name, parentID: parentID))
     }
 
     func renameSelectedModSet(to requestedName: String) async {

@@ -10,12 +10,15 @@ extension ModManagerView {
         case .modSetEditor(let mode):
             ModSetNameSheet(
                 mode: mode,
+                availableBaseSets: mode.supportsBaseSelection
+                    ? presentationState.availableBaseSets(forEditing: mode.editingSetID)
+                    : [],
                 onCancel: {
                     presentation.dismissSheet()
                 },
-                onCommit: { name in
+                onCommit: { name, parentID in
                     Task {
-                        await commitModSetEditor(mode: mode, name: name)
+                        await commitModSetEditor(mode: mode, name: name, parentID: parentID)
                     }
                 }
             )

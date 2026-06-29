@@ -58,6 +58,8 @@ enum AppStrings {
         static let duplicateTitle = String(localized: "Duplicate Mod Set")
         static let renameAction = String(localized: "Rename")
         static let renameTitle = String(localized: "Rename Mod Set")
+        static let baseSet = String(localized: "Base Set")
+        static let noBaseSet = String(localized: "No Base Set")
     }
 
     enum Search {
