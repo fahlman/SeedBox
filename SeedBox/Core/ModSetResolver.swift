@@ -91,6 +91,63 @@ enum ModSetResolver {
     /// - A `parentID` that is not present in `allSets` ends the chain and is
     ///   flagged via `hasMissingParent`.
     static func resolve(_ set: ModSet, in allSets: [ModSet]) -> ResolvedModSet {
+        let resolvedChain = orderedChain(for: set, in: allSets)
+        let chain = resolvedChain.chain
+
+        var disabled: Set<String> = []
+        var inheritedDisabled: Set<String> = []
+        for (index, node) in chain.enumerated() {
+            if index == chain.count - 1 {
+                inheritedDisabled = disabled
+            }
+            disabled.formUnion(node.disabledFolderTokens)
+            disabled.subtract(node.enabledFolderTokens)
+        }
+
+        return ResolvedModSet(
+            set: set,
+            disabledFolderTokens: disabled,
+            inheritedDisabledTokens: inheritedDisabled,
+            appliedAncestorIDs: chain.dropLast().map(\.id),
+            hasMissingParent: resolvedChain.hasMissingParent,
+            hasInheritanceCycle: resolvedChain.hasCycle
+        )
+    }
+
+    /// The fully resolved disabled folder names for a set, canonicalized and
+    /// sorted. Unlike the token set, this preserves human-readable folder names
+    /// (preferring leaf-most), which the export format needs.
+    static func resolvedDisabledFolderNames(for set: ModSet, in allSets: [ModSet]) -> [String] {
+        let chain = orderedChain(for: set, in: allSets).chain
+
+        // token -> canonical name, plus whether the token is currently disabled.
+        var nameByToken: [String: String] = [:]
+        var disabledTokens: Set<String> = []
+        for node in chain {
+            for name in node.disabledFolderNames {
+                let canonical = name.trimmingPrefix(Character("."))
+                let token = canonical.normalizedFolderToken
+                guard !token.isEmpty else { continue }
+                nameByToken[token] = canonical
+                disabledTokens.insert(token)
+            }
+            for name in node.enabledFolderNames {
+                let token = name.normalizedFolderToken
+                disabledTokens.remove(token)
+            }
+        }
+
+        return disabledTokens
+            .compactMap { nameByToken[$0] }
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    /// Walks a set's parent chain, returning the sets ordered root → leaf with
+    /// cycles broken and a missing parent flagged. Each set appears at most once.
+    private static func orderedChain(
+        for set: ModSet,
+        in allSets: [ModSet]
+    ) -> (chain: [ModSet], hasMissingParent: Bool, hasCycle: Bool) {
         let lookup = Dictionary(
             allSets.map { ($0.id, $0) },
             uniquingKeysWith: { existing, _ in existing }
@@ -120,27 +177,9 @@ enum ModSetResolver {
             current = parent
         }
 
-        // chain is leaf → root; apply from root → leaf so leaf choices win.
+        // chain is leaf → root; reverse so root choices apply first.
         chain.reverse()
-
-        var disabled: Set<String> = []
-        var inheritedDisabled: Set<String> = []
-        for (index, node) in chain.enumerated() {
-            if index == chain.count - 1 {
-                inheritedDisabled = disabled
-            }
-            disabled.formUnion(node.disabledFolderTokens)
-            disabled.subtract(node.enabledFolderTokens)
-        }
-
-        return ResolvedModSet(
-            set: set,
-            disabledFolderTokens: disabled,
-            inheritedDisabledTokens: inheritedDisabled,
-            appliedAncestorIDs: chain.dropLast().map(\.id),
-            hasMissingParent: hasMissingParent,
-            hasInheritanceCycle: hasCycle
-        )
+        return (chain, hasMissingParent, hasCycle)
     }
 
     static func disabledFolderTokens(for set: ModSet) -> Set<String> {
