@@ -76,4 +76,39 @@ enum ModUndoRegistrar {
 
         undoManager.setActionName(AppStrings.Undo.applyModSet)
     }
+
+    /// Registers undo for renaming a Mod Set. Undo renames it back, but only
+    /// while that set is still the selected one and still carries the new name,
+    /// so a later rename or selection change is not clobbered.
+    static func registerModSetRename(
+        in undoManager: UndoManager,
+        viewModel: ModManagerViewModel,
+        setID: String,
+        previousName: String,
+        newName: String
+    ) {
+        undoManager.registerUndo(withTarget: viewModel) { viewModel in
+            MainActor.assumeIsolated {
+                guard
+                    let selected = viewModel.state.modSetSelection.selectedSet,
+                    selected.id == setID,
+                    selected.name == newName
+                else {
+                    return
+                }
+
+                registerModSetRename(
+                    in: undoManager,
+                    viewModel: viewModel,
+                    setID: setID,
+                    previousName: newName,
+                    newName: previousName
+                )
+
+                Task { await viewModel.renameSelectedModSet(to: previousName) }
+            }
+        }
+
+        undoManager.setActionName(AppStrings.Undo.renameModSet)
+    }
 }

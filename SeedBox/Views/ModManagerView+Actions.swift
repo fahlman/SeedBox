@@ -426,8 +426,20 @@ extension ModManagerView {
             await viewModel.createModSet(named: name, parentID: parentID)
         case .duplicate:
             await viewModel.duplicateSelectedModSet(named: name, parentID: parentID)
-        case .rename:
+        case .rename(let set):
             await viewModel.renameSelectedModSet(to: name)
+            if set.name != name,
+               viewModel.state.modSetSelection.selectedSet?.id == set.id,
+               viewModel.state.modSetSelection.selectedSet?.name == name,
+               let undoManager {
+                ModUndoRegistrar.registerModSetRename(
+                    in: undoManager,
+                    viewModel: viewModel,
+                    setID: set.id,
+                    previousName: set.name,
+                    newName: name
+                )
+            }
         }
         presentation.dismissSheet()
     }

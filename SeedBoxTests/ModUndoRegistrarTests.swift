@@ -114,6 +114,37 @@ final class ModUndoRegistrarTests: SeedBoxTestCase {
         _ = startSetID
     }
 
+    func testUndoRenameModSetRestoresPreviousName() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        try makeInstalledMod(name: "Content Patcher", in: install, folderName: "ContentPatcher")
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+
+        await viewModel.createModSet(named: "Favorites")
+        let setID = viewModel.state.selectedModSetID
+
+        await viewModel.renameSelectedModSet(to: "Keepers")
+        XCTAssertEqual(viewModel.state.modSetSelection.selectedSet?.name, "Keepers")
+        undoManager.beginUndoGrouping()
+        ModUndoRegistrar.registerModSetRename(
+            in: undoManager,
+            viewModel: viewModel,
+            setID: setID,
+            previousName: "Favorites",
+            newName: "Keepers"
+        )
+        undoManager.endUndoGrouping()
+
+        undoManager.undo()
+        try await waitUntil { viewModel.state.modSetSelection.selectedSet?.name == "Favorites" }
+        XCTAssertTrue(undoManager.canRedo)
+
+        undoManager.redo()
+        try await waitUntil { viewModel.state.modSetSelection.selectedSet?.name == "Keepers" }
+    }
+
     private func installedState(of displayName: String, in viewModel: ModManagerViewModel) -> Bool? {
         viewModel.state.mods.first { $0.displayName == displayName }?.isEnabled
     }
