@@ -506,6 +506,14 @@ enum AppStrings {
             String(localized: "Created mod set \(setName).")
         }
 
+        static func importedModSet(_ setName: String) -> String {
+            String(localized: "Imported mod set \(setName).")
+        }
+
+        static func couldNotImportModSet(_ errorDescription: String) -> String {
+            String(localized: "Could not import mod set: \(errorDescription)")
+        }
+
         static func deletedModArchived(_ modName: String) -> String {
             String(localized: "Deleted \(modName). Archived a restorable copy.")
         }
@@ -1010,6 +1018,7 @@ enum AppStrings {
         static let modRestored = String(localized: "Mod Restored")
         static let modSetApplied = String(localized: "Mod Set Applied")
         static let modSetCreated = String(localized: "Mod Set Created")
+        static let modSetImported = String(localized: "Mod Set Imported")
         static let modSetDeleted = String(localized: "Mod Set Deleted")
         static let modSetRenamed = String(localized: "Mod Set Renamed")
         static let modsAdded = String(localized: "Mods Added")

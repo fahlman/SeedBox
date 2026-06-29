@@ -268,6 +268,23 @@ final class ModManagerViewModel {
         commit(await service.restoreModSet(set))
     }
 
+    func importModSet(fromFileAt url: URL) async {
+        commit(await service.importModSet(fromFileAt: url))
+    }
+
+    /// The export bytes for the selected Mod Set, or nil when no editable set is
+    /// selected. The view writes these to a user-chosen `.seedboxset` file.
+    func exportDataForSelectedModSet() -> Data? {
+        guard let selectedSet = state.modSetSelection.selectedSet else {
+            return nil
+        }
+        return try? ModSetTransfer.exportData(
+            for: selectedSet,
+            mods: state.mods,
+            in: state.modSets
+        )
+    }
+
     private func record(_ message: String, severity: StatusEvent.Severity = .info) {
         Task {
             commit(await service.recordActivity(message, severity: severity))

@@ -202,6 +202,10 @@ extension ModManagerService {
         commit(restoreModSet(set, in: state))
     }
 
+    func importModSet(fromFileAt url: URL) -> ModManagerState {
+        commit(importModSet(fromFileAt: url, in: state))
+    }
+
     func moveSourceFilesToTrash(
         for offer: SourceCleanupOffer,
         remembersChoice: Bool = false

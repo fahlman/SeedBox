@@ -60,4 +60,30 @@ final class ModSetTransferTests: SeedBoxTestCase {
             XCTAssertEqual(error as? SeedBoxSetError, .malformedData)
         }
     }
+
+    @MainActor
+    func testViewModelExportsAndImportsModSet() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        try makeInstalledMod(name: "Content Patcher", in: install, folderName: "ContentPatcher")
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+
+        // Make a set that disables Content Patcher, then export it to a file.
+        await viewModel.createModSet(named: "Travelers")
+        let cp = try XCTUnwrap(viewModel.state.mods.first { $0.displayName == "Content Patcher" })
+        await viewModel.setMod(cp, enabled: false)
+
+        let data = try XCTUnwrap(viewModel.exportDataForSelectedModSet())
+        let url = temporaryDirectory.appendingPathComponent("Travelers.seedboxset")
+        try data.write(to: url)
+
+        // Importing adds a new, non-colliding set selected but not applied.
+        let beforeIDs = Set(viewModel.state.modSets.map(\.id))
+        await viewModel.importModSet(fromFileAt: url)
+
+        let newSet = try XCTUnwrap(viewModel.state.modSets.first { !beforeIDs.contains($0.id) })
+        XCTAssertEqual(newSet.name, "Travelers 2")
+        XCTAssertEqual(newSet.disabledFolderNames, ["ContentPatcher"])
+        XCTAssertEqual(viewModel.state.selectedModSetID, newSet.id)
+    }
 }

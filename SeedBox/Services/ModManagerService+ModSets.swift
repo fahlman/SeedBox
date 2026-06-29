@@ -284,6 +284,42 @@ extension ModManagerService {
         }
     }
 
+    /// Imports a Mod Set from a `.seedboxset` file, adding it under a fresh id
+    /// and non-colliding name. The imported set is selected but not applied, so
+    /// nothing changes in the Mods folder until the user chooses to apply it.
+    func importModSet(fromFileAt url: URL, in state: ModManagerState) -> ModManagerState {
+        var nextState = state
+        guard guardCanManageMods(in: &nextState) else {
+            return nextState
+        }
+
+        do {
+            let importedSet = try ModSetTransfer.importModSet(
+                fromFileAt: url,
+                existingSets: nextState.modSets
+            )
+            try ModSetStore.saveSet(importedSet, install: install(for: nextState))
+            setSelectedModSetID(importedSet.id, in: &nextState)
+            nextState.appliedModSetID = nil
+            record(AppStrings.Status.importedModSet(importedSet.name), in: &nextState)
+            var refreshed = refreshedState(from: nextState)
+            audit(
+                .modSetImported,
+                summary: refreshed.activityMessage,
+                subjects: [auditSubjectForModSet(importedSet)],
+                in: &refreshed
+            )
+            return refreshed
+        } catch {
+            record(
+                AppStrings.Status.couldNotImportModSet(error.localizedDescription),
+                severity: .error,
+                in: &nextState
+            )
+            return nextState
+        }
+    }
+
     /// Restores a previously deleted (or duplicated-then-undone) Mod Set from
     /// its exact stored definition, keeping its id so inheritance references and
     /// selection stay valid. Used by undo; it rewrites the definition only and
