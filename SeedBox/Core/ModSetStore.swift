@@ -122,11 +122,15 @@ enum ModSetStore {
     @discardableResult
     static func applySet(
         _ set: ModSet,
+        in allSets: [ModSet] = [],
         install: StardewInstall,
         fileManager: FileManager = .default
     ) throws -> Int {
         let mods = try ModLibrary.scan(install: install, fileManager: fileManager)
-        let resolvedSet = ModSetResolver.resolve(set)
+        // Resolve the full inheritance chain before touching files so the Mods
+        // folder reflects the fully resolved state, not just this set's own
+        // choices. Passing the set in isolation falls back to its own choices.
+        let resolvedSet = ModSetResolver.resolve(set, in: allSets)
 
         var changedCount = 0
         for mod in mods {

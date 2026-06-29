@@ -178,7 +178,8 @@ struct ModManagerPresentationState {
 
         return ModManagerInsights.comparison(
             for: selectedSet,
-            currentMods: state.mods
+            currentMods: state.mods,
+            in: state.modSets
         )
     }
 

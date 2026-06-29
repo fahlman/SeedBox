@@ -37,6 +37,7 @@ extension ModManagerService {
         try performWithFolderAccess(state: &state) {
             try ModSetStore.applySet(
                 set,
+                in: currentState.modSets,
                 install: install(for: currentState)
             )
         }
@@ -47,18 +48,79 @@ extension ModManagerService {
             return
         }
 
+        let updatedSet = currentStateSnapshot(for: set, in: state)
+
+        try ModSetStore.saveSet(
+            updatedSet,
+            install: install(for: state)
+        )
+    }
+
+    /// Captures the live mod state into `set`. For an inheriting set the state
+    /// is stored as a delta against the resolved parent (extra disables and
+    /// explicit re-enables) so the relationship to the base set is preserved;
+    /// for a standalone set the full disabled list is stored as before.
+    func currentStateSnapshot(for set: ModSet, in state: ModManagerState) -> ModSet {
         var updatedSet = set
-        updatedSet.disabledFolderNames = ModSetStore.snapshotSet(
+        let fullDisabledNames = ModSetStore.snapshotSet(
             id: set.id,
             name: set.name,
             from: state.mods
         )
         .disabledFolderNames
 
-        try ModSetStore.saveSet(
-            updatedSet,
-            install: install(for: state)
-        )
+        guard
+            let parentID = set.parentID,
+            let parent = state.modSets.first(where: { $0.id == parentID })
+        else {
+            updatedSet.disabledFolderNames = fullDisabledNames
+            updatedSet.enabledFolderNames = []
+            return updatedSet
+        }
+
+        let parentDisabledTokens = ModSetResolver
+            .resolve(parent, in: state.modSets)
+            .disabledFolderTokens
+        var extraDisabled: [String] = []
+        var reEnabled: [String] = []
+        for mod in state.mods {
+            let token = mod.enabledFolderName.normalizedFolderToken
+            let parentDisables = parentDisabledTokens.contains(token)
+            if !mod.isEnabled, !parentDisables {
+                extraDisabled.append(mod.enabledFolderName)
+            } else if mod.isEnabled, parentDisables {
+                reEnabled.append(mod.enabledFolderName)
+            }
+        }
+
+        updatedSet.disabledFolderNames = extraDisabled
+        updatedSet.enabledFolderNames = reEnabled
+        return updatedSet
+    }
+
+    func modSetApplyAuditDetails(
+        changedCount: Int,
+        resolved: ResolvedModSet,
+        in state: ModManagerState
+    ) -> [String: String] {
+        var details = ["changed_count": "\(changedCount)"]
+        guard let parentID = resolved.set.parentID else {
+            return details
+        }
+
+        details["inherits_from_id"] = parentID
+        details["inherits_from_name"] = state.modSets
+            .first { $0.id == parentID }?
+            .name ?? parentID
+        if !resolved.appliedAncestorIDs.isEmpty {
+            details["inheritance_chain"] = resolved.appliedAncestorIDs.joined(separator: " > ")
+        }
+        if resolved.hasInheritanceCycle {
+            details["inheritance_warning"] = "cycle_broken"
+        } else if resolved.hasMissingParent {
+            details["inheritance_warning"] = "missing_parent"
+        }
+        return details
     }
 
     func saveCurrentStateIfEditable(to set: ModSet, in state: ModManagerState) throws {
@@ -205,6 +267,7 @@ extension ModManagerService {
                 try saveCurrentStateIfEditable(to: previousSet, in: nextState)
             }
 
+            let resolved = ModSetResolver.resolve(setToApply, in: nextState.modSets)
             let changedCount = try applyModSet(setToApply, in: nextState, state: &nextState)
             setSelectedModSetID(id, in: &nextState)
             nextState.appliedModSetID = id
@@ -214,9 +277,7 @@ extension ModManagerService {
                 .modSetApplied,
                 summary: refreshedState.activityMessage,
                 subjects: [auditSubjectForModSet(setToApply)],
-                details: [
-                    "changed_count": "\(changedCount)"
-                ],
+                details: modSetApplyAuditDetails(changedCount: changedCount, resolved: resolved, in: nextState),
                 in: &refreshedState
             )
             return refreshedState

@@ -150,10 +150,9 @@ final class ModSetInheritanceTests: SeedBoxTestCase {
     }
 
     func testDeletedParentLeavesChildResolvableFromOwnChoices() throws {
-        let parent = makeSet(id: "parent", disabled: ["alpha"])
         let child = makeSet(id: "child", parent: "parent", disabled: ["bravo"])
 
-        // Simulate the parent being deleted from the known set list.
+        // Simulate the parent being deleted: it is absent from the known sets.
         let resolved = ModSetResolver.resolve(child, in: [child])
 
         XCTAssertEqual(resolved.disabledFolderTokens, ["bravo"])

@@ -317,7 +317,7 @@ enum ModLibrarySelection: Hashable, Sendable {
     }
 
     private static func modCount(for set: ModSet, in state: ModManagerState) -> Int {
-        let resolvedSet = ModSetResolver.resolve(set)
+        let resolvedSet = ModSetResolver.resolve(set, in: state.modSets)
         return state.mods.filter { mod in
             resolvedSet.isEnabled(mod)
         }.count

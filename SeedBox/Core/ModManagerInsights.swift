@@ -101,8 +101,12 @@ enum ModManagerInsights {
         }
     }
 
-    static func comparison(for set: ModSet, currentMods: [ModInfo]) -> ModSetComparison {
-        let resolvedSet = ModSetResolver.resolve(set)
+    static func comparison(
+        for set: ModSet,
+        currentMods: [ModInfo],
+        in allSets: [ModSet] = []
+    ) -> ModSetComparison {
+        let resolvedSet = ModSetResolver.resolve(set, in: allSets)
         let differences = currentMods.compactMap { mod -> ModSetDifference? in
             let willBeEnabled = resolvedSet.isEnabled(mod)
             guard mod.isEnabled != willBeEnabled else {

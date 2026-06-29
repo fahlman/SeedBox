@@ -142,6 +142,7 @@ extension ModManagerView {
 
         if let confirmation = ModDependencyConfirmationFactory.applying(
             set: set,
+            in: presentationState.state.modSets,
             dependencyGraph: presentationState.dependencyGraph
         ) {
             presentation.alert = .dependency(confirmation)

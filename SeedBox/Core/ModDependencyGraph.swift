@@ -246,6 +246,10 @@ struct ModDependencyGraph: Sendable {
         issues(applying: ModSetResolver.resolve(set))
     }
 
+    func issues(applying set: ModSet, in allSets: [ModSet]) -> [ModDependencyIssue] {
+        issues(applying: ModSetResolver.resolve(set, in: allSets))
+    }
+
     func issues(applying resolvedSet: ResolvedModSet) -> [ModDependencyIssue] {
         let enabledModIDs = Set(mods.filter(resolvedSet.isEnabled).map(\.id))
 
