@@ -94,6 +94,12 @@ struct SeedBoxCommands: Commands {
             commandButton(.duplicateModSet)
             commandButton(.renameModSet)
 
+            if let exportable = ModManagerViewModel.shared.exportableSelectedModSet() {
+                ShareLink(item: exportable, preview: SharePreview(exportable.name)) {
+                    Label(AppStrings.Commands.shareModSet, systemImage: "square.and.arrow.up")
+                }
+            }
+
             Divider()
 
             commandButton(.deleteModSet)

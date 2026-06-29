@@ -111,6 +111,7 @@ enum AppStrings {
         static let refreshModsFolder = String(localized: "Refresh Mods Folder")
         static let renameModSet = String(localized: "Rename Mod Set")
         static let restoreHistory = String(localized: "Restore History")
+        static let shareModSet = String(localized: "Share Mod Set")
         static let restorePreviousVersion = String(localized: "Restore Previous Version")
         static let revealArchivedModsInFinder = String(localized: "Reveal Archived Mods in Finder")
         static let revealModsFolderInFinder = String(localized: "Reveal Mods Folder in Finder")

@@ -285,6 +285,15 @@ final class ModManagerViewModel {
         )
     }
 
+    /// A shareable item for the selected Mod Set, or nil when none is selected,
+    /// for use with the macOS share sheet.
+    func exportableSelectedModSet() -> ExportableModSet? {
+        guard let selectedSet = state.modSetSelection.selectedSet else {
+            return nil
+        }
+        return ExportableModSet.make(for: selectedSet, mods: state.mods, in: state.modSets)
+    }
+
     private func record(_ message: String, severity: StatusEvent.Severity = .info) {
         Task {
             commit(await service.recordActivity(message, severity: severity))
