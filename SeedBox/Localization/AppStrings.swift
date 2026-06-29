@@ -126,6 +126,14 @@ enum AppStrings {
         static let revertToBaseSet = String(localized: "Revert to Base Set")
     }
 
+    enum SeedBoxSet {
+        static let malformedData = String(localized: "This file isn’t a valid Seed Box Mod Set.")
+        static let unsupportedKind = String(localized: "This Seed Box file isn’t a Mod Set.")
+        static let unsupportedVersion = String(localized: "This Seed Box file uses an older format that’s no longer supported.")
+        static let futureVersion = String(localized: "This Seed Box file was made with a newer version of Seed Box. Update Seed Box to open it.")
+        static let missingName = String(localized: "This Seed Box Mod Set is missing a name.")
+    }
+
     enum Undo {
         static let enableMod = String(localized: "Enable Mod")
         static let disableMod = String(localized: "Disable Mod")

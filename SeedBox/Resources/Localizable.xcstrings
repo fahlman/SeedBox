@@ -33004,6 +33004,331 @@
           }
         }
       }
+    },
+    "This file isn’t a valid Seed Box Mod Set." : {
+      "comment" : "Error shown when importing a .seedboxset file that is not valid JSON or is structurally invalid.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This file isn’t a valid Seed Box Mod Set."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datei ist kein gültiges Seed Box-Mod-Set."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este archivo no es un conjunto de mods de Seed Box válido."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce fichier n’est pas un ensemble de mods Seed Box valide."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo file non è un set di mod Seed Box valido."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このファイルは有効なSeed Box Modセットではありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 파일은 유효한 Seed Box 모드 세트가 아닙니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit bestand is geen geldige Seed Box-modset."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este arquivo não é um conjunto de mods do Seed Box válido."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此文件不是有效的 Seed Box Mod 套装。"
+          }
+        }
+      }
+    },
+    "This Seed Box file isn’t a Mod Set." : {
+      "comment" : "Error shown when importing a Seed Box file whose document kind is not a Mod Set.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Seed Box file isn’t a Mod Set."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Seed Box-Datei ist kein Mod-Set."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este archivo de Seed Box no es un conjunto de mods."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce fichier Seed Box n’est pas un ensemble de mods."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo file Seed Box non è un set di mod."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このSeed BoxファイルはModセットではありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Seed Box 파일은 모드 세트가 아닙니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit Seed Box-bestand is geen modset."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este arquivo do Seed Box não é um conjunto de mods."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此 Seed Box 文件不是 Mod 套装。"
+          }
+        }
+      }
+    },
+    "This Seed Box file uses an older format that’s no longer supported." : {
+      "comment" : "Error shown when importing a .seedboxset file whose schema version is too old.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Seed Box file uses an older format that’s no longer supported."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Seed Box-Datei verwendet ein älteres Format, das nicht mehr unterstützt wird."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este archivo de Seed Box usa un formato antiguo que ya no es compatible."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce fichier Seed Box utilise un ancien format qui n’est plus pris en charge."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo file Seed Box usa un formato precedente non più supportato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このSeed Boxファイルはサポートされていない古い形式を使用しています。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Seed Box 파일은 더 이상 지원되지 않는 이전 형식을 사용합니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit Seed Box-bestand gebruikt een ouder formaat dat niet meer wordt ondersteund."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este arquivo do Seed Box usa um formato antigo que não é mais compatível."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此 Seed Box 文件使用的是不再受支持的旧格式。"
+          }
+        }
+      }
+    },
+    "This Seed Box file was made with a newer version of Seed Box. Update Seed Box to open it." : {
+      "comment" : "Error shown when importing a .seedboxset file whose schema version is newer than this build understands.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Seed Box file was made with a newer version of Seed Box. Update Seed Box to open it."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Seed Box-Datei wurde mit einer neueren Version von Seed Box erstellt. Aktualisiere Seed Box, um sie zu öffnen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este archivo de Seed Box se creó con una versión más reciente de Seed Box. Actualiza Seed Box para abrirlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce fichier Seed Box a été créé avec une version plus récente de Seed Box. Mettez à jour Seed Box pour l’ouvrir."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo file Seed Box è stato creato con una versione più recente di Seed Box. Aggiorna Seed Box per aprirlo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このSeed Boxファイルは新しいバージョンのSeed Boxで作成されました。開くにはSeed Boxを更新してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Seed Box 파일은 최신 버전의 Seed Box로 만들어졌습니다. 열려면 Seed Box를 업데이트하세요."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit Seed Box-bestand is gemaakt met een nieuwere versie van Seed Box. Werk Seed Box bij om het te openen."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este arquivo do Seed Box foi criado com uma versão mais recente do Seed Box. Atualize o Seed Box para abri-lo."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此 Seed Box 文件由较新版本的 Seed Box 创建。请更新 Seed Box 以打开它。"
+          }
+        }
+      }
+    },
+    "This Seed Box Mod Set is missing a name." : {
+      "comment" : "Error shown when importing a .seedboxset file whose Mod Set has no name.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Seed Box Mod Set is missing a name."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diesem Seed Box-Mod-Set fehlt ein Name."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A este conjunto de mods de Seed Box le falta un nombre."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cet ensemble de mods Seed Box n’a pas de nom."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A questo set di mod Seed Box manca un nome."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このSeed Box Modセットには名前がありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Seed Box 모드 세트에 이름이 없습니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deze Seed Box-modset heeft geen naam."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este conjunto de mods do Seed Box está sem nome."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此 Seed Box Mod 套装缺少名称。"
+          }
+        }
+      }
     }
   },
   "version" : "1.2"
