@@ -29,13 +29,13 @@ extension ModManagerView {
                 }
             },
             showProblems: {
-                presentation.sheet = .problems
+                openRoute(.problems)
             },
             showActivity: {
-                presentation.sheet = .activity
+                openRoute(.activity)
             },
             showRestoreHistory: {
-                presentation.sheet = .restoreHistory
+                openRoute(.restoreHistory)
             },
             showModInspector: showModInspector,
             createModSet: createModSet,
@@ -54,6 +54,16 @@ extension ModManagerView {
 
     func chooseModsFolder() {
         presentation.isChoosingModsFolder = true
+    }
+
+    @discardableResult
+    func openRoute(_ route: SeedBoxRoute) -> SeedBoxRouteDispatchResult {
+        SeedBoxRouteDispatcher(state: presentationState.state).dispatch(
+            route,
+            presentation: &presentation,
+            selectedLibraryItemID: &selectedLibraryItemID,
+            selectedModIDs: &selectedModIDs
+        )
     }
 
     func addMods() {
@@ -75,7 +85,9 @@ extension ModManagerView {
     }
 
     func restorePreviousVersion() {
-        guard let selectedMod = presentationState.selection.mod else {
+        guard presentationState.canEditDisplayedModStates,
+              let selectedMod = presentationState.selection.mod
+        else {
             return
         }
 
@@ -90,8 +102,34 @@ extension ModManagerView {
         }
 
         presentation.dismissSheet()
+        let restoredFolderNames = archivedMods.map(\.enabledFolderName)
         Task {
             await viewModel.restoreArchivedMods(archivedMods)
+
+            // Register one undo (grouped within this event) that re-archives all
+            // the mods this restore brought back.
+            if let undoManager {
+                for folderName in restoredFolderNames
+                where ModUndoRegistrar.canUndoRestoration(of: folderName, in: viewModel.state) {
+                    ModUndoRegistrar.registerModRestoration(
+                        in: undoManager,
+                        viewModel: viewModel,
+                        folderName: folderName,
+                        actionName: AppStrings.Undo.restoreMod
+                    )
+                }
+            }
+        }
+    }
+
+    func deleteArchivedMods(_ archivedMods: [ArchivedModInfo]) {
+        guard !archivedMods.isEmpty else {
+            return
+        }
+
+        presentation.dismissSheet()
+        Task {
+            await viewModel.deleteArchivedMods(archivedMods)
         }
     }
 
@@ -119,6 +157,7 @@ extension ModManagerView {
 
         if let confirmation = ModDependencyConfirmationFactory.applying(
             set: set,
+            in: presentationState.state.modSets,
             dependencyGraph: presentationState.dependencyGraph
         ) {
             presentation.alert = .dependency(confirmation)
@@ -133,7 +172,7 @@ extension ModManagerView {
         let selection = ModLibrarySelection(id: resolvedID)
 
         switch selection {
-        case .smart:
+        case .builtInSmart, .userSmart:
             selectedLibraryItemID = resolvedID
             selectedModIDs = []
         case .modSet(let id):
@@ -147,10 +186,23 @@ extension ModManagerView {
     }
 
     func selectModSet(id: String) {
+        let previousSetID = viewModel.state.selectedModSetID
         selectedLibraryItemID = ModLibrarySelection.modSetID(id)
         selectedModIDs = []
         Task {
             await viewModel.selectModSet(id: id)
+
+            // Register undo only when the switch actually applied.
+            if previousSetID != id,
+               viewModel.state.selectedModSetID == id,
+               let undoManager {
+                ModUndoRegistrar.registerModSetApply(
+                    in: undoManager,
+                    viewModel: viewModel,
+                    previousSetID: previousSetID,
+                    appliedSetID: id
+                )
+            }
         }
     }
 
@@ -164,12 +216,59 @@ extension ModManagerView {
         }
     }
 
-    func previewMods(from urls: [URL]) {
-        guard let preview = viewModel.prepareImportPreview(from: urls) else {
+    func syncLaunchModUpdateCheck(_ presentationState: ModManagerPresentationState) {
+        guard !presentation.hasHandledLaunchModUpdateCheck,
+              presentationState.state.hasLoadedMods,
+              presentationState.canManageMods
+        else {
             return
         }
 
-        presentation.sheet = .importPreview(preview)
+        presentation.hasHandledLaunchModUpdateCheck = true
+        if presentationState.state.checksForModUpdates {
+            Task {
+                await viewModel.checkForModUpdates()
+            }
+        } else {
+            guard presentation.alert == nil else {
+                presentation.hasHandledLaunchModUpdateCheck = false
+                return
+            }
+            presentation.alert = .modUpdateNetworkAccess
+        }
+    }
+
+    func previewMods(from urls: [URL]) {
+        switch viewModel.prepareImportPreview(from: urls) {
+        case .success(let preview):
+            presentation.sheet = .importPreview(preview)
+        case .failure(let outcome):
+            presentImportPreviewFailure(outcome)
+        }
+    }
+
+    func presentImportPreviewFailure(_ outcome: WorkspaceActionOutcome) {
+        switch outcome {
+        case .completed:
+            break
+        case .recorded(let event):
+            presentation.alert = .message(
+                MessageAlert(
+                    title: AppStrings.Alerts.couldNotPreviewModsTitle,
+                    message: event.message
+                )
+            )
+        case .folderAccessLost(let message):
+            guard let message else {
+                return
+            }
+            presentation.alert = .message(
+                MessageAlert(
+                    title: AppStrings.Alerts.couldNotPreviewModsTitle,
+                    message: message
+                )
+            )
+        }
     }
 
     func installPreviewedMods(_ preview: ModImportPreview) {
@@ -242,13 +341,25 @@ extension ModManagerView {
     }
 
     func requestDeleteSelectedMod() {
-        if let selectedMod = presentationState.selection.mod {
+        if presentationState.canEditDisplayedModStates,
+           let selectedMod = presentationState.selection.mod {
             presentation.alert = .deleteMod(selectedMod)
         }
     }
 
+    func syncAppShortcutRequest() {
+        if let request = SeedBoxShortcutRouter.shared.consumePendingRequest() {
+            openRoute(request.route)
+        }
+        if let route = SeedBoxShortcutRouter.shared.consumePendingRoute() {
+            openRoute(route)
+        }
+    }
+
     func requestSetModEnabled(_ mod: ModInfo, enabled: Bool) {
-        guard mod.isEnabled != enabled else {
+        guard presentationState.canEditDisplayedModStates,
+              mod.isEnabled != enabled
+        else {
             return
         }
 
@@ -274,9 +385,36 @@ extension ModManagerView {
     }
 
     func setMod(_ mod: ModInfo, enabled: Bool) {
+        let previousEnabled = mod.isEnabled
         Task {
             await viewModel.setMod(mod, enabled: enabled)
+
+            // Register undo only for an actual change, after it is applied.
+            if previousEnabled != enabled, let undoManager {
+                ModUndoRegistrar.registerModToggle(
+                    in: undoManager,
+                    viewModel: viewModel,
+                    modID: mod.id,
+                    restoringTo: previousEnabled,
+                    appliedValue: enabled
+                )
+            }
         }
+    }
+
+    /// Reverts the selected mod's local override back to the base set's state.
+    /// Setting the mod to the inherited value lets the set's delta recompute
+    /// drop the override automatically.
+    func revertSelectedModToBase() {
+        guard
+            let mod = presentationState.selection.mod,
+            let context = presentationState.selectedSetInheritanceContext,
+            context.state(for: mod) == .overridden
+        else {
+            return
+        }
+
+        setMod(mod, enabled: context.baseEnabled(for: mod))
     }
 
     func setMods(_ mods: [ModInfo], enabled: Bool) {
@@ -298,14 +436,37 @@ extension ModManagerView {
         }
     }
 
-    func commitModSetEditor(mode: ModSetEditorMode, name: String) async {
+    func commitModSetEditor(mode: ModSetEditorMode, name: String, parentID: String?) async {
         switch mode {
         case .create:
-            await viewModel.createModSet(named: name)
+            await viewModel.createModSet(named: name, parentID: parentID)
         case .duplicate:
-            await viewModel.duplicateSelectedModSet(named: name)
-        case .rename:
+            await viewModel.duplicateSelectedModSet(named: name, parentID: parentID)
+            if let newSet = viewModel.state.modSetSelection.selectedSet,
+               newSet.name == name,
+               let undoManager {
+                ModUndoRegistrar.registerModSetExistence(
+                    in: undoManager,
+                    viewModel: viewModel,
+                    set: newSet,
+                    deleted: false,
+                    actionName: AppStrings.Undo.duplicateModSet
+                )
+            }
+        case .rename(let set):
             await viewModel.renameSelectedModSet(to: name)
+            if set.name != name,
+               viewModel.state.modSetSelection.selectedSet?.id == set.id,
+               viewModel.state.modSetSelection.selectedSet?.name == name,
+               let undoManager {
+                ModUndoRegistrar.registerModSetRename(
+                    in: undoManager,
+                    viewModel: viewModel,
+                    setID: set.id,
+                    previousName: set.name,
+                    newName: name
+                )
+            }
         }
         presentation.dismissSheet()
     }

@@ -2,6 +2,8 @@ import Foundation
 
 enum SmartModSet: String, CaseIterable, Identifiable, Sendable {
     case allMods
+    case enabled
+    case disabled
     case smapiMods
     case contentPatcherMods
     case updatesAvailable
@@ -19,6 +21,10 @@ enum SmartModSet: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .allMods:
             AppStrings.Library.allMods
+        case .enabled:
+            AppStrings.Library.enabled
+        case .disabled:
+            AppStrings.Library.disabled
         case .smapiMods:
             AppStrings.Library.smapiMods
         case .contentPatcherMods:
@@ -42,6 +48,10 @@ enum SmartModSet: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .allMods:
             "shippingbox"
+        case .enabled:
+            "checkmark.circle"
+        case .disabled:
+            "slash.circle"
         case .smapiMods:
             "terminal"
         case .contentPatcherMods:
@@ -62,134 +72,63 @@ enum SmartModSet: String, CaseIterable, Identifiable, Sendable {
     }
 
     func count(in state: ModManagerState) -> Int {
-        switch self {
-        case .recentlyDeleted:
-            return ModLibrarySelection.recentlyDeletedArchivedMods(in: state).count
-        default:
-            return state.mods.filter { mod in
-                includes(mod, in: state)
-            }.count
-        }
+        ModFilterEngine.count(for: self, in: state)
     }
 
     func includes(_ mod: ModInfo, in state: ModManagerState) -> Bool {
-        switch self {
-        case .allMods:
-            return true
-        case .smapiMods:
-            return !mod.isContentPatcherContentPack
-        case .contentPatcherMods:
-            return mod.isContentPatcherContentPack
-        case .updatesAvailable:
-            return state.availableUpdate(for: mod) != nil
-        case .errors:
-            return Self.errorModIDs(in: state).contains(mod.id)
-        case .warnings:
-            return Self.warningModIDs(in: state).contains(mod.id)
-        case .recentlyAdded:
-            return Self.recentModIDs(for: [.modsAdded], in: state).contains(mod.id)
-        case .recentlyUpdated:
-            return Self.recentlyUpdatedModIDs(in: state).contains(mod.id)
-        case .recentlyDeleted:
-            return false
-        }
-    }
-
-    private static func errorModIDs(in state: ModManagerState) -> Set<String> {
-        var ids = Set(
-            state.mods
-                .filter(\.hasMissingRequiredDependencies)
-                .map(\.id)
-        )
-        ids.formUnion(state.smapiVersionIssues.map(\.id))
-        ids.formUnion(state.lastSessionIssues.map(\.mod.id))
-        for duplicateGroup in state.duplicateGroups {
-            ids.formUnion(duplicateGroup.mods.map(\.id))
-        }
-        return ids
-    }
-
-    private static func warningModIDs(in state: ModManagerState) -> Set<String> {
-        let errorIDs = errorModIDs(in: state)
-        return Set(
-            state.mods
-                .filter { mod in
-                    mod.hasMissingOptionalDependencies && !errorIDs.contains(mod.id)
-                }
-                .map(\.id)
+        ModFilterEngine.includes(
+            mod,
+            in: self,
+            context: ModFilterContext(
+                state: state,
+                dependencyGraph: ModDependencyGraph(mods: state.mods)
+            )
         )
     }
+}
 
-    private static func recentlyUpdatedModIDs(in state: ModManagerState) -> Set<String> {
-        var ids = recentModIDs(for: [.modsUpdated], in: state)
-        let archivedUpdatedMods = state.archivedMods.filter { archivedMod in
-            archivedMod.reason == .updated
-        }
-        for archivedMod in archivedUpdatedMods {
-            if let currentMod = ModArchive.currentMod(for: archivedMod, in: state.mods) {
-                ids.insert(currentMod.id)
-            }
-        }
-        return ids
+struct ModLibraryItem: Identifiable, Equatable, Sendable {
+    enum Kind: Equatable, Sendable {
+        case builtInSmartModSet
+        case userSmartModSet
+        case modSet
     }
 
-    private static func recentModIDs(
-        for actions: Set<AuditLogAction>,
-        in state: ModManagerState
-    ) -> Set<String> {
-        var ids = Set<String>()
-        let modsByID = Dictionary(uniqueKeysWithValues: state.mods.map { ($0.id, $0) })
-        let modsByPath = Dictionary(uniqueKeysWithValues: state.mods.map { ($0.url.standardizedFileURL.path, $0) })
-        let modsByFolderToken = Dictionary(grouping: state.mods) { mod in
-            mod.enabledFolderName.normalizedFolderToken
-        }
-        let modsByDisplayName = Dictionary(grouping: state.mods, by: { $0.displayName.lowercased() })
+    var selection: ModLibrarySelection
+    var title: String
+    var systemImage: String
+    var count: Int
+    var kind: Kind
+    var isUserEditable: Bool
+    /// The name of the base set this Mod Set inherits from, or nil when the set
+    /// is standalone. Drives the sidebar's inheritance indicator.
+    var inheritsFromName: String? = nil
 
-        for entry in state.auditTrail.recentEntries.reversed() where actions.contains(entry.action) {
-            for subject in entry.subjects where subject.kind == .mod {
-                if let id = subject.id, modsByID[id] != nil {
-                    ids.insert(id)
-                    continue
-                }
-
-                if let path = subject.path,
-                   let mod = modsByPath[URL(fileURLWithPath: path).standardizedFileURL.path] {
-                    ids.insert(mod.id)
-                    continue
-                }
-
-                let folderToken = subject.name.normalizedFolderToken
-                if let mod = modsByFolderToken[folderToken]?.first {
-                    ids.insert(mod.id)
-                    continue
-                }
-
-                if let mod = modsByDisplayName[subject.name.lowercased()]?.first {
-                    ids.insert(mod.id)
-                }
-            }
-        }
-
-        return ids
+    var id: String {
+        selection.id
     }
 }
 
 enum ModLibrarySelection: Hashable, Sendable {
-    case smart(SmartModSet)
+    case builtInSmart(SmartModSet)
+    case userSmart(String)
     case modSet(String)
 
     static let smartPrefix = "smart:"
+    static let userSmartPrefix = "userSmart:"
     static let modSetPrefix = "modSet:"
-    static let defaultID = modSetID(ModSetStore.defaultSetID)
+    static let initialID = modSetID(ModSetStore.defaultSetID)
 
     init(id: String) {
         if id.hasPrefix(Self.smartPrefix) {
             let rawValue = String(id.dropFirst(Self.smartPrefix.count))
             if rawValue == "problems" {
-                self = .smart(.errors)
+                self = .builtInSmart(.errors)
             } else {
-                self = SmartModSet(rawValue: rawValue).map(Self.smart) ?? .smart(.allMods)
+                self = SmartModSet(rawValue: rawValue).map(Self.builtInSmart) ?? .builtInSmart(.allMods)
             }
+        } else if id.hasPrefix(Self.userSmartPrefix) {
+            self = .userSmart(String(id.dropFirst(Self.userSmartPrefix.count)))
         } else if id.hasPrefix(Self.modSetPrefix) {
             self = .modSet(String(id.dropFirst(Self.modSetPrefix.count)))
         } else if id.isEmpty {
@@ -201,8 +140,10 @@ enum ModLibrarySelection: Hashable, Sendable {
 
     var id: String {
         switch self {
-        case .smart(let smartSet):
+        case .builtInSmart(let smartSet):
             return Self.smartID(smartSet)
+        case .userSmart(let id):
+            return Self.userSmartID(id)
         case .modSet(let id):
             return Self.modSetID(id)
         }
@@ -210,7 +151,7 @@ enum ModLibrarySelection: Hashable, Sendable {
 
     var selectedModSetID: String? {
         switch self {
-        case .smart:
+        case .builtInSmart, .userSmart:
             return nil
         case .modSet(let id):
             return id
@@ -219,17 +160,33 @@ enum ModLibrarySelection: Hashable, Sendable {
 
     var smartSet: SmartModSet? {
         switch self {
-        case .smart(let smartSet):
+        case .builtInSmart(let smartSet):
             return smartSet
-        case .modSet:
+        case .userSmart, .modSet:
             return nil
         }
     }
 
-    var systemImage: String {
+    var userSmartModSetID: String? {
         switch self {
-        case .smart(let smartSet):
+        case .userSmart(let id):
+            return id
+        case .builtInSmart, .modSet:
+            return nil
+        }
+    }
+
+    var isSmartModSet: Bool {
+        smartSet != nil || userSmartModSetID != nil
+    }
+
+    func systemImage(in state: ModManagerState) -> String {
+        switch self {
+        case .builtInSmart(let smartSet):
             return smartSet.systemImage
+        case .userSmart(let id):
+            return userSmartModSet(withID: id, in: state)?.systemImageName
+                ?? UserSmartModSet.defaultSystemImageName
         case .modSet:
             return "folder"
         }
@@ -239,6 +196,10 @@ enum ModLibrarySelection: Hashable, Sendable {
         "\(smartPrefix)\(smartSet.rawValue)"
     }
 
+    static func userSmartID(_ id: String) -> String {
+        "\(userSmartPrefix)\(id)"
+    }
+
     static func modSetID(_ id: String) -> String {
         "\(modSetPrefix)\(id)"
     }
@@ -246,63 +207,130 @@ enum ModLibrarySelection: Hashable, Sendable {
     static func resolvedID(_ id: String, in state: ModManagerState) -> String {
         let selection = ModLibrarySelection(id: id)
         switch selection {
-        case .smart:
+        case .builtInSmart:
             return selection.id
+        case .userSmart(let id):
+            if state.userSmartModSets.contains(where: { $0.id == id }) {
+                return selection.id
+            }
+            return fallbackModSetID(in: state)
         case .modSet(let id):
             let availableIDs = Set(state.modSets.map(\.id))
             if availableIDs.contains(id) {
                 return selection.id
             }
-            if availableIDs.contains(state.selectedModSetID) {
-                return modSetID(state.selectedModSetID)
-            }
-            if let firstSetID = state.modSets.first?.id {
-                return modSetID(firstSetID)
-            }
-            return defaultID
+            return fallbackModSetID(in: state)
         }
     }
 
     func title(in state: ModManagerState) -> String {
         switch self {
-        case .smart(let smartSet):
+        case .builtInSmart(let smartSet):
             return smartSet.title
+        case .userSmart(let id):
+            return userSmartModSet(withID: id, in: state)?.name ?? AppStrings.App.name
         case .modSet(let id):
             return state.modSets.first { $0.id == id }?.name ?? AppStrings.App.name
         }
     }
 
-    func includes(_ mod: ModInfo, in state: ModManagerState) -> Bool {
+    func item(in state: ModManagerState) -> ModLibraryItem? {
         switch self {
-        case .smart(let smartSet):
-            return smartSet.includes(mod, in: state)
-        case .modSet:
-            return true
+        case .builtInSmart(let smartSet):
+            return ModLibraryItem(
+                selection: self,
+                title: smartSet.title,
+                systemImage: smartSet.systemImage,
+                count: ModFilterEngine.count(for: smartSet, in: state),
+                kind: .builtInSmartModSet,
+                isUserEditable: false
+            )
+        case .userSmart(let id):
+            guard let smartModSet = userSmartModSet(withID: id, in: state) else {
+                return nil
+            }
+            return ModLibraryItem(
+                selection: self,
+                title: smartModSet.name,
+                systemImage: smartModSet.systemImageName,
+                count: ModFilterEngine.count(for: smartModSet, in: state),
+                kind: .userSmartModSet,
+                isUserEditable: true
+            )
+        case .modSet(let id):
+            guard let modSet = state.modSets.first(where: { $0.id == id }) else {
+                return nil
+            }
+            let baseName = modSet.parentID.flatMap { parentID in
+                state.modSets.first { $0.id == parentID }?.name
+            }
+            return ModLibraryItem(
+                selection: self,
+                title: modSet.name,
+                systemImage: "folder",
+                count: Self.modCount(for: modSet, in: state),
+                kind: .modSet,
+                isUserEditable: modSet.isUserEditable,
+                inheritsFromName: baseName
+            )
         }
     }
 
-    static func recentlyDeletedArchivedMods(in state: ModManagerState) -> [ArchivedModInfo] {
-        state.archivedMods
-            .filter { archivedMod in
-                archivedMod.reason == .deleted
-            }
-            .sorted { lhs, rhs in
-                switch (lhs.archivedDate, rhs.archivedDate) {
-                case let (lhsDate?, rhsDate?):
-                    lhsDate > rhsDate
-                case (.some, nil):
-                    true
-                case (nil, .some):
-                    false
-                case (nil, nil):
-                    lhs.displayName.localizedStandardCompare(rhs.displayName) == .orderedAscending
-                }
-            }
+    func includes(_ mod: ModInfo, in state: ModManagerState) -> Bool {
+        ModFilterEngine.includes(
+            mod,
+            in: self,
+            context: ModFilterContext(
+                state: state,
+                dependencyGraph: ModDependencyGraph(mods: state.mods)
+            )
+        )
     }
-}
 
-private extension ModInfo {
-    var isContentPatcherContentPack: Bool {
-        manifest?.contentPackFor?.uniqueID?.caseInsensitiveCompare("Pathoschild.ContentPatcher") == .orderedSame
+    static func recentlyDeletedArchivedMods(in state: ModManagerState) -> [ArchivedModInfo] {
+        ModFilterEngine.recentlyDeletedArchivedMods(in: state)
+    }
+
+    static func builtInSmartItems(in state: ModManagerState) -> [ModLibraryItem] {
+        SmartModSet.allCases.compactMap { smartSet in
+            ModLibrarySelection.builtInSmart(smartSet).item(in: state)
+        }
+    }
+
+    static func userSmartItems(in state: ModManagerState) -> [ModLibraryItem] {
+        state.userSmartModSets.compactMap { smartModSet in
+            ModLibrarySelection.userSmart(smartModSet.id).item(in: state)
+        }
+    }
+
+    static func modSetItems(in state: ModManagerState) -> [ModLibraryItem] {
+        state.modSets.compactMap { modSet in
+            ModLibrarySelection.modSet(modSet.id).item(in: state)
+        }
+    }
+
+    private static func fallbackModSetID(in state: ModManagerState) -> String {
+        let availableIDs = Set(state.modSets.map(\.id))
+        if availableIDs.contains(state.selectedModSetID) {
+            return modSetID(state.selectedModSetID)
+        }
+        if availableIDs.contains(ModSetStore.defaultSetID) {
+            return modSetID(ModSetStore.defaultSetID)
+        }
+        if let firstSetID = state.modSets.first?.id {
+            return modSetID(firstSetID)
+        }
+        return initialID
+    }
+
+    private static func modCount(for set: ModSet, in state: ModManagerState) -> Int {
+        let resolvedSet = ModSetResolver.resolve(set, in: state.modSets)
+        return state.mods.filter { mod in
+            resolvedSet.isEnabled(mod)
+        }.count
+    }
+
+    private func userSmartModSet(withID id: String, in state: ModManagerState) -> UserSmartModSet? {
+        state.userSmartModSets.first { $0.id == id }
     }
 }

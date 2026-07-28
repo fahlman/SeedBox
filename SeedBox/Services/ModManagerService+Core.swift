@@ -13,7 +13,27 @@ extension ModManagerService {
     }
 
     func shouldEnableAddedMods(appliedModSetID: String?) -> Bool {
-        appliedModSetID != ModSetStore.noneSetID
+        switch appliedModSetID {
+        case ModSetStore.defaultSetID, ModSetStore.noneSetID:
+            false
+        default:
+            true
+        }
+    }
+
+    func shouldEnableAddedMod(
+        _ mod: ModInfo,
+        defaultShouldEnable: Bool,
+        appliedModSetID: String?
+    ) -> Bool {
+        switch appliedModSetID {
+        case ModSetStore.defaultSetID:
+            SMAPIIdentifiers.isBundledMod(mod)
+        case ModSetStore.noneSetID:
+            false
+        default:
+            defaultShouldEnable
+        }
     }
 
     func guardCanManageMods(in state: inout ModManagerState) -> Bool {
@@ -55,11 +75,10 @@ extension ModManagerService {
         let currentSnapshot = ModSetStore.snapshotSet(
             id: set.id,
             name: set.name,
-            from: state.mods,
-            isDefault: set.isDefault,
-            isIncluded: set.isIncluded
+            from: state.mods
         )
-        return currentSnapshot.disabledFolderTokens == set.disabledFolderTokens
+        return ModSetResolver.disabledFolderTokens(for: currentSnapshot)
+            == ModSetResolver.disabledFolderTokens(for: set, in: state.modSets)
     }
 
     func standardizedPath(for url: URL) -> String {

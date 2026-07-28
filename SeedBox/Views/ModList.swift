@@ -3,14 +3,19 @@ import SwiftUI
 struct ModList: View {
     var mods: [ModInfo]
     var canManageMods: Bool
+    var showsStateColumn: Bool
+    var canEditModStates: Bool
     var modFolderName: String
     @Binding var selectedModIDs: Set<String>
     var selectedMod: ModInfo?
     var availableUpdate: (ModInfo) -> ModAvailableUpdate?
+    var inheritanceContext: ModSetInheritanceContext?
+    var canRevertSelectedMod: Bool
     var addMods: () -> Void
     var requestSetModEnabled: (ModInfo, Bool) -> Void
     var revealSelectedMod: () -> Void
     var requestDeleteSelectedMod: () -> Void
+    var revertSelectedModToBase: () -> Void
     @SceneStorage("modList.sortColumn") private var storedSortColumn = ModListSortColumn.mod.rawValue
     @SceneStorage("modList.sortDirection") private var storedSortDirection = ModListSortDirection.forward.rawValue
 
@@ -30,17 +35,23 @@ struct ModList: View {
             )
         } else {
             Table(rows, selection: $selectedModIDs, sortOrder: sortOrderBinding) {
-                TableColumn(AppStrings.Table.state, value: \.enabledSortText) { row in
-                    Toggle(row.enabledText, isOn: Binding(
-                        get: { row.mod.isEnabled },
-                        set: { enabled in
-                            requestSetModEnabled(row.mod, enabled)
+                if showsStateColumn {
+                    TableColumn(AppStrings.Table.state, value: \.enabledSortText) { row in
+                        HStack(spacing: 6) {
+                            Toggle(row.enabledText, isOn: Binding(
+                                get: { row.mod.isEnabled },
+                                set: { enabled in
+                                    requestSetModEnabled(row.mod, enabled)
+                                }
+                            ))
+                            .labelsHidden()
+                            .disabled(!canEditModStates)
+
+                            overrideIndicator(for: row.mod)
                         }
-                    ))
-                    .labelsHidden()
-                    .disabled(!canManageMods)
+                    }
+                    .width(min: 76, ideal: 100, max: 130)
                 }
-                .width(min: 76, ideal: 92, max: 110)
 
                 TableColumn(AppStrings.Table.mod, value: \.nameSortText) { row in
                     ModNameCell(mod: row.mod)
@@ -73,6 +84,17 @@ struct ModList: View {
                 .width(min: 110, ideal: 130, max: 170)
             }
             .contextMenu {
+                if inheritanceContext != nil {
+                    Button {
+                        revertSelectedModToBase()
+                    } label: {
+                        Label(AppStrings.Table.revertToBaseSet, systemImage: "arrow.uturn.backward")
+                    }
+                    .disabled(!canRevertSelectedMod)
+
+                    Divider()
+                }
+
                 Button {
                     revealSelectedMod()
                 } label: {
@@ -85,8 +107,22 @@ struct ModList: View {
                 } label: {
                     Label(AppStrings.Toolbar.deleteMod, systemImage: "trash")
                 }
-                .disabled(selectedMod == nil || !canManageMods)
+                .disabled(selectedMod == nil || !canEditModStates)
             }
+        }
+    }
+
+    /// Marks only mods whose state is a local override of the base set. Inherited
+    /// mods are left unmarked so the table stays quiet when a set inherits; the
+    /// sidebar already signals that the set has a base.
+    @ViewBuilder
+    private func overrideIndicator(for mod: ModInfo) -> some View {
+        if inheritanceContext?.state(for: mod) == .overridden {
+            Image(systemName: "pencil.circle.fill")
+                .font(.caption2)
+                .foregroundStyle(.orange)
+                .help(AppStrings.Table.changedInThisSet)
+                .accessibilityLabel(AppStrings.Table.changedInThisSet)
         }
     }
 
@@ -105,7 +141,10 @@ struct ModList: View {
     }
 
     private var currentSortOrder: [KeyPathComparator<ModTableRow>] {
-        let column = ModListSortColumn(rawValue: storedSortColumn) ?? .mod
+        var column = ModListSortColumn(rawValue: storedSortColumn) ?? .mod
+        if column == .state && !showsStateColumn {
+            column = .mod
+        }
         let direction = ModListSortDirection(rawValue: storedSortDirection) ?? .forward
         return [column.comparator(direction: direction)]
     }

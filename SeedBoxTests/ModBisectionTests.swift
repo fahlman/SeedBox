@@ -53,6 +53,73 @@ final class ModBisectionTests: XCTestCase {
             .narrowedTo(["framework", "pack"])
         )
     }
+
+    func testPresentationExplainsCurrentTestWithModNames() {
+        let session = ModBisectionSession(
+            originalEnabledTokens: ["alpha", "bravo", "charlie", "delta"],
+            candidateTokens: ["alpha", "bravo"],
+            testingTokens: ["alpha"],
+            step: 2
+        )
+
+        let presentation = ModBisectionPresentation(
+            session: session,
+            mods: [
+                makeMod(name: "Alpha", folderName: "Alpha"),
+                makeMod(name: "Bravo", folderName: "Bravo"),
+                makeMod(name: "Charlie", folderName: "Charlie"),
+                makeMod(name: "Delta", folderName: "Delta")
+            ]
+        )
+
+        XCTAssertTrue(presentation.stepSummary.contains("Step 2"))
+        XCTAssertEqual(presentation.enabledForTestNames, ["Alpha"])
+        XCTAssertEqual(presentation.disabledForTestNames, ["Bravo", "Charlie", "Delta"])
+        XCTAssertEqual(presentation.remainingSuspectNames, ["Alpha", "Bravo"])
+        XCTAssertTrue(presentation.nextAction.contains("Launch Stardew Valley"))
+        XCTAssertTrue(presentation.endingExplanation.contains("left disabled"))
+        XCTAssertTrue(presentation.safetyNote.contains("restores your original"))
+    }
+
+    func testPresentationFallsBackToTokenForMissingModName() {
+        let session = ModBisectionSession(
+            originalEnabledTokens: ["alpha", "missing"],
+            candidateTokens: ["alpha", "missing"],
+            testingTokens: ["missing"],
+            step: 1
+        )
+
+        let presentation = ModBisectionPresentation(
+            session: session,
+            mods: [
+                makeMod(name: "Alpha", folderName: "Alpha")
+            ]
+        )
+
+        XCTAssertEqual(presentation.enabledForTestNames, ["missing"])
+        XCTAssertEqual(presentation.disabledForTestNames, ["Alpha"])
+        XCTAssertEqual(presentation.remainingSuspectNames, ["Alpha", "missing"])
+    }
+
+    private func makeMod(name: String, folderName: String) -> ModInfo {
+        ModInfo(
+            folderName: folderName,
+            url: URL(fileURLWithPath: "/tmp/\(folderName)", isDirectory: true),
+            isEnabled: true,
+            manifest: ModManifest(
+                name: name,
+                author: "Test Author",
+                version: "1.0.0",
+                description: nil,
+                uniqueID: "Test.\(folderName)",
+                entryDll: nil,
+                minimumApiVersion: nil,
+                updateKeys: nil,
+                contentPackFor: nil,
+                dependencies: nil
+            )
+        )
+    }
 }
 
 @MainActor

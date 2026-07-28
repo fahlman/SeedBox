@@ -5,20 +5,12 @@ import XCTest
 final class ModManagerViewModelTests: SeedBoxTestCase {
     func testSelectingModSetAppliesStoredModStates() async throws {
         let install = try makeInstall()
-        let consoleCommandsURL = install.modDirectoryURL.appendingPathComponent("ConsoleCommands")
-        let saveBackupURL = install.modDirectoryURL.appendingPathComponent("SaveBackup")
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: consoleCommandsURL, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: saveBackupURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Console Commands", to: consoleCommandsURL)
-        try writeManifest(name: "Save Backup", to: saveBackupURL)
+        try makeInstalledMod(name: "Console Commands", in: install)
+        try makeInstalledMod(name: "Save Backup", in: install)
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
 
         XCTAssertEqual(viewModel.state.readiness, .ready)
         XCTAssertEqual(viewModel.state.modSetSelection.selectedSetID, ModSetStore.defaultSetID)
@@ -64,30 +56,28 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, allDisabledSetID)
     }
 
-    func testIncludedDefaultSetDoesNotSaveManualChangesInRealTime() async throws {
+    func testUserCreatedSetSavesManualChangesInRealTime() async throws {
         let install = try makeInstall()
-        let consoleCommandsURL = install.modDirectoryURL.appendingPathComponent("ConsoleCommands")
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: consoleCommandsURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Console Commands", to: consoleCommandsURL)
+        try makeInstalledMod(name: "Console Commands", in: install)
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        await viewModel.createModSet(named: "Personal")
+        let personalSetID = viewModel.state.selectedModSetID
+
         XCTAssertTrue(viewModel.state.modSetSelection.selectedSetIsApplied)
-        XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeRenamed)
-        XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeDeleted)
+        XCTAssertTrue(viewModel.state.modSetSelection.selectedSetCanBeRenamed)
+        XCTAssertTrue(viewModel.state.modSetSelection.selectedSetCanBeDeleted)
+        XCTAssertEqual(viewModel.state.modSetSelection.selectedSet?.name, "Personal")
 
         let consoleCommands = try XCTUnwrap(
             viewModel.state.mods.first { $0.displayName == "Console Commands" }
         )
         await viewModel.setMod(consoleCommands, enabled: false)
 
-        XCTAssertNil(viewModel.state.modSetSelection.appliedSetID)
-        XCTAssertFalse(viewModel.state.modSetSelection.selectedSetIsApplied)
+        XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, personalSetID)
+        XCTAssertTrue(viewModel.state.modSetSelection.selectedSetIsApplied)
         XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
             "Console Commands": false
         ])
@@ -96,52 +86,66 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
             install: install,
             currentMods: viewModel.state.mods
         )
-        let defaultSet = try XCTUnwrap(reloadedSets.first(where: \.isDefault))
-        XCTAssertEqual(defaultSet.disabledFolderNames, [])
+        let personalSet = try XCTUnwrap(reloadedSets.first { $0.id == personalSetID })
+        XCTAssertEqual(personalSet.disabledFolderNames, ["ConsoleCommands"])
 
-        await viewModel.selectModSet(id: ModSetStore.defaultSetID)
-        XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, ModSetStore.defaultSetID)
+        await viewModel.selectModSet(id: personalSetID)
+        XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, personalSetID)
         XCTAssertTrue(viewModel.state.modSetSelection.selectedSetIsApplied)
         XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
-            "Console Commands": true
+            "Console Commands": false
         ])
 
         let restoredViewModel = ModManagerViewModel(
             defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
+            modSetDirectory: install.modSetDirectoryURL,
+            selectedModSetID: personalSetID
         )
         await restoredViewModel.refresh()
-        XCTAssertEqual(restoredViewModel.state.modSetSelection.appliedSetID, ModSetStore.defaultSetID)
+        XCTAssertEqual(restoredViewModel.state.modSetSelection.appliedSetID, personalSetID)
         XCTAssertTrue(restoredViewModel.state.modSetSelection.selectedSetIsApplied)
         XCTAssertEqual(modEnabledStates(in: restoredViewModel.state.mods), [
-            "Console Commands": true
+            "Console Commands": false
         ])
     }
 
-    func testSelectingIncludedAllAndNoneSetsAppliesGeneratedStates() async throws {
+    func testSelectingStarterSetsAppliesSavedStates() async throws {
         let install = try makeInstall()
-        let consoleCommandsURL = install.modDirectoryURL.appendingPathComponent("ConsoleCommands")
-        let saveBackupURL = install.modDirectoryURL.appendingPathComponent(".SaveBackup")
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: consoleCommandsURL, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: saveBackupURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Console Commands", to: consoleCommandsURL)
-        try writeManifest(name: "Save Backup", to: saveBackupURL)
-
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
+        try makeInstalledMod(
+            name: "Console Commands",
+            in: install,
+            uniqueID: "SMAPI.ConsoleCommands"
         )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        try makeInstalledMod(
+            name: "Save Backup",
+            in: install,
+            enabled: false,
+            uniqueID: "SMAPI.SaveBackup"
+        )
+        try makeInstalledMod(name: "Content Patcher", in: install)
+
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
 
         await viewModel.selectModSet(id: ModSetStore.noneSetID)
         XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, ModSetStore.noneSetID)
         XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeRenamed)
         XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeDeleted)
         XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
+            "Content Patcher": false,
             "Console Commands": false,
             "Save Backup": false
+        ])
+
+        await viewModel.selectModSet(id: ModSetStore.defaultSetID)
+        XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, ModSetStore.defaultSetID)
+        XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeRenamed)
+        XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeDeleted)
+        XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
+            "Content Patcher": false,
+            "Console Commands": true,
+            "Save Backup": true
         ])
 
         await viewModel.selectModSet(id: ModSetStore.allSetID)
@@ -149,29 +153,44 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeRenamed)
         XCTAssertFalse(viewModel.state.modSetSelection.selectedSetCanBeDeleted)
         XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
+            "Content Patcher": true,
             "Console Commands": true,
             "Save Backup": true
         ])
     }
 
-    func testAddingModToCustomSetInstallsEnabledAndSavesSet() async throws {
+    func testAppProvidedModSetsCannotBeRenamedOrDeletedThroughViewModel() async throws {
         let install = try makeInstall()
-        let consoleCommandsURL = install.modDirectoryURL.appendingPathComponent("ConsoleCommands")
-        let newModSourceURL = temporaryDirectory
-            .appendingPathComponent("Downloads")
-            .appendingPathComponent("NewMod")
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: consoleCommandsURL, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: newModSourceURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Console Commands", to: consoleCommandsURL)
-        try writeManifest(name: "New Mod", to: newModSourceURL)
-
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
+        try makeInstalledMod(
+            name: "Console Commands",
+            in: install,
+            uniqueID: "SMAPI.ConsoleCommands"
         )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        try makeInstalledMod(name: "Content Patcher", in: install)
+
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        await viewModel.selectModSet(id: ModSetStore.defaultSetID)
+        let defaultSet = try XCTUnwrap(viewModel.state.modSetSelection.selectedSet)
+
+        await viewModel.renameSelectedModSet(to: "Renamed")
+        XCTAssertEqual(viewModel.state.modSetSelection.selectedSet?.name, ModSetStore.defaultSetName)
+
+        await viewModel.deleteModSet(defaultSet)
+        XCTAssertTrue(viewModel.state.modSets.contains { $0.id == ModSetStore.defaultSetID })
+        XCTAssertEqual(viewModel.state.selectedModSetID, ModSetStore.defaultSetID)
+    }
+
+    func testAddingModToCustomSetInstallsEnabledAndSavesSet() async throws {
+        let install = try makeInstall()
+        let downloadsURL = try makeDownloadsDirectory()
+        let defaults = try makeIsolatedUserDefaults()
+
+        try makeInstalledMod(name: "Console Commands", in: install)
+        let newModSourceURL = try makeModPackage(name: "New Mod", in: downloadsURL)
+
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
         await viewModel.createModSet(named: "Favorites")
         let favoritesSetID = viewModel.state.selectedModSetID
 
@@ -207,21 +226,34 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(favoritesSet.disabledFolderNames, ["ConsoleCommands"])
     }
 
+    func testPreparingInvalidZipForImportPreviewReturnsErrorOutcome() async throws {
+        let install = try makeInstall()
+        let downloadsURL = try makeDownloadsDirectory()
+        let defaults = try makeIsolatedUserDefaults()
+        let invalidZipURL = downloadsURL.appendingPathComponent("NotAMod.zip")
+        try Data("not a zip archive".utf8).write(to: invalidZipURL)
+
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+
+        switch viewModel.prepareImportPreview(from: [invalidZipURL]) {
+        case .success:
+            XCTFail("Invalid mod archives should not produce an import preview.")
+        case .failure(.recorded(let event)):
+            XCTAssertEqual(event.severity, .error)
+            XCTAssertTrue(event.message.contains("Could not preview mods"))
+        case .failure(let outcome):
+            XCTFail("Expected a recorded preview error, got \(outcome).")
+        }
+    }
+
     func testDismissingSourceCleanupOfferKeepsOriginalFile() async throws {
         let install = try makeInstall()
-        let sourceURL = temporaryDirectory
-            .appendingPathComponent("Downloads")
-            .appendingPathComponent("NewMod")
+        let downloadsURL = try makeDownloadsDirectory()
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: sourceURL, withIntermediateDirectories: true)
-        try writeManifest(name: "New Mod", to: sourceURL)
+        let sourceURL = try makeModPackage(name: "New Mod", in: downloadsURL)
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
         await viewModel.addMods(from: [sourceURL])
 
         let offer = try XCTUnwrap(viewModel.state.pendingSourceCleanupOffer)
@@ -239,19 +271,12 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
     func testRememberingKeepFilesSuppressesFutureCleanupNotifications() async throws {
         let install = try makeInstall()
-        let sourceURL = temporaryDirectory
-            .appendingPathComponent("Downloads")
-            .appendingPathComponent("NewMod")
+        let downloadsURL = try makeDownloadsDirectory()
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: sourceURL, withIntermediateDirectories: true)
-        try writeManifest(name: "New Mod", to: sourceURL)
+        let sourceURL = try makeModPackage(name: "New Mod", in: downloadsURL)
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
         await viewModel.addMods(from: [sourceURL])
 
         let offer = try XCTUnwrap(viewModel.state.pendingSourceCleanupOffer)
@@ -270,22 +295,15 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
     func testSuppressedSourceCleanupNotificationKeepsOriginalsWhenMovePreferenceIsOff() async throws {
         let install = try makeInstall()
-        let sourceURL = temporaryDirectory
-            .appendingPathComponent("Downloads")
-            .appendingPathComponent("NewMod")
+        let downloadsURL = try makeDownloadsDirectory()
         let defaults = try makeIsolatedUserDefaults()
-        var preferences = ModManagerPreferences(defaults: defaults)
+        let preferences = ModManagerPreferences(defaults: defaults)
         preferences.moveModFilesToTrashAfterAddingMods = false
         preferences.suppressAddModsSuccessNotification = true
 
-        try FileManager.default.createDirectory(at: sourceURL, withIntermediateDirectories: true)
-        try writeManifest(name: "New Mod", to: sourceURL)
+        let sourceURL = try makeModPackage(name: "New Mod", in: downloadsURL)
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
         await viewModel.addMods(from: [sourceURL])
 
         XCTAssertNil(viewModel.state.pendingSourceCleanupOffer)
@@ -298,22 +316,15 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
     func testMovePreferenceTrashesOriginalsWithoutPromptWhenNotificationIsSuppressed() async throws {
         let install = try makeInstall()
-        let sourceURL = temporaryDirectory
-            .appendingPathComponent("Downloads")
-            .appendingPathComponent("NewMod")
+        let downloadsURL = try makeDownloadsDirectory()
         let defaults = try makeIsolatedUserDefaults()
-        var preferences = ModManagerPreferences(defaults: defaults)
+        let preferences = ModManagerPreferences(defaults: defaults)
         preferences.moveModFilesToTrashAfterAddingMods = true
         preferences.suppressAddModsSuccessNotification = true
 
-        try FileManager.default.createDirectory(at: sourceURL, withIntermediateDirectories: true)
-        try writeManifest(name: "New Mod", to: sourceURL)
+        let sourceURL = try makeModPackage(name: "New Mod", in: downloadsURL)
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
         await viewModel.addMods(from: [sourceURL])
 
         XCTAssertNil(viewModel.state.pendingSourceCleanupOffer)
@@ -324,22 +335,13 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
     func testAddingModToAppliedNoneSetInstallsDisabledAndKeepsNoneApplied() async throws {
         let install = try makeInstall()
-        let consoleCommandsURL = install.modDirectoryURL.appendingPathComponent("ConsoleCommands")
-        let newModSourceURL = temporaryDirectory
-            .appendingPathComponent("Downloads")
-            .appendingPathComponent("NewMod")
+        let downloadsURL = try makeDownloadsDirectory()
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: consoleCommandsURL, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: newModSourceURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Console Commands", to: consoleCommandsURL)
-        try writeManifest(name: "New Mod", to: newModSourceURL)
+        try makeInstalledMod(name: "Console Commands", in: install)
+        let newModSourceURL = try makeModPackage(name: "New Mod", in: downloadsURL)
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
         await viewModel.selectModSet(id: ModSetStore.noneSetID)
         await viewModel.addMods(from: [newModSourceURL])
 
@@ -348,6 +350,53 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
             "Console Commands": false,
             "New Mod": false
         ])
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent("NewMod")
+                    .appendingPathComponent("manifest.json")
+                    .path
+            )
+        )
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL.appendingPathComponent(".NewMod").path
+            )
+        )
+
+        let noneSet = try XCTUnwrap(viewModel.state.modSets.first { $0.id == ModSetStore.noneSetID })
+        XCTAssertEqual(noneSet.disabledFolderNames, ["ConsoleCommands", "NewMod"])
+    }
+
+    func testAddingModToAppliedDefaultSetInstallsDisabledAndKeepsDefaultApplied() async throws {
+        let install = try makeInstall()
+        let downloadsURL = try makeDownloadsDirectory()
+        let defaults = try makeIsolatedUserDefaults()
+
+        try makeInstalledMod(
+            name: "Console Commands",
+            in: install,
+            uniqueID: "SMAPI.ConsoleCommands"
+        )
+        let newModSourceURL = try makeModPackage(name: "New Mod", in: downloadsURL)
+
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        await viewModel.selectModSet(id: ModSetStore.defaultSetID)
+        await viewModel.addMods(from: [newModSourceURL])
+
+        XCTAssertEqual(viewModel.state.modSetSelection.appliedSetID, ModSetStore.defaultSetID)
+        XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
+            "Console Commands": true,
+            "New Mod": false
+        ])
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent("NewMod")
+                    .appendingPathComponent("manifest.json")
+                    .path
+            )
+        )
         XCTAssertTrue(
             FileManager.default.fileExists(
                 atPath: install.modDirectoryURL
@@ -356,44 +405,30 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
                     .path
             )
         )
-        XCTAssertFalse(
-            FileManager.default.fileExists(
-                atPath: install.modDirectoryURL.appendingPathComponent("NewMod").path
-            )
-        )
 
-        let noneSet = try XCTUnwrap(viewModel.state.modSets.first { $0.id == ModSetStore.noneSetID })
-        XCTAssertEqual(noneSet.disabledFolderNames, ["ConsoleCommands", "NewMod"])
+        let defaultSet = try XCTUnwrap(viewModel.state.modSets.first { $0.id == ModSetStore.defaultSetID })
+        XCTAssertEqual(defaultSet.disabledFolderNames, ["NewMod"])
     }
 
     func testAddingAlreadyInstalledModReportsSkippedInstall() async throws {
         let install = try makeInstall()
-        let existingURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
-        let sourceURL = temporaryDirectory
-            .appendingPathComponent("Downloads")
-            .appendingPathComponent("ContentPatcher")
+        let downloadsURL = try makeDownloadsDirectory()
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: existingURL, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: sourceURL, withIntermediateDirectories: true)
-        try writeManifest(
+        try makeInstalledMod(
             name: "Content Patcher",
-            to: existingURL,
+            in: install,
             version: "1.2.0",
             uniqueID: "Pathoschild.ContentPatcher"
         )
-        try writeManifest(
+        let sourceURL = try makeModPackage(
             name: "Content Patcher",
-            to: sourceURL,
+            in: downloadsURL,
             version: "1.2.0",
             uniqueID: "Pathoschild.ContentPatcher"
         )
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
         await viewModel.addMods(from: [sourceURL])
 
         XCTAssertEqual(viewModel.state.statusLineMessage, "Content Patcher is already installed.")
@@ -409,32 +444,23 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
     func testAddingNewerInstalledModUpdatesAndArchivesPreviousCopy() async throws {
         let install = try makeInstall()
-        let existingURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
-        let sourceURL = temporaryDirectory
-            .appendingPathComponent("Downloads")
-            .appendingPathComponent("ContentPatcher")
+        let downloadsURL = try makeDownloadsDirectory()
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: existingURL, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: sourceURL, withIntermediateDirectories: true)
-        try writeManifest(
+        try makeInstalledMod(
             name: "Content Patcher",
-            to: existingURL,
+            in: install,
             version: "1.2.0",
             uniqueID: "Pathoschild.ContentPatcher"
         )
-        try writeManifest(
+        let sourceURL = try makeModPackage(
             name: "Content Patcher",
-            to: sourceURL,
+            in: downloadsURL,
             version: "1.10.0",
             uniqueID: "Pathoschild.ContentPatcher"
         )
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
         await viewModel.addMods(from: [sourceURL])
 
         let updatedMod = try XCTUnwrap(viewModel.state.mods.first { $0.displayName == "Content Patcher" })
@@ -456,17 +482,11 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
     func testDeletingModArchivesRestorableCopy() async throws {
         let install = try makeInstall()
-        let modURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Content Patcher", to: modURL)
+        let modURL = try makeInstalledMod(name: "Content Patcher", in: install)
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
 
         let mod = try XCTUnwrap(viewModel.state.mods.first { $0.displayName == "Content Patcher" })
         await viewModel.deleteMod(mod)
@@ -489,17 +509,10 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         let modNames = ["Console Commands", "Content Patcher", "Save Backup"]
 
         for modName in modNames {
-            let modURL = install.modDirectoryURL
-                .appendingPathComponent(modName.replacingOccurrences(of: " ", with: ""))
-            try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
-            try writeManifest(name: modName, to: modURL)
+            try makeInstalledMod(name: modName, in: install)
         }
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
         let auditEntryCountBeforeDisable = viewModel.state.auditTrail.recentEntries.count
 
         await viewModel.setMods(viewModel.state.mods, enabled: false)
@@ -535,11 +548,9 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         let install = try makeInstall()
         let defaults = try makeIsolatedUserDefaults()
 
-        let bundledURL = install.modDirectoryURL.appendingPathComponent("ConsoleCommands")
-        try FileManager.default.createDirectory(at: bundledURL, withIntermediateDirectories: true)
-        try writeManifest(
+        try makeInstalledMod(
             name: "Console Commands",
-            to: bundledURL,
+            in: install,
             version: "4.0.0",
             uniqueID: "SMAPI.ConsoleCommands"
         )
@@ -555,11 +566,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
             encoding: .utf8
         )
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
 
         XCTAssertEqual(viewModel.state.smapiVersionIssues.map(\.displayName), ["Demanding Mod"])
         XCTAssertTrue(viewModel.state.hasProblems)
@@ -575,19 +582,17 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
     func testResolvingDuplicateGroupKeepsNewestCopyAndArchivesRest() async throws {
         let install = try makeInstall()
         let defaults = try makeIsolatedUserDefaults()
-        let newerURL = install.modDirectoryURL.appendingPathComponent("Alpha")
-        let olderURL = install.modDirectoryURL.appendingPathComponent("AlphaOld")
 
-        try FileManager.default.createDirectory(at: newerURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Alpha", to: newerURL, version: "2.0.0", uniqueID: "Test.Alpha")
-        try FileManager.default.createDirectory(at: olderURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Alpha", to: olderURL, version: "1.0.0", uniqueID: "Test.Alpha")
-
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
+        try makeInstalledMod(name: "Alpha", in: install, version: "2.0.0", uniqueID: "Test.Alpha")
+        let olderURL = try makeInstalledMod(
+            name: "Alpha",
+            in: install,
+            folderName: "AlphaOld",
+            version: "1.0.0",
+            uniqueID: "Test.Alpha"
         )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
 
         let group = try XCTUnwrap(viewModel.state.duplicateGroups.first)
         XCTAssertEqual(group.mods.count, 2)
@@ -609,17 +614,11 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
     func testFailedModSetCreationRecordsErrorSeverityStatus() async throws {
         let install = try makeInstall()
-        let modURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Content Patcher", to: modURL)
+        try makeInstalledMod(name: "Content Patcher", in: install)
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
 
         await viewModel.createModSet(named: "Favorites")
         XCTAssertEqual(viewModel.state.statusLineSeverity, .info)
@@ -632,22 +631,16 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
     func testRestoringDeletedModFromHistoryRestoresFolderAndAudits() async throws {
         let install = try makeInstall()
-        let modURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Content Patcher", to: modURL, version: "1.0.0")
+        let modURL = try makeInstalledMod(name: "Content Patcher", in: install, version: "1.0.0")
         let archivedURL = try ModArchive.archive(
             modURL,
             in: install.archivedModsDirectoryURL,
             reason: .deleted
         )
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
 
         XCTAssertTrue(viewModel.state.mods.isEmpty)
         XCTAssertEqual(viewModel.state.archiveSummary.archivedModCount, 1)
@@ -672,20 +665,39 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(restoredEntry.details["restored_count"], "1")
     }
 
-    func testStartupScanAddsClosedAppModToLastAppliedCustomSet() async throws {
+    func testDeletingArchivedModFromHistoryDeletesFolderAndAudits() async throws {
         let install = try makeInstall()
-        let consoleCommandsURL = install.modDirectoryURL.appendingPathComponent("ConsoleCommands")
-        let disabledNewModURL = install.modDirectoryURL.appendingPathComponent(".NewMod")
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: consoleCommandsURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Console Commands", to: consoleCommandsURL)
-
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
+        let modURL = try makeInstalledMod(name: "Content Patcher", in: install, version: "1.0.0")
+        let archivedURL = try ModArchive.archive(
+            modURL,
+            in: install.archivedModsDirectoryURL,
+            reason: .deleted
         )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        let archivedMod = try XCTUnwrap(viewModel.state.archivedMods.first)
+
+        await viewModel.deleteArchivedMods([archivedMod])
+
+        XCTAssertEqual(viewModel.state.archiveSummary.archivedModCount, 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: archivedURL.path))
+        XCTAssertTrue(viewModel.state.statusLineMessage.contains("Deleted 1 archived mod"))
+
+        let deleteEntry = try XCTUnwrap(viewModel.state.auditTrail.recentEntries.last)
+        XCTAssertEqual(deleteEntry.action, .archivesPruned)
+        XCTAssertEqual(deleteEntry.details["source"], "permanent_delete")
+        XCTAssertEqual(deleteEntry.details["pruned_count"], "1")
+    }
+
+    func testStartupScanAddsClosedAppModToLastAppliedCustomSet() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+
+        try makeInstalledMod(name: "Console Commands", in: install)
+
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
         await viewModel.createModSet(named: "Favorites")
         let favoritesSetID = viewModel.state.selectedModSetID
 
@@ -694,8 +706,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         )
         await viewModel.setMod(consoleCommands, enabled: false)
 
-        try FileManager.default.createDirectory(at: disabledNewModURL, withIntermediateDirectories: true)
-        try writeManifest(name: "New Mod", to: disabledNewModURL)
+        let disabledNewModURL = try makeInstalledMod(name: "New Mod", in: install, enabled: false)
 
         let restoredViewModel = ModManagerViewModel(
             defaults: defaults,
@@ -732,22 +743,14 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
     func testStartupScanDisablesClosedAppModWhenNoneSetWasApplied() async throws {
         let install = try makeInstall()
-        let consoleCommandsURL = install.modDirectoryURL.appendingPathComponent("ConsoleCommands")
-        let enabledNewModURL = install.modDirectoryURL.appendingPathComponent("NewMod")
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: consoleCommandsURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Console Commands", to: consoleCommandsURL)
+        try makeInstalledMod(name: "Console Commands", in: install)
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
         await viewModel.selectModSet(id: ModSetStore.noneSetID)
 
-        try FileManager.default.createDirectory(at: enabledNewModURL, withIntermediateDirectories: true)
-        try writeManifest(name: "New Mod", to: enabledNewModURL)
+        let enabledNewModURL = try makeInstalledMod(name: "New Mod", in: install)
 
         let restoredViewModel = ModManagerViewModel(
             defaults: defaults,
@@ -762,6 +765,14 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
             "New Mod": false
         ])
         XCTAssertFalse(FileManager.default.fileExists(atPath: enabledNewModURL.path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent("NewMod")
+                    .appendingPathComponent("manifest.json")
+                    .path
+            )
+        )
         XCTAssertTrue(
             FileManager.default.fileExists(
                 atPath: install.modDirectoryURL
@@ -782,22 +793,23 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         XCTAssertEqual(addedEntry.details["installed_state"], "disabled")
     }
 
-    func testDeletingSelectedModSetAppliesDefaultSet() async throws {
+    func testDeletingSelectedModSetSelectsRemainingSetWithoutApplyingPreset() async throws {
         let install = try makeInstall()
-        let consoleCommandsURL = install.modDirectoryURL.appendingPathComponent("ConsoleCommands")
-        let saveBackupURL = install.modDirectoryURL.appendingPathComponent("SaveBackup")
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: consoleCommandsURL, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: saveBackupURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Console Commands", to: consoleCommandsURL)
-        try writeManifest(name: "Save Backup", to: saveBackupURL)
-
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
+        try makeInstalledMod(
+            name: "Console Commands",
+            in: install,
+            uniqueID: "SMAPI.ConsoleCommands"
         )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        try makeInstalledMod(
+            name: "Save Backup",
+            in: install,
+            uniqueID: "SMAPI.SaveBackup"
+        )
+        try makeInstalledMod(name: "Content Patcher", in: install)
+
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
         await viewModel.createModSet(named: "All Disabled")
 
         let allDisabledSet = try XCTUnwrap(viewModel.state.modSetSelection.selectedSet)
@@ -806,34 +818,35 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         }
 
         XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
+            "Content Patcher": false,
             "Console Commands": false,
             "Save Backup": false
         ])
 
         await viewModel.deleteModSet(allDisabledSet)
 
-        XCTAssertEqual(viewModel.state.selectedModSetID, ModSetStore.defaultSetID)
+        XCTAssertEqual(viewModel.state.selectedModSetID, ModSetStore.allSetID)
         XCTAssertFalse(viewModel.state.modSets.contains { $0.id == allDisabledSet.id })
         XCTAssertEqual(modEnabledStates(in: viewModel.state.mods), [
-            "Console Commands": true,
-            "Save Backup": true
+            "Content Patcher": false,
+            "Console Commands": false,
+            "Save Backup": false
         ])
-        XCTAssertTrue(viewModel.state.modSetSelection.selectedSetIsApplied)
+        XCTAssertFalse(viewModel.state.modSetSelection.selectedSetIsApplied)
+        XCTAssertNil(viewModel.state.modSetSelection.appliedSetID)
+        XCTAssertEqual(
+            viewModel.state.statusLineMessage,
+            "Deleted mod set All Disabled."
+        )
     }
 
     func testRestoresPersistedFolderAndStoredSelectedModSet() async throws {
         let install = try makeInstall()
-        let consoleCommandsURL = install.modDirectoryURL.appendingPathComponent("ConsoleCommands")
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: consoleCommandsURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Console Commands", to: consoleCommandsURL)
+        try makeInstalledMod(name: "Console Commands", in: install)
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
         await viewModel.createModSet(named: "Custom")
 
         let selectedSetID = viewModel.state.selectedModSetID
@@ -858,22 +871,13 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
     func testAuditTrailRecordsModAndModSetActions() async throws {
         let install = try makeInstall()
-        let consoleCommandsURL = install.modDirectoryURL.appendingPathComponent("ConsoleCommands")
-        let newModSourceURL = temporaryDirectory
-            .appendingPathComponent("Downloads")
-            .appendingPathComponent("NewMod")
+        let downloadsURL = try makeDownloadsDirectory()
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: consoleCommandsURL, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: newModSourceURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Console Commands", to: consoleCommandsURL)
-        try writeManifest(name: "New Mod", to: newModSourceURL)
+        try makeInstalledMod(name: "Console Commands", in: install)
+        let newModSourceURL = try makeModPackage(name: "New Mod", in: downloadsURL)
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
         await viewModel.createModSet(named: "Favorites")
         await viewModel.renameSelectedModSet(to: "Keepers")
         await viewModel.addMods(from: [newModSourceURL])
@@ -910,17 +914,11 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
     func testAuditTrailReloadsFromPersistentLog() async throws {
         let install = try makeInstall()
-        let consoleCommandsURL = install.modDirectoryURL.appendingPathComponent("ConsoleCommands")
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: consoleCommandsURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Console Commands", to: consoleCommandsURL)
+        try makeInstalledMod(name: "Console Commands", in: install)
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
         await viewModel.createModSet(named: "Favorites")
 
         let persistedEntries = try AuditLogStore.loadEntries(from: install.auditLogURL)
@@ -942,14 +940,11 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
     func testObservedFolderChangeRefreshesModsAndShowsNotification() async throws {
         let install = try makeInstall()
-        let consoleCommandsURL = install.modDirectoryURL.appendingPathComponent("ConsoleCommands")
-        let saveBackupURL = install.modDirectoryURL.appendingPathComponent("SaveBackup")
         let defaults = try makeIsolatedUserDefaults()
         let monitor = SpyModsFolderMonitor()
         let notifier = SpyModFolderChangeNotifier()
 
-        try FileManager.default.createDirectory(at: consoleCommandsURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Console Commands", to: consoleCommandsURL)
+        try makeInstalledMod(name: "Console Commands", in: install)
 
         let viewModel = ModManagerViewModel(
             defaults: defaults,
@@ -964,8 +959,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
             "Console Commands": true
         ])
 
-        try FileManager.default.createDirectory(at: saveBackupURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Save Backup", to: saveBackupURL)
+        try makeInstalledMod(name: "Save Backup", in: install)
 
         monitor.simulateChange()
         try await waitUntil {
@@ -988,18 +982,11 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
     func testObservedAddedModIsEnabledAndSavedIntoCustomSet() async throws {
         let install = try makeInstall()
-        let consoleCommandsURL = install.modDirectoryURL.appendingPathComponent("ConsoleCommands")
-        let disabledNewModURL = install.modDirectoryURL.appendingPathComponent(".NewMod")
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: consoleCommandsURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Console Commands", to: consoleCommandsURL)
+        try makeInstalledMod(name: "Console Commands", in: install)
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
         await viewModel.createModSet(named: "Favorites")
         let favoritesSetID = viewModel.state.selectedModSetID
 
@@ -1008,8 +995,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         )
         await viewModel.setMod(consoleCommands, enabled: false)
 
-        try FileManager.default.createDirectory(at: disabledNewModURL, withIntermediateDirectories: true)
-        try writeManifest(name: "New Mod", to: disabledNewModURL)
+        let disabledNewModURL = try makeInstalledMod(name: "New Mod", in: install, enabled: false)
 
         let service = makeService(defaults: defaults, install: install, initialState: viewModel.state)
         let (reconciledState, didObserveExternalChange) = await service.reconcileObservedModsFolderChange()
@@ -1041,22 +1027,14 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
     func testObservedAddedModIsDisabledWhenNoneSetIsApplied() async throws {
         let install = try makeInstall()
-        let consoleCommandsURL = install.modDirectoryURL.appendingPathComponent("ConsoleCommands")
-        let enabledNewModURL = install.modDirectoryURL.appendingPathComponent("NewMod")
         let defaults = try makeIsolatedUserDefaults()
 
-        try FileManager.default.createDirectory(at: consoleCommandsURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Console Commands", to: consoleCommandsURL)
+        try makeInstalledMod(name: "Console Commands", in: install)
 
-        let viewModel = ModManagerViewModel(
-            defaults: defaults,
-            modSetDirectory: install.modSetDirectoryURL
-        )
-        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
         await viewModel.selectModSet(id: ModSetStore.noneSetID)
 
-        try FileManager.default.createDirectory(at: enabledNewModURL, withIntermediateDirectories: true)
-        try writeManifest(name: "New Mod", to: enabledNewModURL)
+        let enabledNewModURL = try makeInstalledMod(name: "New Mod", in: install)
 
         let service = makeService(defaults: defaults, install: install, initialState: viewModel.state)
         let (reconciledState, didObserveExternalChange) = await service.reconcileObservedModsFolderChange()
@@ -1068,6 +1046,14 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
             "New Mod": false
         ])
         XCTAssertFalse(FileManager.default.fileExists(atPath: enabledNewModURL.path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent("NewMod")
+                    .appendingPathComponent("manifest.json")
+                    .path
+            )
+        )
         XCTAssertTrue(
             FileManager.default.fileExists(
                 atPath: install.modDirectoryURL
@@ -1088,13 +1074,11 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
     func testAppInitiatedFolderChangeDoesNotShowFolderChangeNotification() async throws {
         let install = try makeInstall()
-        let consoleCommandsURL = install.modDirectoryURL.appendingPathComponent("ConsoleCommands")
         let defaults = try makeIsolatedUserDefaults()
         let monitor = SpyModsFolderMonitor()
         let notifier = SpyModFolderChangeNotifier()
 
-        try FileManager.default.createDirectory(at: consoleCommandsURL, withIntermediateDirectories: true)
-        try writeManifest(name: "Console Commands", to: consoleCommandsURL)
+        try makeInstalledMod(name: "Console Commands", in: install)
 
         let viewModel = ModManagerViewModel(
             defaults: defaults,
@@ -1164,12 +1148,7 @@ private final class SpyModsFolderMonitor: ModsFolderMonitoring {
 }
 
 private final class SpyModFolderChangeNotifier: ModFolderChangeNotifying {
-    private(set) var authorizationRequestCount = 0
     private(set) var notificationCount = 0
-
-    func requestAuthorization() {
-        authorizationRequestCount += 1
-    }
 
     func notifyModsFolderChanged() {
         notificationCount += 1

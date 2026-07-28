@@ -82,6 +82,7 @@ extension ModManagerService {
                 fallbackURLs: addedMods.map(\.url),
                 source: .watchedFolder,
                 shouldEnable: shouldEnableAddedMods(in: previousState),
+                appliedModSetID: previousState.appliedModSetID,
                 in: refreshed
             )
             return (commit(reconciled), true)
@@ -143,6 +144,10 @@ extension ModManagerService {
         commit(restoreArchivedMods(archivedMods, in: state))
     }
 
+    func deleteArchivedMods(_ archivedMods: [ArchivedModInfo]) -> ModManagerState {
+        commit(deleteArchivedMods(archivedMods, in: state))
+    }
+
     func resolveDuplicateGroup(id: String) -> ModManagerState {
         commit(resolveDuplicateGroup(id: id, in: state))
     }
@@ -159,12 +164,16 @@ extension ModManagerService {
         commit(pruneExpiredArchives(in: state))
     }
 
-    func createModSet(named name: String, from sourceSet: ModSet? = nil) -> ModManagerState {
-        commit(createModSet(named: name, from: sourceSet, in: state))
+    func createModSet(
+        named name: String,
+        from sourceSet: ModSet? = nil,
+        parentID: String? = nil
+    ) -> ModManagerState {
+        commit(createModSet(named: name, from: sourceSet, parentID: parentID, in: state))
     }
 
-    func duplicateSelectedModSet(named name: String) -> ModManagerState {
-        commit(duplicateSelectedModSet(named: name, in: state))
+    func duplicateSelectedModSet(named name: String, parentID: String? = nil) -> ModManagerState {
+        commit(duplicateSelectedModSet(named: name, parentID: parentID, in: state))
     }
 
     func renameSelectedModSet(to requestedName: String) -> ModManagerState {
@@ -187,6 +196,14 @@ extension ModManagerService {
 
     func deleteModSet(_ set: ModSet) -> ModManagerState {
         commit(deleteModSet(set, in: state))
+    }
+
+    func restoreModSet(_ set: ModSet) -> ModManagerState {
+        commit(restoreModSet(set, in: state))
+    }
+
+    func importModSet(fromFileAt url: URL) -> ModManagerState {
+        commit(importModSet(fromFileAt: url, in: state))
     }
 
     func moveSourceFilesToTrash(

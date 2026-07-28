@@ -113,17 +113,19 @@ final class ModManagerViewModel {
         commit(await service.createModFolder())
     }
 
-    func prepareImportPreview(from selectedURLs: [URL]) -> ModImportPreview? {
-        switch importPreviewCoordinator.prepareImportPreview(
+    func prepareImportPreview(from selectedURLs: [URL]) -> ModImportPreviewResult {
+        let result = importPreviewCoordinator.prepareImportPreview(
             from: selectedURLs,
             install: install,
             readiness: state.readiness
-        ) {
+        )
+
+        switch result {
         case .success(let preview):
-            return preview
+            return .success(preview)
         case .failure(let outcome):
             apply(outcome)
-            return nil
+            return .failure(outcome)
         }
     }
 
@@ -198,6 +200,10 @@ final class ModManagerViewModel {
         commit(await service.restoreArchivedMods(archivedMods))
     }
 
+    func deleteArchivedMods(_ archivedMods: [ArchivedModInfo]) async {
+        commit(await service.deleteArchivedMods(archivedMods))
+    }
+
     func restorePreviousVersion(of mod: ModInfo) async {
         commit(await service.restorePreviousVersion(of: mod))
     }
@@ -234,12 +240,12 @@ final class ModManagerViewModel {
         commit(await service.cancelBisection())
     }
 
-    func createModSet(named name: String, from sourceSet: ModSet? = nil) async {
-        commit(await service.createModSet(named: name, from: sourceSet))
+    func createModSet(named name: String, from sourceSet: ModSet? = nil, parentID: String? = nil) async {
+        commit(await service.createModSet(named: name, from: sourceSet, parentID: parentID))
     }
 
-    func duplicateSelectedModSet(named name: String) async {
-        commit(await service.duplicateSelectedModSet(named: name))
+    func duplicateSelectedModSet(named name: String, parentID: String? = nil) async {
+        commit(await service.duplicateSelectedModSet(named: name, parentID: parentID))
     }
 
     func renameSelectedModSet(to requestedName: String) async {
@@ -256,6 +262,36 @@ final class ModManagerViewModel {
 
     func deleteModSet(_ set: ModSet) async {
         commit(await service.deleteModSet(set))
+    }
+
+    func restoreModSet(_ set: ModSet) async {
+        commit(await service.restoreModSet(set))
+    }
+
+    func importModSet(fromFileAt url: URL) async {
+        commit(await service.importModSet(fromFileAt: url))
+    }
+
+    /// The export bytes for the selected Mod Set, or nil when no editable set is
+    /// selected. The view writes these to a user-chosen `.seedboxset` file.
+    func exportDataForSelectedModSet() -> Data? {
+        guard let selectedSet = state.modSetSelection.selectedSet else {
+            return nil
+        }
+        return try? ModSetTransfer.exportData(
+            for: selectedSet,
+            mods: state.mods,
+            in: state.modSets
+        )
+    }
+
+    /// A shareable item for the selected Mod Set, or nil when none is selected,
+    /// for use with the macOS share sheet.
+    func exportableSelectedModSet() -> ExportableModSet? {
+        guard let selectedSet = state.modSetSelection.selectedSet else {
+            return nil
+        }
+        return ExportableModSet.make(for: selectedSet, mods: state.mods, in: state.modSets)
     }
 
     private func record(_ message: String, severity: StatusEvent.Severity = .info) {

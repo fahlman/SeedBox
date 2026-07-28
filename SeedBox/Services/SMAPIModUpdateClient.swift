@@ -4,7 +4,7 @@ import Foundation
 /// SMAPI itself uses. One fixed HTTPS endpoint; the request carries only each
 /// mod's unique ID, installed version, and manifest update keys.
 struct SMAPIModUpdateClient: ModUpdateChecking {
-    static let endpoint = URL(string: "https://api.smapi.io/v3.0/mods")!
+    static let endpoint = URL(string: "https://smapi.io/api/v3.0/mods")!
 
     private let session: URLSession
 
@@ -43,7 +43,7 @@ struct SMAPIModUpdateClient: ModUpdateChecking {
         else {
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
             AppLog.updateCheck.error("Update check failed with HTTP status \(statusCode, privacy: .public).")
-            throw URLError(.badServerResponse)
+            throw ModUpdateCheckError.httpStatus(statusCode)
         }
 
         do {
@@ -109,6 +109,17 @@ struct SMAPIModUpdateClient: ModUpdateChecking {
 
     private struct ResponseModPage: Decodable {
         var url: String?
+    }
+}
+
+enum ModUpdateCheckError: LocalizedError {
+    case httpStatus(Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .httpStatus(let statusCode):
+            "SMAPI update service returned HTTP \(statusCode)."
+        }
     }
 }
 

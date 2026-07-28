@@ -85,18 +85,11 @@ extension ModManagerService {
             nextState = refreshedState(from: nextState)
             record(changeMessage, severity: changeSeverity, in: &nextState)
 
-            let savedState: ModManagerState
-            if !installResult.installed.isEmpty {
-                savedState = saveCurrentStateToSelectedModSet(
-                    in: nextState,
-                    recordingSuccess: AppStrings.Status.updatedModSet(
-                        after: changeMessage,
-                        setName: nextState.modSetSelection.selectedSetName
-                    )
-                )
-            } else {
-                savedState = nextState
-            }
+            let savedState = saveSelectedModSetIfNeeded(
+                afterInstalling: installResult,
+                changeMessage: changeMessage,
+                in: nextState
+            )
 
             var auditedState = savedState
             var details = installDetails(
@@ -133,9 +126,23 @@ extension ModManagerService {
         fallbackURLs: [URL],
         source: AddedModSource,
         shouldEnable: Bool,
+        appliedModSetID: String? = nil,
         in state: ModManagerState
     ) -> ModManagerState {
         var nextState = state
+        let effectiveAppliedModSetID = appliedModSetID ?? state.appliedModSetID
+        let enablementByModID = Dictionary(
+            uniqueKeysWithValues: addedMods.map { mod in
+                (
+                    mod.id,
+                    shouldEnableAddedMod(
+                        mod,
+                        defaultShouldEnable: shouldEnable,
+                        appliedModSetID: effectiveAppliedModSetID
+                    )
+                )
+            }
+        )
         let addedTokens = Set(
             (addedMods.map(\.enabledFolderName) + fallbackURLs.map(\.lastPathComponent))
                 .map(\.normalizedFolderToken)
@@ -146,7 +153,10 @@ extension ModManagerService {
         do {
             try performWithFolderAccess(state: &nextState) {
                 for mod in addedMods {
-                    _ = try ModLibrary.setEnabled(mod, enabled: shouldEnable)
+                    _ = try ModLibrary.setEnabled(
+                        mod,
+                        enabled: enablementByModID[mod.id] ?? shouldEnable
+                    )
                 }
             }
 
@@ -166,7 +176,10 @@ extension ModManagerService {
                 )
             )
             var details = source.details
-            details["installed_state"] = shouldEnable ? "enabled" : "disabled"
+            details["installed_state"] = installedStateDescription(
+                for: addedMods.map { enablementByModID[$0.id] ?? shouldEnable },
+                fallback: shouldEnable
+            )
             details["destination_paths"] = finalAddedURLs.map(\.path).joined(separator: "\n")
             audit(
                 .modsAdded,
@@ -182,6 +195,20 @@ extension ModManagerService {
             record(AppStrings.Status.couldNotReconcileAddedMods(error.localizedDescription), severity: .error, in: &nextState)
             return nextState
         }
+    }
+
+    private func installedStateDescription(for decisions: [Bool], fallback: Bool) -> String {
+        guard !decisions.isEmpty else {
+            return fallback ? "enabled" : "disabled"
+        }
+
+        if decisions.allSatisfy({ $0 }) {
+            return "enabled"
+        }
+        if decisions.allSatisfy({ !$0 }) {
+            return "disabled"
+        }
+        return "mixed"
     }
 
     func installSummary(for installResult: ModInstallResult) -> String {
@@ -233,6 +260,24 @@ extension ModManagerService {
         }
 
         return sentences.joined(separator: " ")
+    }
+
+    func saveSelectedModSetIfNeeded(
+        afterInstalling installResult: ModInstallResult,
+        changeMessage: String,
+        in state: ModManagerState
+    ) -> ModManagerState {
+        guard !installResult.installed.isEmpty else {
+            return state
+        }
+
+        return saveCurrentStateToSelectedModSet(
+            in: state,
+            recordingSuccess: AppStrings.Status.updatedModSet(
+                after: changeMessage,
+                setName: state.modSetSelection.selectedSetName
+            )
+        )
     }
 
     func auditAction(for installResult: ModInstallResult) -> AuditLogAction {

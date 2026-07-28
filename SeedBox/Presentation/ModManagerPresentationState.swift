@@ -13,21 +13,18 @@ struct ModManagerPresentationState {
         state: ModManagerState,
         searchText: String,
         selectedModIDs: Set<String>,
-        selectedLibraryItemID: String = ModLibrarySelection.defaultID
+        selectedLibraryItemID: String = ModLibrarySelection.initialID
     ) {
         let dependencyGraph = ModDependencyGraph(mods: state.mods)
         let librarySelection = ModLibrarySelection(
             id: ModLibrarySelection.resolvedID(selectedLibraryItemID, in: state)
         )
-        let query = ModSearchQuery(searchText)
-        let filteredMods = state.mods.filter { mod in
-            librarySelection.includes(mod, in: state)
-                && query.matches(
-                    mod,
-                    in: dependencyGraph,
-                    hasAvailableUpdate: state.availableUpdate(for: mod) != nil
-                )
-        }
+        let filteredMods = ModFilterEngine.filteredMods(
+            in: state,
+            librarySelection: librarySelection,
+            searchText: searchText,
+            dependencyGraph: dependencyGraph
+        )
         let selectedMod = Self.selectedMod(in: filteredMods, selectedModIDs: selectedModIDs)
 
         self.state = state
@@ -86,6 +83,22 @@ struct ModManagerPresentationState {
         )
     }
 
+    var selectedLibraryItem: ModLibraryItem? {
+        librarySelection.item(in: state)
+    }
+
+    var builtInSmartModSetItems: [ModLibraryItem] {
+        ModLibrarySelection.builtInSmartItems(in: state)
+    }
+
+    var userSmartModSetItems: [ModLibraryItem] {
+        ModLibrarySelection.userSmartItems(in: state)
+    }
+
+    var modSetItems: [ModLibraryItem] {
+        ModLibrarySelection.modSetItems(in: state)
+    }
+
     var selectedSet: ModSet? {
         guard let selectedModSetID = librarySelection.selectedModSetID else {
             return nil
@@ -94,8 +107,44 @@ struct ModManagerPresentationState {
         return modSet(withID: selectedModSetID)
     }
 
+    /// Inheritance context for the selected Mod Set, or nil when the selection
+    /// is standalone (so the table shows no inheritance indicators).
+    var selectedSetInheritanceContext: ModSetInheritanceContext? {
+        guard
+            let selectedSet,
+            let parentID = selectedSet.parentID,
+            let parent = state.modSets.first(where: { $0.id == parentID })
+        else {
+            return nil
+        }
+
+        let parentDisabledTokens = ModSetResolver
+            .resolve(parent, in: state.modSets)
+            .disabledFolderTokens
+        return ModSetInheritanceContext(
+            baseSetName: parent.name,
+            parentDisabledTokens: parentDisabledTokens,
+            ownDisabledTokens: selectedSet.disabledFolderTokens,
+            ownEnabledTokens: selectedSet.enabledFolderTokens
+        )
+    }
+
+    /// Whether the selected mod can be reverted to its base set state — only
+    /// when the selected set inherits, the mod is locally overridden, and mod
+    /// states are editable.
+    var canRevertSelectedModToBase: Bool {
+        guard
+            canEditDisplayedModStates,
+            let mod = selection.mod,
+            let context = selectedSetInheritanceContext
+        else {
+            return false
+        }
+        return context.state(for: mod) == .overridden
+    }
+
     var selectedRenamableSet: ModSet? {
-        guard let selectedSet, selectedSet.isUserEditable else {
+        guard let selectedSet, selectedSet.isUserRenamable else {
             return nil
         }
 
@@ -103,11 +152,23 @@ struct ModManagerPresentationState {
     }
 
     var selectedDeletableSet: ModSet? {
-        selectedRenamableSet
+        guard let selectedSet, selectedSet.isUserDeletable else {
+            return nil
+        }
+
+        return selectedSet
     }
 
     var canManageMods: Bool {
         readiness.canManageMods
+    }
+
+    var canShowDisplayedModStates: Bool {
+        canManageMods && librarySelection.selectedModSetID != nil
+    }
+
+    var canEditDisplayedModStates: Bool {
+        canManageMods && (selectedSet?.isUserEditable ?? false)
     }
 
     var canShowProblems: Bool {
@@ -131,7 +192,7 @@ struct ModManagerPresentationState {
     }
 
     var canRestorePreviousVersion: Bool {
-        canManageMods && selection.canRestorePreviousVersion
+        canEditDisplayedModStates && selection.canRestorePreviousVersion
     }
 
     var canRevealSelectedMod: Bool {
@@ -139,7 +200,7 @@ struct ModManagerPresentationState {
     }
 
     var canDeleteSelectedMod: Bool {
-        canManageMods && selection.hasSelectedMod
+        canEditDisplayedModStates && selection.hasSelectedMod
     }
 
     var canShowModInspector: Bool {
@@ -153,12 +214,35 @@ struct ModManagerPresentationState {
 
         return ModManagerInsights.comparison(
             for: selectedSet,
-            currentMods: state.mods
+            currentMods: state.mods,
+            in: state.modSets
         )
     }
 
     func modSet(withID id: String) -> ModSet? {
         state.modSets.first { $0.id == id }
+    }
+
+    /// Mod Sets eligible to serve as a base (parent) for a set being created or
+    /// edited, sorted for display. Excludes the set itself and any choice that
+    /// would create an inheritance cycle. Smart Mod Sets live in a separate
+    /// store and are never included.
+    func availableBaseSets(forEditing editingSetID: String?) -> [ModSet] {
+        state.modSets
+            .filter { candidate in
+                guard let editingSetID else {
+                    return true
+                }
+                guard candidate.id != editingSetID else {
+                    return false
+                }
+                return !ModSetResolver.wouldCreateCycle(
+                    assigning: candidate.id,
+                    to: editingSetID,
+                    in: state.modSets
+                )
+            }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     func modSetIsAlreadyApplied(_ id: String) -> Bool {

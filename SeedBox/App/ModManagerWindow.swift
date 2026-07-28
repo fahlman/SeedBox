@@ -1,11 +1,12 @@
 import AppKit
+import CoreSpotlight
 import SwiftUI
 
 struct ModManagerWindow: View {
     private let viewModel = ModManagerViewModel.shared
-    @SceneStorage("modManager.selectedLibraryItemID") private var selectedLibraryItemID = ModLibrarySelection.defaultID
+    @SceneStorage("modManager.selectedLibraryItemID") private var selectedLibraryItemID = ModLibrarySelection.initialID
     @SceneStorage("modManager.searchText") private var searchText = ""
-    @SceneStorage("modManager.selectedModIDs") private var selectedModIDsStorage = "[]"
+    @State private var selectedModIDs = Set<String>()
     @State private var restoredWindowState = false
 
     var body: some View {
@@ -13,13 +14,22 @@ struct ModManagerWindow: View {
             viewModel: viewModel,
             searchText: $searchText,
             selectedLibraryItemID: $selectedLibraryItemID,
-            selectedModIDs: selectedModIDsBinding
+            selectedModIDs: $selectedModIDs
         )
         .navigationTitle(windowTitle)
         .task {
             await restoreWindowStateIfNeeded()
             await viewModel.refresh()
-            synchronizeSelectedModSetWithAvailableSets()
+            synchronizeLibrarySelectionWithAvailableItems()
+            SeedBoxSpotlightIndexer.reindex(from: viewModel.state)
+        }
+        .onChange(of: viewModel.state.mods.map(\.id)) {
+            // Reindex only when mods are added or removed (id is stable across
+            // enable/disable), not on every toggle.
+            SeedBoxSpotlightIndexer.reindex(from: viewModel.state)
+        }
+        .onContinueUserActivity(CSSearchableItemActionType) { activity in
+            openSpotlightResult(activity)
         }
         .onReceive(
             NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
@@ -35,8 +45,45 @@ struct ModManagerWindow: View {
             selectedLibraryItemID = ModLibrarySelection.modSetID(selectedModSetID)
         }
         .onChange(of: viewModel.state.modSets) {
-            synchronizeSelectedModSetWithAvailableSets()
+            synchronizeLibrarySelectionWithAvailableItems()
+            SeedBoxSpotlightIndexer.reindex(from: viewModel.state)
         }
+        .onChange(of: viewModel.state.userSmartModSets) {
+            synchronizeLibrarySelectionWithAvailableItems()
+            SeedBoxSpotlightIndexer.reindex(from: viewModel.state)
+        }
+        .onChange(of: selectedLibraryItemID) {
+            selectedModIDs = []
+        }
+        .onOpenURL { url in
+            openSeedBoxSetFile(url)
+        }
+    }
+
+    /// Imports a `.seedboxset` file the user double-clicked or opened with Seed
+    /// Box. Security-scoped access is held for the read.
+    private func openSeedBoxSetFile(_ url: URL) {
+        guard url.pathExtension.lowercased() == SeedBoxSetDocument.fileExtension else {
+            return
+        }
+        Task {
+            let didAccess = url.startAccessingSecurityScopedResource()
+            await viewModel.importModSet(fromFileAt: url)
+            if didAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+    }
+
+    /// Routes a tapped Spotlight result to the matching in-app view.
+    private func openSpotlightResult(_ activity: NSUserActivity) {
+        guard
+            let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
+            let route = SeedBoxEntityCatalog.route(forSystemIdentifier: identifier)
+        else {
+            return
+        }
+        SeedBoxShortcutRouter.shared.request(route: route)
     }
 
     private var windowTitle: String {
@@ -58,12 +105,7 @@ struct ModManagerWindow: View {
         restoredWindowState = true
     }
 
-    private func synchronizeSelectedModSetWithAvailableSets() {
-        let availableIDs = Set(viewModel.state.modSets.map(\.id))
-        guard !availableIDs.isEmpty else {
-            return
-        }
-
+    private func synchronizeLibrarySelectionWithAvailableItems() {
         let resolvedID = ModLibrarySelection.resolvedID(selectedLibraryItemID, in: viewModel.state)
         guard selectedLibraryItemID != resolvedID else {
             return
@@ -77,34 +119,6 @@ struct ModManagerWindow: View {
         }
     }
 
-    private var selectedModIDsBinding: Binding<Set<String>> {
-        Binding(
-            get: { Self.decodeSelectedModIDs(selectedModIDsStorage) },
-            set: { selectedModIDs in
-                selectedModIDsStorage = Self.encodeSelectedModIDs(selectedModIDs)
-            }
-        )
-    }
-
-    private static func decodeSelectedModIDs(_ storedValue: String) -> Set<String> {
-        guard let data = storedValue.data(using: .utf8),
-              let ids = try? JSONDecoder().decode([String].self, from: data)
-        else {
-            return []
-        }
-
-        return Set(ids)
-    }
-
-    private static func encodeSelectedModIDs(_ ids: Set<String>) -> String {
-        guard let data = try? JSONEncoder().encode(ids.sorted()),
-              let storedValue = String(data: data, encoding: .utf8)
-        else {
-            return "[]"
-        }
-
-        return storedValue
-    }
 }
 
 struct SettingsSceneView: View {

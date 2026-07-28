@@ -3,9 +3,10 @@ import SwiftUI
 struct ModDependencyConfirmationFactory {
     static func applying(
         set: ModSet,
+        in allSets: [ModSet],
         dependencyGraph: ModDependencyGraph
     ) -> DependencyConfirmation? {
-        let issues = dependencyGraph.issues(applying: set)
+        let issues = dependencyGraph.issues(applying: set, in: allSets)
         guard !issues.isEmpty else {
             return nil
         }

@@ -26,6 +26,7 @@
 		94174AFE2FD45E5900CC009E /* ROADMAP.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ROADMAP.md; sourceTree = "<group>"; };
 		94174AFF2FD45E5A00CC009E /* THIRD_PARTY_NOTICES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = THIRD_PARTY_NOTICES.md; sourceTree = "<group>"; };
 		94174B012FD6000000CC009E /* Release.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Release.md; sourceTree = "<group>"; };
+		94174B042FD6000000CC009E /* StoreFeatureMatrix.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = StoreFeatureMatrix.md; sourceTree = "<group>"; };
 		94174B032FD6000000CC009E /* release-zip.zsh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "release-zip.zsh"; sourceTree = "<group>"; };
 		F00300000000000000000001 /* Seed Box Mod Manager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Seed Box Mod Manager.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F00300000000000000000002 /* SeedBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SeedBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -91,6 +92,7 @@
 			isa = PBXGroup;
 			children = (
 				94174B012FD6000000CC009E /* Release.md */,
+				94174B042FD6000000CC009E /* StoreFeatureMatrix.md */,
 			);
 			path = Docs;
 			sourceTree = "<group>";
@@ -340,6 +342,118 @@
 			};
 			name = Release;
 		};
+		C00000000000000000000004 /* Debug Steam configuration for PBXProject "SeedBox" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
+					DEBUG,
+					SEEDBOX_STEAM,
+				);
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = "Debug Steam";
+		};
+		C00000000000000000000005 /* Release Steam configuration for PBXProject "SeedBox" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = SEEDBOX_STEAM;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = "Release Steam";
+		};
 		C00100000000000000000001 /* Debug configuration for PBXNativeTarget "Seed Box" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -417,6 +531,84 @@
 			};
 			name = Release;
 		};
+		C00100000000000000000004 /* Debug Steam configuration for PBXNativeTarget "Seed Box" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SeedBox/Steam.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = PUT2KYMV2W;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				EXECUTABLE_NAME = SeedBox;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SeedBox/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fahlsing.SeedBox;
+				PRODUCT_NAME = "Seed Box Mod Manager";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_MODULE_NAME = SeedBox;
+			};
+			name = "Debug Steam";
+		};
+		C00100000000000000000005 /* Release Steam configuration for PBXNativeTarget "Seed Box" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SeedBox/Steam.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = PUT2KYMV2W;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				EXECUTABLE_NAME = SeedBox;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SeedBox/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fahlsing.SeedBox;
+				PRODUCT_NAME = "Seed Box Mod Manager";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_MODULE_NAME = SeedBox;
+			};
+			name = "Release Steam";
+		};
 		C00200000000000000000001 /* Debug configuration for PBXNativeTarget "SeedBoxTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -453,6 +645,42 @@
 			};
 			name = Release;
 		};
+		C00200000000000000000004 /* Debug Steam configuration for PBXNativeTarget "SeedBoxTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = PUT2KYMV2W;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fahlsing.SeedBoxTests;
+				PRODUCT_NAME = SeedBoxTests;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Seed Box Mod Manager.app/Contents/MacOS/SeedBox";
+			};
+			name = "Debug Steam";
+		};
+		C00200000000000000000005 /* Release Steam configuration for PBXNativeTarget "SeedBoxTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = PUT2KYMV2W;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fahlsing.SeedBoxTests;
+				PRODUCT_NAME = SeedBoxTests;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Seed Box Mod Manager.app/Contents/MacOS/SeedBox";
+			};
+			name = "Release Steam";
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -461,6 +689,8 @@
 			buildConfigurations = (
 				C00000000000000000000001 /* Debug configuration for PBXProject "SeedBox" */,
 				C00000000000000000000002 /* Release configuration for PBXProject "SeedBox" */,
+				C00000000000000000000004 /* Debug Steam configuration for PBXProject "SeedBox" */,
+				C00000000000000000000005 /* Release Steam configuration for PBXProject "SeedBox" */,
 			);
 			defaultConfigurationName = Release;
 		};
@@ -469,6 +699,8 @@
 			buildConfigurations = (
 				C00100000000000000000001 /* Debug configuration for PBXNativeTarget "Seed Box" */,
 				C00100000000000000000002 /* Release configuration for PBXNativeTarget "Seed Box" */,
+				C00100000000000000000004 /* Debug Steam configuration for PBXNativeTarget "Seed Box" */,
+				C00100000000000000000005 /* Release Steam configuration for PBXNativeTarget "Seed Box" */,
 			);
 			defaultConfigurationName = Release;
 		};
@@ -477,6 +709,8 @@
 			buildConfigurations = (
 				C00200000000000000000001 /* Debug configuration for PBXNativeTarget "SeedBoxTests" */,
 				C00200000000000000000002 /* Release configuration for PBXNativeTarget "SeedBoxTests" */,
+				C00200000000000000000004 /* Debug Steam configuration for PBXNativeTarget "SeedBoxTests" */,
+				C00200000000000000000005 /* Release Steam configuration for PBXNativeTarget "SeedBoxTests" */,
 			);
 			defaultConfigurationName = Release;
 		};

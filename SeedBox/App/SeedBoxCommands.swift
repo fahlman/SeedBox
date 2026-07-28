@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SeedBoxCommands: Commands {
     @FocusedValue(\.modManagerCommandContext) private var context
@@ -8,7 +9,7 @@ struct SeedBoxCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
             Button {
-                NSApplication.shared.orderFrontStandardAboutPanel(nil)
+                NSApplication.shared.orderFrontStandardAboutPanel(options: AboutPanelContent.options())
             } label: {
                 Label(AppStrings.Commands.aboutSeedBox, systemImage: "info.circle")
             }
@@ -21,6 +22,21 @@ struct SeedBoxCommands: Commands {
         CommandGroup(replacing: .importExport) {
             commandButton(.addMods)
             commandButton(.chooseModsFolder)
+
+            Divider()
+
+            Button {
+                importModSetFromPanel()
+            } label: {
+                Label(AppStrings.Commands.importModSet, systemImage: "square.and.arrow.down")
+            }
+
+            Button {
+                exportSelectedModSetToPanel()
+            } label: {
+                Label(AppStrings.Commands.exportModSet, systemImage: "square.and.arrow.up")
+            }
+            .disabled(!canExportSelectedModSet)
         }
 
         CommandGroup(replacing: .printItem) {}
@@ -78,9 +94,60 @@ struct SeedBoxCommands: Commands {
             commandButton(.duplicateModSet)
             commandButton(.renameModSet)
 
+            if let exportable = ModManagerViewModel.shared.exportableSelectedModSet() {
+                ShareLink(item: exportable, preview: SharePreview(exportable.name)) {
+                    Label(AppStrings.Commands.shareModSet, systemImage: "square.and.arrow.up")
+                }
+            }
+
             Divider()
 
             commandButton(.deleteModSet)
+        }
+    }
+
+    private var canExportSelectedModSet: Bool {
+        ModManagerViewModel.shared.state.modSetSelection.selectedSet != nil
+    }
+
+    private func importModSetFromPanel() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [SeedBoxSetDocument.contentType]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+
+        Task {
+            let didAccess = url.startAccessingSecurityScopedResource()
+            await ModManagerViewModel.shared.importModSet(fromFileAt: url)
+            if didAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+    }
+
+    private func exportSelectedModSetToPanel() {
+        let viewModel = ModManagerViewModel.shared
+        guard
+            let selectedSet = viewModel.state.modSetSelection.selectedSet,
+            let data = viewModel.exportDataForSelectedModSet()
+        else {
+            return
+        }
+
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [SeedBoxSetDocument.contentType]
+        panel.nameFieldStringValue = "\(selectedSet.name).\(SeedBoxSetDocument.fileExtension)"
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+
+        let didAccess = url.startAccessingSecurityScopedResource()
+        try? data.write(to: url, options: .atomic)
+        if didAccess {
+            url.stopAccessingSecurityScopedResource()
         }
     }
 

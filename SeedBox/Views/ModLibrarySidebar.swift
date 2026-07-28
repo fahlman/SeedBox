@@ -7,25 +7,47 @@ struct ModLibrarySidebar: View {
 
     var body: some View {
         List(selection: selectedItemBinding) {
-            Section(AppStrings.Library.smartModSets) {
-                ForEach(SmartModSet.allCases) { smartSet in
-                    Label(smartSet.title, systemImage: smartSet.systemImage)
-                        .badge(smartSet.count(in: presentationState.state))
-                        .tag(ModLibrarySelection.smartID(smartSet))
+            Section(AppStrings.Library.library) {
+                ForEach(presentationState.builtInSmartModSetItems) { item in
+                    sidebarRow(for: item)
+                }
+            }
+
+            if !presentationState.userSmartModSetItems.isEmpty {
+                Section(AppStrings.Library.savedSearches) {
+                    ForEach(presentationState.userSmartModSetItems) { item in
+                        sidebarRow(for: item)
+                    }
                 }
             }
 
             Section(AppStrings.Help.modSetsTitle) {
-                ForEach(presentationState.modSetSelection.sets) { set in
-                    Label(set.name, systemImage: set.isUserEditable ? "folder" : "folder.badge.gearshape")
-                        .badge(modCount(for: set))
-                        .tag(ModLibrarySelection.modSetID(set.id))
+                ForEach(presentationState.modSetItems) { item in
+                    sidebarRow(for: item)
                 }
             }
         }
         .listStyle(.sidebar)
         .navigationTitle(AppStrings.Library.library)
         .navigationSplitViewColumnWidth(min: 190, ideal: 230, max: 280)
+    }
+
+    private func sidebarRow(for item: ModLibraryItem) -> some View {
+        Label {
+            HStack(spacing: 4) {
+                Text(item.title)
+                if let baseSetName = item.inheritsFromName {
+                    Image(systemName: "arrow.triangle.branch")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel(AppStrings.Library.inheritsFrom(baseSetName))
+                }
+            }
+        } icon: {
+            Image(systemName: item.systemImage)
+        }
+        .badge(item.count)
+        .tag(item.id)
     }
 
     private var selectedItemBinding: Binding<String?> {
@@ -42,9 +64,4 @@ struct ModLibrarySidebar: View {
         )
     }
 
-    private func modCount(for set: ModSet) -> Int {
-        presentationState.state.mods.filter { mod in
-            !set.disabledFolderTokens.contains(mod.enabledFolderName.normalizedFolderToken)
-        }.count
-    }
 }

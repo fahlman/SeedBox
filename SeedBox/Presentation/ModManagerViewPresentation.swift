@@ -8,6 +8,7 @@ struct ModManagerViewPresentation {
     var isDropTargeted = false
     var remembersSourceCleanupChoice = false
     var isShowingModInspector = false
+    var hasHandledLaunchModUpdateCheck = false
 
     mutating func dismissAlert() {
         alert = nil
@@ -59,6 +60,8 @@ enum ModManagerAlert: Identifiable {
     case deleteModSet(ModSet)
     case dependency(DependencyConfirmation)
     case lastSessionNotice(LastSessionNotice)
+    case modUpdateNetworkAccess
+    case message(MessageAlert)
 
     var id: String {
         switch self {
@@ -70,6 +73,10 @@ enum ModManagerAlert: Identifiable {
             return "dependency-\(confirmation.id)"
         case .lastSessionNotice(let notice):
             return "last-session-notice-\(notice.id)"
+        case .modUpdateNetworkAccess:
+            return "mod-update-network-access"
+        case .message(let alert):
+            return "message-\(alert.id)"
         }
     }
 
@@ -83,8 +90,18 @@ enum ModManagerAlert: Identifiable {
             return confirmation.title
         case .lastSessionNotice:
             return AppStrings.Alerts.lastSessionNoticeTitle
+        case .modUpdateNetworkAccess:
+            return AppStrings.Alerts.allowModUpdateNetworkAccessTitle
+        case .message(let alert):
+            return alert.title
         }
     }
+}
+
+struct MessageAlert: Identifiable {
+    var id = UUID()
+    var title: String
+    var message: String
 }
 
 struct DependencyConfirmation: Identifiable {

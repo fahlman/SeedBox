@@ -9,6 +9,7 @@ import MetricKit
 // its own queue and file writes go through thread-safe FileManager.
 final class CrashDiagnosticsCollector: NSObject, MXMetricManagerSubscriber, @unchecked Sendable {
     static let shared = CrashDiagnosticsCollector()
+    static let didStorePayloadNotification = Notification.Name("SeedBoxCrashDiagnosticsCollectorDidStorePayload")
 
     static func defaultDiagnosticsDirectory() -> URL {
         StardewInstall.defaultModSetDirectory()
@@ -52,6 +53,7 @@ final class CrashDiagnosticsCollector: NSObject, MXMetricManagerSubscriber, @unc
             let name = "Diagnostic \(timestamp) \(UUID().uuidString).json"
             try payloadData.write(to: diagnosticsDirectory.appendingPathComponent(name))
             AppLog.diagnostics.error("Received a diagnostic payload from MetricKit; stored for review (\(payloadData.count, privacy: .public) bytes).")
+            NotificationCenter.default.post(name: Self.didStorePayloadNotification, object: self)
         } catch {
             AppLog.diagnostics.error("Couldn't store a MetricKit diagnostic payload: \(error)")
         }

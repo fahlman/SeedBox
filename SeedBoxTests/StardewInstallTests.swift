@@ -41,6 +41,21 @@ final class StardewInstallTests: SeedBoxTestCase {
         )
     }
 
+    func testDefaultSmartModSetStoreUsesApplicationSupport() {
+        let applicationSupportDirectory = URL(
+            fileURLWithPath: "/Users/example/Library/Application Support",
+            isDirectory: true
+        )
+
+        XCTAssertEqual(
+            StardewInstall.defaultSmartModSetStoreURL(
+                applicationSupportDirectory: applicationSupportDirectory
+            )
+            .path,
+            "/Users/example/Library/Application Support/Seed Box/Smart Mod Sets.plist"
+        )
+    }
+
     func testDefaultPathFallsBackToGOGWhenSteamMacOSIsMissing() throws {
         let home = temporaryDirectory.appendingPathComponent("Home", isDirectory: true)
         let applicationsDirectory = temporaryDirectory.appendingPathComponent("Applications", isDirectory: true)

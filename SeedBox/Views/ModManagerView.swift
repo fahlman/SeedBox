@@ -7,6 +7,7 @@ struct ModManagerView: View {
     @Binding var selectedLibraryItemID: String
     @Binding var selectedModIDs: Set<String>
     @State var presentation = ModManagerViewPresentation()
+    @Environment(\.undoManager) var undoManager
 
     static var addableModContentTypes: [UTType] {
         var contentTypes: [UTType] = [.folder]
@@ -30,7 +31,7 @@ struct ModManagerView: View {
         // reconstruct the dependency graph and re-run the search filter.
         let presentationState = presentationState
 
-        content(presentationState)
+        windowContent(presentationState)
             .background(.background)
             .overlay {
                 dropOverlay(presentationState)
@@ -97,288 +98,45 @@ struct ModManagerView: View {
             .onChange(of: presentationState.state.modSets) {
                 syncLibrarySelection(presentationState)
             }
+            .onChange(of: presentationState.state.hasLoadedMods) {
+                syncLaunchModUpdateCheck(presentationState)
+            }
+            .onChange(of: presentationState.state.checksForModUpdates) {
+                syncLaunchModUpdateCheck(presentationState)
+            }
             .onAppear {
                 syncLibrarySelection(presentationState)
                 syncSourceCleanupOffer()
                 syncBisectionSheet()
                 syncLastSessionNotice()
+                syncLaunchModUpdateCheck(presentationState)
+                syncAppShortcutRequest()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: SeedBoxShortcutRouter.didRequestShortcutNotification)) { _ in
+                syncAppShortcutRequest()
             }
             .focusedValue(\.modManagerCommandContext, commandContext(presentationState))
     }
 
     @ViewBuilder
-    private func sheetContent(
-        for sheet: ModManagerSheet,
-        presentationState: ModManagerPresentationState
-    ) -> some View {
-        switch sheet {
-        case .modSetEditor(let mode):
-            ModSetNameSheet(
-                mode: mode,
-                onCancel: {
-                    presentation.dismissSheet()
-                },
-                onCommit: { name in
-                    Task {
-                        await commitModSetEditor(mode: mode, name: name)
-                    }
-                }
-            )
-        case .importPreview(let preview):
-            ModImportPreviewSheet(
-                preview: preview,
-                cancel: {
-                    ModLibrary.discardImportPreview(preview)
-                    presentation.dismissSheet()
-                },
-                install: {
-                    installPreviewedMods(preview)
-                }
-            )
-        case .sourceCleanup(let offer):
-            SourceCleanupOfferSheet(
-                offer: offer,
-                remembersChoice: $presentation.remembersSourceCleanupChoice,
-                keepFiles: {
-                    Task {
-                        await viewModel.keepSourceFiles(
-                            for: offer,
-                            remembersChoice: presentation.remembersSourceCleanupChoice
-                        )
-                    }
-                    presentation.dismissSheet()
-                },
-                moveToTrash: {
-                    Task {
-                        await viewModel.moveSourceFilesToTrash(
-                            for: offer,
-                            remembersChoice: presentation.remembersSourceCleanupChoice
-                        )
-                        presentation.dismissSheet()
-                    }
-                },
-                dismissNotice: {
-                    Task {
-                        await viewModel.dismissSourceCleanupOffer()
-                    }
-                    presentation.dismissSheet()
-                }
-            )
-        case .problems:
-            ProblemsSheet(
-                dependencyIssues: presentationState.problemSummary.dependencyIssues,
-                invalidFolders: presentationState.problemSummary.invalidFolders,
-                duplicateGroups: presentationState.problemSummary.duplicateGroups,
-                smapiVersionIssues: presentationState.problemSummary.smapiVersionIssues,
-                detectedSMAPIVersion: presentationState.problemSummary.detectedSMAPIVersion,
-                lastSessionIssues: presentationState.state.lastSessionIssues,
-                lastSessionDate: presentationState.state.lastSessionReport?.generatedAt,
-                modPageURLs: presentationState.state.knownModPageURLs,
-                canStartBisection: presentationState.canManageMods
-                    && presentationState.state.bisectionSession == nil
-                    && presentationState.state.mods.filter(\.isEnabled).count >= 2,
-                canManageMods: presentationState.canManageMods,
-                resolveDuplicates: resolveDuplicateGroup,
-                disableMod: { mod in
-                    setMod(mod, enabled: false)
-                },
-                startBisection: startBisection,
-                close: {
-                    presentation.dismissSheet()
-                }
-            )
-        case .activity:
-            ActivitySheet(
-                auditTrail: presentationState.auditTrail,
-                close: {
-                    presentation.dismissSheet()
-                }
-            )
-        case .restoreHistory:
-            RestoreHistorySheet(
-                archivedMods: presentationState.state.archivedMods,
-                currentMods: presentationState.state.mods,
-                archiveSummary: presentationState.archiveSummary,
-                restore: restoreArchivedMods,
-                revealInFinder: viewModel.revealArchivedModsFolder,
-                pruneExpiredArchives: pruneExpiredArchives,
-                close: {
-                    presentation.dismissSheet()
-                }
-            )
-        case .modSetComparison(let comparison):
-            ModSetComparisonSheet(comparison: comparison) {
-                presentation.dismissSheet()
-            }
-        case .bisection:
-            if let session = presentationState.state.bisectionSession {
-                BisectionSheet(
-                    session: session,
-                    reportResult: { problemOccurred in
-                        Task {
-                            await viewModel.recordBisectionResult(problemOccurred: problemOccurred)
-                        }
-                    },
-                    cancel: {
-                        Task {
-                            await viewModel.cancelBisection()
-                        }
-                    }
+    private func windowContent(_ presentationState: ModManagerPresentationState) -> some View {
+        if presentationState.canManageMods {
+            NavigationSplitView {
+                ModLibrarySidebar(
+                    presentationState: presentationState,
+                    selectedItemID: $selectedLibraryItemID,
+                    selectItem: selectLibraryItem(id:)
                 )
+            } detail: {
+                managedContent(presentationState)
             }
-        }
-    }
-
-    private var activeSheet: Binding<ModManagerSheet?> {
-        Binding(
-            get: {
-                presentation.sheet
-            },
-            set: { sheet in
-                if sheet == nil,
-                   case .sourceCleanup = presentation.sheet {
-                    Task {
-                        await viewModel.dismissSourceCleanupOffer()
-                    }
-                }
-                presentation.sheet = sheet
-            }
-        )
-    }
-
-    @ViewBuilder
-    private func alertActions(for alert: ModManagerAlert) -> some View {
-        switch alert {
-        case .deleteMod(let mod):
-            Button(AppStrings.Common.delete, role: .destructive) {
-                Task {
-                    await viewModel.deleteMod(mod)
-                    removeSelectedModID(mod.id)
-                    presentation.dismissAlert()
-                }
-            }
-
-            Button(AppStrings.Common.cancel, role: .cancel) {
-                presentation.dismissAlert()
-            }
-        case .deleteModSet(let set):
-            Button(AppStrings.Common.delete, role: .destructive) {
-                Task {
-                    await viewModel.deleteModSet(set)
-                    presentation.dismissAlert()
-                }
-            }
-
-            Button(AppStrings.Common.cancel, role: .cancel) {
-                presentation.dismissAlert()
-            }
-        case .dependency(let confirmation):
-            Button(AppStrings.Common.cancel, role: .cancel) {
-                presentation.dismissAlert()
-            }
-
-            if let repairTitle = confirmation.repairTitle,
-               let repairAction = confirmation.repairAction {
-                Button(repairTitle, role: confirmation.repairRole) {
-                    performDependencyAction(repairAction)
-                }
-            }
-
-            Button(confirmation.confirmTitle, role: confirmation.confirmRole) {
-                performDependencyAction(confirmation.action)
-            }
-        case .lastSessionNotice:
-            Button(AppStrings.Alerts.reviewProblems) {
-                presentation.dismissAlert()
-                presentation.sheet = .problems
-                Task {
-                    await viewModel.dismissLastSessionNotice()
-                }
-            }
-
-            Button(AppStrings.Alerts.notNow, role: .cancel) {
-                presentation.dismissAlert()
-                Task {
-                    await viewModel.dismissLastSessionNotice()
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func alertMessage(
-        for alert: ModManagerAlert,
-        presentationState: ModManagerPresentationState
-    ) -> some View {
-        switch alert {
-        case .deleteMod(let mod):
-            Text(AppStrings.Alerts.deleteModMessage(
-                mod.displayName,
-                retentionDays: presentationState.archiveRetentionDays
-            ))
-        case .deleteModSet(let set):
-            Text(AppStrings.Alerts.deleteModSetMessage(set.name))
-        case .dependency(let confirmation):
-            Text(confirmation.message)
-        case .lastSessionNotice(let notice):
-            Text(lastSessionNoticeMessage(for: notice))
-        }
-    }
-
-    private func lastSessionNoticeMessage(for notice: LastSessionNotice) -> String {
-        var sentences: [String] = []
-        if notice.skippedModCount > 0 {
-            sentences.append(AppStrings.Alerts.lastSessionSkippedMods(count: notice.skippedModCount))
-        }
-        if notice.erroringModCount > 0 {
-            sentences.append(AppStrings.Alerts.lastSessionErroringMods(count: notice.erroringModCount))
-        }
-        return sentences.joined(separator: " ")
-    }
-
-    private func content(_ presentationState: ModManagerPresentationState) -> some View {
-        VStack(spacing: 0) {
-            if presentationState.canManageMods {
-                managedLibraryContent(presentationState)
-            } else {
-                SetupEmptyState(
-                    readiness: presentationState.readiness,
-                    modFolderName: viewModel.modFolderName,
-                    chooseModsFolder: chooseModsFolder,
-                    createModFolder: createModFolder
-                )
-            }
-
-            if !presentationState.statusLineMessage.isEmpty {
-                Divider()
-                HStack(spacing: 6) {
-                    if presentationState.statusLineSeverity == .error {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                            .accessibilityLabel(AppStrings.Problems.title)
-                    }
-
-                    Text(presentationState.statusLineMessage)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 10)
-            }
-        }
-    }
-
-    private func managedLibraryContent(_ presentationState: ModManagerPresentationState) -> some View {
-        NavigationSplitView {
-            ModLibrarySidebar(
-                presentationState: presentationState,
-                selectedItemID: $selectedLibraryItemID,
-                selectItem: selectLibraryItem(id:)
+        } else {
+            SetupEmptyState(
+                readiness: presentationState.readiness,
+                modFolderName: viewModel.modFolderName,
+                chooseModsFolder: chooseModsFolder,
+                createModFolder: createModFolder
             )
-        } detail: {
-            managedContent(presentationState)
         }
     }
 
@@ -389,11 +147,15 @@ struct ModManagerView: View {
                 archivedMods: ModLibrarySelection.recentlyDeletedArchivedMods(in: presentationState.state),
                 currentMods: presentationState.state.mods,
                 restore: restoreArchivedMods,
+                deletePermanently: deleteArchivedMods,
                 revealInFinder: viewModel.revealArchivedModsFolder,
                 pruneExpiredArchives: pruneExpiredArchives
             )
-        } else if presentationState.librarySelection.smartSet != nil && presentationState.filteredMods.isEmpty {
-            SmartModSetEmptyState(selection: presentationState.librarySelection)
+        } else if presentationState.librarySelection.isSmartModSet && presentationState.filteredMods.isEmpty {
+            SmartModSetEmptyState(
+                selection: presentationState.librarySelection,
+                state: presentationState.state
+            )
         } else {
             modListContent(presentationState)
         }
@@ -404,15 +166,21 @@ struct ModManagerView: View {
             ModList(
                 mods: presentationState.filteredMods,
                 canManageMods: presentationState.canManageMods,
+                showsStateColumn: presentationState.canShowDisplayedModStates,
+                canEditModStates: presentationState.canEditDisplayedModStates,
                 modFolderName: viewModel.modFolderName,
                 selectedModIDs: $selectedModIDs,
                 selectedMod: presentationState.selection.mod,
                 availableUpdate: presentationState.state.availableUpdate(for:),
+                inheritanceContext: presentationState.selectedSetInheritanceContext,
+                canRevertSelectedMod: presentationState.canRevertSelectedModToBase,
                 addMods: addMods,
                 requestSetModEnabled: requestSetModEnabled,
                 revealSelectedMod: revealSelectedMod,
-                requestDeleteSelectedMod: requestDeleteSelectedMod
+                requestDeleteSelectedMod: requestDeleteSelectedMod,
+                revertSelectedModToBase: revertSelectedModToBase
             )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if presentation.isShowingModInspector, let selectedMod = presentationState.selection.mod {
                 Divider()
@@ -429,7 +197,7 @@ struct ModManagerView: View {
                     archiveSummary: presentationState.archiveSummary,
                     restorePreviousVersion: restorePreviousVersion,
                     showRestoreHistory: {
-                        presentation.sheet = .restoreHistory
+                        openRoute(.restoreHistory)
                     },
                     revealSelectedMod: revealSelectedMod,
                     pruneExpiredArchives: pruneExpiredArchives
@@ -451,21 +219,5 @@ struct ModManagerView: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
-    }
-
-    private var alertIsPresented: Binding<Bool> {
-        Binding(
-            get: { presentation.alert != nil },
-            set: { isPresented in
-                if !isPresented {
-                    if case .lastSessionNotice = presentation.alert {
-                        Task {
-                            await viewModel.dismissLastSessionNotice()
-                        }
-                    }
-                    presentation.dismissAlert()
-                }
-            }
-        )
     }
 }

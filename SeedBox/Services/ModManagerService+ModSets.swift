@@ -18,7 +18,6 @@ extension ModManagerService {
             }
             return nextState
         }
-
         do {
             try saveCurrentState(to: selectedSet, in: nextState)
             nextState.appliedModSetID = selectedSet.id
@@ -38,6 +37,7 @@ extension ModManagerService {
         try performWithFolderAccess(state: &state) {
             try ModSetStore.applySet(
                 set,
+                in: currentState.modSets,
                 install: install(for: currentState)
             )
         }
@@ -45,21 +45,95 @@ extension ModManagerService {
 
     func saveCurrentState(to set: ModSet, in state: ModManagerState) throws {
         guard set.isUserEditable else {
-            throw ModSetStoreError.cannotEditIncludedSet
+            return
         }
 
-        var updatedSet = set
-        updatedSet.disabledFolderNames = ModSetStore.snapshotSet(
-            id: set.id,
-            name: set.name,
-            from: state.mods
-        )
-        .disabledFolderNames
+        let updatedSet = currentStateSnapshot(for: set, in: state)
 
         try ModSetStore.saveSet(
             updatedSet,
             install: install(for: state)
         )
+    }
+
+    /// Captures the live mod state into `set`. For an inheriting set the state
+    /// is stored as a delta against the resolved parent (extra disables and
+    /// explicit re-enables) so the relationship to the base set is preserved;
+    /// for a standalone set the full disabled list is stored as before.
+    func currentStateSnapshot(for set: ModSet, in state: ModManagerState) -> ModSet {
+        let currentDisabledTokens = Set(
+            state.mods
+                .filter { !$0.isEnabled }
+                .map { $0.enabledFolderName.normalizedFolderToken }
+        )
+        return storedSet(for: set, disabledTokens: currentDisabledTokens, in: state)
+    }
+
+    /// Produces the persisted form of `set` for a desired full set of disabled
+    /// folder tokens. A standalone set stores the full disabled list; an
+    /// inheriting set stores only the difference from its resolved parent.
+    func storedSet(
+        for set: ModSet,
+        disabledTokens: Set<String>,
+        in state: ModManagerState
+    ) -> ModSet {
+        var updatedSet = set
+
+        guard
+            let parentID = set.parentID,
+            let parent = state.modSets.first(where: { $0.id == parentID })
+        else {
+            updatedSet.disabledFolderNames = state.mods
+                .filter { disabledTokens.contains($0.enabledFolderName.normalizedFolderToken) }
+                .map(\.enabledFolderName)
+            updatedSet.enabledFolderNames = []
+            return updatedSet
+        }
+
+        let parentDisabledTokens = ModSetResolver
+            .resolve(parent, in: state.modSets)
+            .disabledFolderTokens
+        var extraDisabled: [String] = []
+        var reEnabled: [String] = []
+        for mod in state.mods {
+            let token = mod.enabledFolderName.normalizedFolderToken
+            let childDisables = disabledTokens.contains(token)
+            let parentDisables = parentDisabledTokens.contains(token)
+            if childDisables, !parentDisables {
+                extraDisabled.append(mod.enabledFolderName)
+            } else if !childDisables, parentDisables {
+                reEnabled.append(mod.enabledFolderName)
+            }
+        }
+
+        updatedSet.disabledFolderNames = extraDisabled
+        updatedSet.enabledFolderNames = reEnabled
+        return updatedSet
+    }
+
+    func modSetApplyAuditDetails(
+        changedCount: Int,
+        resolved: ResolvedModSet,
+        in state: ModManagerState
+    ) -> [String: String] {
+        var details = ["changed_count": "\(changedCount)"]
+        guard let parentID = resolved.set.parentID else {
+            return details
+        }
+
+        details["inherits_from_id"] = parentID
+        details["inherits_from_name"] = state.modSets
+            .first { $0.id == parentID }?
+            .name ?? parentID
+        if !resolved.appliedAncestorIDs.isEmpty {
+            details["inheritance_chain"] = resolved.appliedAncestorIDs.joined(separator: " > ")
+        }
+        if resolved.hasInheritanceCycle {
+            details["inheritance_warning"] = "cycle_broken"
+        } else if resolved.hasMissingParent {
+            details["inheritance_warning"] = "missing_parent"
+        }
+        return details
     }
 
     func saveCurrentStateIfEditable(to set: ModSet, in state: ModManagerState) throws {
@@ -72,6 +146,7 @@ extension ModManagerService {
     func createModSet(
         named name: String,
         from sourceSet: ModSet? = nil,
+        parentID: String? = nil,
         in state: ModManagerState
     ) -> ModManagerState {
         var nextState = state
@@ -85,12 +160,33 @@ extension ModManagerService {
             from: nextState.mods
         )
 
+        // Only honor a base that still exists; an unknown id is ignored so the
+        // new set is simply standalone.
+        let resolvedParentID = parentID.flatMap { id in
+            nextState.modSets.contains { $0.id == id } ? id : nil
+        }
+
         do {
-            let newSet = try ModSetStore.createSet(
+            var newSet = try ModSetStore.createSet(
                 named: name,
                 from: source,
-                existingSets: nextState.modSets
+                existingSets: nextState.modSets,
+                parentID: resolvedParentID
             )
+
+            // When the new set inherits, store its mods as a delta against the
+            // resolved parent rather than a full snapshot. The desired full
+            // state comes from the source set so duplicating preserves it.
+            if resolvedParentID != nil {
+                let sourceDisabledTokens = ModSetResolver
+                    .resolve(source, in: nextState.modSets)
+                    .disabledFolderTokens
+                newSet = storedSet(
+                    for: newSet,
+                    disabledTokens: sourceDisabledTokens,
+                    in: nextState
+                )
+            }
 
             try ModSetStore.saveSet(
                 newSet,
@@ -120,12 +216,16 @@ extension ModManagerService {
         }
     }
 
-    func duplicateSelectedModSet(named name: String, in state: ModManagerState) -> ModManagerState {
+    func duplicateSelectedModSet(
+        named name: String,
+        parentID: String? = nil,
+        in state: ModManagerState
+    ) -> ModManagerState {
         guard let selectedSet = state.modSetSelection.selectedSet else {
             return state
         }
 
-        return createModSet(named: name, from: selectedSet, in: state)
+        return createModSet(named: name, from: selectedSet, parentID: parentID, in: state)
     }
 
     func renameSelectedModSet(to requestedName: String, in state: ModManagerState) -> ModManagerState {
@@ -137,8 +237,7 @@ extension ModManagerService {
         guard var selectedSet = nextState.modSetSelection.selectedSet else {
             return nextState
         }
-        guard selectedSet.isUserEditable else {
-            record(AppStrings.Status.includedModSetNamesCannotBeChanged, in: &nextState)
+        guard selectedSet.isUserRenamable else {
             return nextState
         }
 
@@ -185,6 +284,70 @@ extension ModManagerService {
         }
     }
 
+    /// Imports a Mod Set from a `.seedboxset` file, adding it under a fresh id
+    /// and non-colliding name. The imported set is selected but not applied, so
+    /// nothing changes in the Mods folder until the user chooses to apply it.
+    func importModSet(fromFileAt url: URL, in state: ModManagerState) -> ModManagerState {
+        var nextState = state
+        guard guardCanManageMods(in: &nextState) else {
+            return nextState
+        }
+
+        do {
+            let importedSet = try ModSetTransfer.importModSet(
+                fromFileAt: url,
+                existingSets: nextState.modSets
+            )
+            try ModSetStore.saveSet(importedSet, install: install(for: nextState))
+            setSelectedModSetID(importedSet.id, in: &nextState)
+            nextState.appliedModSetID = nil
+            record(AppStrings.Status.importedModSet(importedSet.name), in: &nextState)
+            var refreshed = refreshedState(from: nextState)
+            audit(
+                .modSetImported,
+                summary: refreshed.activityMessage,
+                subjects: [auditSubjectForModSet(importedSet)],
+                in: &refreshed
+            )
+            return refreshed
+        } catch {
+            record(
+                AppStrings.Status.couldNotImportModSet(error.localizedDescription),
+                severity: .error,
+                in: &nextState
+            )
+            return nextState
+        }
+    }
+
+    /// Restores a previously deleted (or duplicated-then-undone) Mod Set from
+    /// its exact stored definition, keeping its id so inheritance references and
+    /// selection stay valid. Used by undo; it rewrites the definition only and
+    /// does not change mod folders.
+    func restoreModSet(_ set: ModSet, in state: ModManagerState) -> ModManagerState {
+        var nextState = state
+        guard guardCanManageMods(in: &nextState) else {
+            return nextState
+        }
+
+        do {
+            try ModSetStore.saveSet(set, install: install(for: nextState))
+            var refreshed = refreshedState(from: nextState)
+            if refreshed.modSets.contains(where: { $0.id == set.id }) {
+                setSelectedModSetID(set.id, in: &refreshed)
+            }
+            record(AppStrings.Status.createdModSet(set.name), in: &refreshed)
+            return refreshed
+        } catch {
+            record(
+                AppStrings.Status.couldNotCreateModSet(error.localizedDescription),
+                severity: .error,
+                in: &nextState
+            )
+            return nextState
+        }
+    }
+
     func selectModSet(id: String, in state: ModManagerState) -> ModManagerState {
         var nextState = state
         let isReapplyingSelectedSet = nextState.selectedModSetID == id
@@ -207,6 +370,7 @@ extension ModManagerService {
                 try saveCurrentStateIfEditable(to: previousSet, in: nextState)
             }
 
+            let resolved = ModSetResolver.resolve(setToApply, in: nextState.modSets)
             let changedCount = try applyModSet(setToApply, in: nextState, state: &nextState)
             setSelectedModSetID(id, in: &nextState)
             nextState.appliedModSetID = id
@@ -216,9 +380,7 @@ extension ModManagerService {
                 .modSetApplied,
                 summary: refreshedState.activityMessage,
                 subjects: [auditSubjectForModSet(setToApply)],
-                details: [
-                    "changed_count": "\(changedCount)"
-                ],
+                details: modSetApplyAuditDetails(changedCount: changedCount, resolved: resolved, in: nextState),
                 in: &refreshedState
             )
             return refreshedState
@@ -233,6 +395,9 @@ extension ModManagerService {
     func deleteModSet(_ set: ModSet, in state: ModManagerState) -> ModManagerState {
         var nextState = state
         guard guardCanManageMods(in: &nextState) else {
+            return nextState
+        }
+        guard set.isUserDeletable else {
             return nextState
         }
 
@@ -257,45 +422,12 @@ extension ModManagerService {
             return refreshedState
         }
 
-        guard let defaultSet = nextState.modSets.first(where: { $0.id == ModSetStore.defaultSetID }) else {
-            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
-            nextState.appliedModSetID = nil
-            record(AppStrings.Status.deletedModSet(set.name), in: &nextState)
-            var refreshedState = refreshedState(from: nextState)
-            auditDeletedModSet(set, wasSelected: true, in: &refreshedState)
-            return refreshedState
-        }
-
-        do {
-            let changedCount = try applyModSet(defaultSet, in: nextState, state: &nextState)
-            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
-            nextState.appliedModSetID = ModSetStore.defaultSetID
-            record(
-                AppStrings.Status.deletedModSetAppliedDefault(set.name, changedCount: changedCount),
-                in: &nextState
-            )
-            var refreshedState = refreshedState(from: nextState)
-            auditDeletedModSet(
-                set,
-                wasSelected: true,
-                details: [
-                    "fallback_mod_set_id": defaultSet.id,
-                    "fallback_mod_set_name": defaultSet.name,
-                    "fallback_changed_count": "\(changedCount)"
-                ],
-                in: &refreshedState
-            )
-            return refreshedState
-        } catch is SecurityScopedFolderAccessError {
-            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
-            nextState.appliedModSetID = nil
-            record(AppStrings.Status.deletedModSetChooseFolderAgainToApplyDefault(set.name), in: &nextState)
-            return refreshedState(from: nextState)
-        } catch {
-            setSelectedModSetID(ModSetStore.defaultSetID, in: &nextState)
-            nextState.appliedModSetID = nil
-            record(AppStrings.Status.deletedModSetCouldNotApplyDefault(set.name, errorDescription: error.localizedDescription), in: &nextState)
-            return refreshedState(from: nextState)
-        }
+        let fallbackSet = nextState.modSets.first { $0.id != set.id }
+        setSelectedModSetID(fallbackSet?.id ?? ModSetStore.defaultSetID, in: &nextState)
+        nextState.appliedModSetID = nil
+        record(AppStrings.Status.deletedModSet(set.name), in: &nextState)
+        var refreshedState = refreshedState(from: nextState)
+        auditDeletedModSet(set, wasSelected: true, in: &refreshedState)
+        return refreshedState
     }
 }

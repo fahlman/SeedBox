@@ -3,6 +3,19 @@ import XCTest
 
 @MainActor
 final class ModUpdateCheckTests: SeedBoxTestCase {
+    func testClientUsesCurrentSMAPIUpdateRoute() {
+        XCTAssertEqual(
+            SMAPIModUpdateClient.endpoint.absoluteString,
+            "https://smapi.io/api/v3.0/mods"
+        )
+    }
+
+    func testUpdateChecksDefaultToEnabled() throws {
+        let defaults = try makeIsolatedUserDefaults()
+
+        XCTAssertTrue(ModManagerPreferences(defaults: defaults).checksForModUpdates)
+    }
+
     func testCheckFindsUpdatesAndAuditsResult() async throws {
         let install = try makeInstall()
         let defaults = try makeIsolatedUserDefaults()
@@ -13,13 +26,13 @@ final class ModUpdateCheckTests: SeedBoxTestCase {
                 downloadURL: URL(string: "https://www.nexusmods.com/stardewvalley/mods/1915")
             ),
             ModUpdateCheckResult(
-                uniqueID: "Test.SaveBackup",
+                uniqueID: "Test.CJBCheats",
                 suggestedVersion: "3.1.0",
                 downloadURL: nil
             )
         ])
 
-        for modName in ["Content Patcher", "Save Backup"] {
+        for modName in ["Content Patcher", "CJB Cheats"] {
             let modURL = install.modDirectoryURL
                 .appendingPathComponent(modName.replacingOccurrences(of: " ", with: ""))
             try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
@@ -39,9 +52,17 @@ final class ModUpdateCheckTests: SeedBoxTestCase {
         XCTAssertEqual(checker.receivedQueries.count, 1)
         XCTAssertEqual(
             Set(checker.receivedQueries[0].map(\.uniqueID)),
-            ["Test.ContentPatcher", "Test.SaveBackup"]
+            ["Test.ContentPatcher", "Test.CJBCheats"]
         )
-        XCTAssertEqual(viewModel.state.availableUpdates.map(\.latestVersion), ["2.0.0", "3.1.0"])
+        XCTAssertEqual(
+            Dictionary(uniqueKeysWithValues: viewModel.state.availableUpdates.map {
+                ($0.displayName, $0.latestVersion)
+            }),
+            [
+                "CJB Cheats": "3.1.0",
+                "Content Patcher": "2.0.0"
+            ]
+        )
         XCTAssertEqual(viewModel.state.statusLineMessage, "Updates are available for 2 mods.")
 
         let contentPatcher = try XCTUnwrap(
@@ -59,6 +80,7 @@ final class ModUpdateCheckTests: SeedBoxTestCase {
     func testCheckIsRefusedWhileOptOutAndSendsNothing() async throws {
         let install = try makeInstall()
         let defaults = try makeIsolatedUserDefaults()
+        ModManagerPreferences(defaults: defaults).checksForModUpdates = false
         let checker = SpyModUpdateChecker(results: [])
         let modURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
         try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
@@ -77,7 +99,7 @@ final class ModUpdateCheckTests: SeedBoxTestCase {
         XCTAssertTrue(viewModel.state.availableUpdates.isEmpty)
         XCTAssertEqual(
             viewModel.state.statusLineMessage,
-            "Turn on update checks in Settings to check for mod updates."
+            "Enable network update checks to check for mod updates."
         )
     }
 

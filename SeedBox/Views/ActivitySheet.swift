@@ -72,6 +72,8 @@ private extension AuditLogAction {
             return AppStrings.AuditActions.sourceFilesMovedToTrash
         case .modSetCreated:
             return AppStrings.AuditActions.modSetCreated
+        case .modSetImported:
+            return AppStrings.AuditActions.modSetImported
         case .modSetRenamed:
             return AppStrings.AuditActions.modSetRenamed
         case .modSetApplied:

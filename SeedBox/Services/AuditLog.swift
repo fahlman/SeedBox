@@ -14,6 +14,7 @@ enum AuditLogAction: String, Codable, Equatable, Sendable {
     case modMovedToTrash
     case sourceFilesMovedToTrash
     case modSetCreated
+    case modSetImported
     case modSetRenamed
     case modSetApplied
     case modSetDeleted

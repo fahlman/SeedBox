@@ -5,6 +5,7 @@ struct StardewInstall: Equatable, Sendable {
     static let modSetFolderName = "Mod Sets"
     static let archivedModsFolderName = "Archived Mods"
     static let auditLogFileName = "Audit Log.plist"
+    static let smartModSetFileName = "Smart Mod Sets.plist"
     static let applicationSupportFolderName = "Seed Box"
 
     var modsDirectory: URL
@@ -44,11 +45,31 @@ struct StardewInstall: Equatable, Sendable {
             .appendingPathComponent(auditLogFileName)
     }
 
+    static func defaultSmartModSetStoreURL(
+        applicationSupportDirectory: URL = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first ?? FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+    ) -> URL {
+        applicationSupportDirectory
+            .appendingPathComponent(applicationSupportFolderName, isDirectory: true)
+            .appendingPathComponent(smartModSetFileName)
+    }
+
     static func auditLogURL(forModSetDirectory modSetDirectory: URL) -> URL {
         modSetDirectory
             .standardizedFileURL
             .deletingLastPathComponent()
             .appendingPathComponent(auditLogFileName)
+    }
+
+    static func smartModSetStoreURL(forModSetDirectory modSetDirectory: URL) -> URL {
+        modSetDirectory
+            .standardizedFileURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(smartModSetFileName)
     }
 
     static func knownDefaultModsDirectories(

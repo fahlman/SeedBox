@@ -129,7 +129,7 @@ extension ModManagerService {
     }
 
     func cancelBisection() -> ModManagerState {
-        var nextState = state
+        let nextState = state
         guard let session = nextState.bisectionSession else {
             return commit(nextState)
         }

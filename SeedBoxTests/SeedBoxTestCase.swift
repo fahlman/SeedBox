@@ -92,6 +92,80 @@ class SeedBoxTestCase: XCTestCase {
         Dictionary(uniqueKeysWithValues: mods.map { ($0.displayName, $0.isEnabled) })
     }
 
+    @discardableResult
+    func makeInstalledMod(
+        name: String,
+        in install: StardewInstall,
+        folderName: String? = nil,
+        enabled: Bool = true,
+        version: String = "1.2.3",
+        uniqueID: String? = nil,
+        contentPackForUniqueID: String? = nil,
+        updateKeys: [String] = [],
+        dependencies: [(uniqueID: String, isRequired: Bool?)] = []
+    ) throws -> URL {
+        try makeModPackage(
+            name: name,
+            in: install.modDirectoryURL,
+            folderName: folderName,
+            enabled: enabled,
+            version: version,
+            uniqueID: uniqueID,
+            contentPackForUniqueID: contentPackForUniqueID,
+            updateKeys: updateKeys,
+            dependencies: dependencies
+        )
+    }
+
+    @discardableResult
+    func makeModPackage(
+        name: String,
+        in parentDirectoryURL: URL,
+        folderName: String? = nil,
+        enabled: Bool = true,
+        version: String = "1.2.3",
+        uniqueID: String? = nil,
+        contentPackForUniqueID: String? = nil,
+        updateKeys: [String] = [],
+        dependencies: [(uniqueID: String, isRequired: Bool?)] = []
+    ) throws -> URL {
+        let folderName = folderName ?? name.replacingOccurrences(of: " ", with: "")
+        let normalizedFolderName = folderName.trimmingPrefix(Character("."))
+        let diskFolderName = enabled ? normalizedFolderName : ".\(normalizedFolderName)"
+        let modURL = parentDirectoryURL.appendingPathComponent(diskFolderName)
+
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try writeManifest(
+            name: name,
+            to: modURL,
+            version: version,
+            uniqueID: uniqueID,
+            contentPackForUniqueID: contentPackForUniqueID,
+            updateKeys: updateKeys,
+            dependencies: dependencies
+        )
+        return modURL
+    }
+
+    func makeDownloadsDirectory() throws -> URL {
+        let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads", isDirectory: true)
+        try FileManager.default.createDirectory(at: downloadsURL, withIntermediateDirectories: true)
+        return downloadsURL
+    }
+
+    @MainActor
+    func makeReadyViewModel(
+        for install: StardewInstall,
+        defaults: UserDefaults
+    ) async -> ModManagerViewModel {
+        let viewModel = ModManagerViewModel(
+            defaults: defaults,
+            modSetDirectory: install.modSetDirectoryURL
+        )
+        await viewModel.chooseModsFolder(install.modDirectoryURL)
+        return viewModel
+    }
+
     func writeManifest(
         name: String,
         to directoryURL: URL,

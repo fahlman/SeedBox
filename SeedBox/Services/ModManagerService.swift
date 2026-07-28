@@ -92,6 +92,7 @@ actor ModManagerService {
             fallbackURLs: addedMods.map(\.url),
             source: .startupScan,
             shouldEnable: shouldEnableAddedMods(appliedModSetID: appliedModSetID),
+            appliedModSetID: appliedModSetID,
             in: refreshedState
         )
 
@@ -564,6 +565,42 @@ actor ModManagerService {
             return nextState
         } catch {
             record(AppStrings.Status.couldNotRestoreArchivedMods(error.localizedDescription), severity: .error, in: &nextState)
+            return nextState
+        }
+    }
+
+    func deleteArchivedMods(
+        _ archivedMods: [ArchivedModInfo],
+        in state: ModManagerState
+    ) -> ModManagerState {
+        var nextState = state
+        guard !archivedMods.isEmpty else {
+            record(AppStrings.Status.chooseArchivedModsToDelete, in: &nextState)
+            return nextState
+        }
+
+        do {
+            let currentInstall = install(for: nextState)
+            let deletedCount = try ModLibrary.deleteArchivedMods(
+                archivedMods,
+                archiveDirectory: currentInstall.archivedModsDirectoryURL
+            )
+            let message = AppStrings.Status.deletedArchivedMods(count: deletedCount)
+            record(message, in: &nextState)
+            nextState = refreshedState(from: nextState)
+            auditArchivesPruned(
+                count: deletedCount,
+                summary: message,
+                source: "permanent_delete",
+                in: &nextState
+            )
+            return nextState
+        } catch {
+            record(
+                AppStrings.Status.couldNotDeleteArchivedMods(error.localizedDescription),
+                severity: .error,
+                in: &nextState
+            )
             return nextState
         }
     }

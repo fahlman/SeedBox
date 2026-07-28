@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -5,6 +6,11 @@ struct SettingsView: View {
     var viewModel: ModManagerViewModel
     @State private var isChoosingModsFolder = false
     @State private var isChoosingLogFolder = false
+    @State private var isCheckingForModUpdates = false
+    @State private var diagnosticsSummary = CrashDiagnosticsSummary.empty
+    @State private var diagnosticsStatus: StatusEvent?
+    @State private var modUpdateStatus: StatusEvent?
+    @AppStorage(MenuBarCompanion.enabledDefaultsKey) private var menuBarCompanionEnabled = false
 
     private var presentationState: ModManagerSettingsPresentationState {
         ModManagerSettingsPresentationState(viewModel: viewModel)
@@ -65,6 +71,14 @@ struct SettingsView: View {
                 }
             }
 
+            Section(AppStrings.Settings.menuBarSection) {
+                Toggle(AppStrings.MenuBar.showItem, isOn: $menuBarCompanionEnabled)
+
+                Text(AppStrings.Settings.menuBarFooter)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section(AppStrings.Settings.addingModsSection) {
                 Toggle(
                     AppStrings.Settings.moveModFilesToTrashAfterAddingMods,
@@ -121,6 +135,60 @@ struct SettingsView: View {
                 }
             }
 
+            Section(AppStrings.Settings.diagnosticsSection) {
+                LabeledContent(AppStrings.Settings.storedDiagnostics) {
+                    Text(AppStrings.Settings.diagnosticPayloadCount(diagnosticsSummary.payloadCount))
+                        .foregroundStyle(.secondary)
+                }
+
+                if diagnosticsSummary.hasRecentPayloads() {
+                    Label(
+                        AppStrings.Settings.recentDiagnosticsAvailable,
+                        systemImage: "waveform.path.ecg"
+                    )
+                    .foregroundStyle(.orange)
+                }
+
+                if let mostRecentPayloadDate = diagnosticsSummary.mostRecentPayloadDate {
+                    Text(AppStrings.Settings.mostRecentDiagnostic(
+                        mostRecentPayloadDate.formatted(date: .abbreviated, time: .shortened)
+                    ))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                }
+
+                Text(AppStrings.Settings.diagnosticsFooter)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                HStack {
+                    Button {
+                        revealDiagnosticsFolder()
+                    } label: {
+                        Label(AppStrings.Settings.revealDiagnostics, systemImage: "eye")
+                    }
+
+                    Button {
+                        exportDiagnostics()
+                    } label: {
+                        Label(AppStrings.Settings.exportDiagnostics, systemImage: "square.and.arrow.up")
+                    }
+
+                    Spacer()
+                }
+
+                if let diagnosticsStatus {
+                    Label(
+                        diagnosticsStatus.message,
+                        systemImage: diagnosticsStatus.severity == .error
+                            ? "exclamationmark.triangle.fill"
+                            : "checkmark.circle.fill"
+                    )
+                    .foregroundStyle(diagnosticsStatus.severity == .error ? .red : .secondary)
+                    .font(.callout)
+                }
+            }
+
             Section(AppStrings.Settings.modUpdatesSection) {
                 Toggle(
                     AppStrings.Settings.checkForModUpdatesToggle,
@@ -135,16 +203,35 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
 
                 Button {
-                    Task {
-                        await viewModel.checkForModUpdates()
-                    }
+                    checkForModUpdates()
                 } label: {
-                    Label(AppStrings.Settings.checkForUpdatesNow, systemImage: "arrow.triangle.2.circlepath")
+                    if isCheckingForModUpdates {
+                        Label {
+                            Text(AppStrings.Status.checkingForModUpdates)
+                        } icon: {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                    } else {
+                        Label(AppStrings.Settings.checkForUpdatesNow, systemImage: "arrow.triangle.2.circlepath")
+                    }
                 }
                 .disabled(
-                    !viewModel.state.checksForModUpdates
+                    isCheckingForModUpdates
+                        || !viewModel.state.checksForModUpdates
                         || !presentationState.readiness.canManageMods
                 )
+
+                if let modUpdateStatus {
+                    Label(
+                        modUpdateStatus.message,
+                        systemImage: modUpdateStatus.severity == .error
+                            ? "exclamationmark.triangle.fill"
+                            : "checkmark.circle.fill"
+                    )
+                    .foregroundStyle(modUpdateStatus.severity == .error ? .red : .secondary)
+                    .font(.callout)
+                }
 
                 if let smapiUpdate = viewModel.state.smapiUpdate {
                     HStack(spacing: 8) {
@@ -188,6 +275,12 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .padding(20)
         .frame(width: 560)
+        .onAppear(perform: refreshDiagnosticsSummary)
+        .onReceive(NotificationCenter.default.publisher(for: CrashDiagnosticsCollector.didStorePayloadNotification)) { _ in
+            Task { @MainActor in
+                refreshDiagnosticsSummary()
+            }
+        }
         .fileImporter(
             isPresented: $isChoosingModsFolder,
             allowedContentTypes: [.folder]
@@ -205,14 +298,89 @@ struct SettingsView: View {
 
     /// Bridges a state-backed value and an async actor-routed setter into a
     /// SwiftUI binding.
+    @MainActor
     private func settingBinding<Value: Sendable>(
-        get: @escaping () -> Value,
-        set: @escaping (Value) async -> Void
+        get: @escaping @MainActor @Sendable () -> Value,
+        set: @escaping @MainActor @Sendable (Value) async -> Void
     ) -> Binding<Value> {
         Binding(get: get) { newValue in
-            Task {
+            Task { @MainActor in
                 await set(newValue)
             }
+        }
+    }
+
+    @MainActor
+    private func revealDiagnosticsFolder() {
+        do {
+            let diagnosticsDirectory = CrashDiagnosticsCollector.defaultDiagnosticsDirectory()
+            try FileManager.default.createDirectory(
+                at: diagnosticsDirectory,
+                withIntermediateDirectories: true
+            )
+            NSWorkspace.shared.activateFileViewerSelecting([diagnosticsDirectory])
+            refreshDiagnosticsSummary()
+        } catch {
+            diagnosticsStatus = StatusEvent(
+                severity: .error,
+                message: AppStrings.Status.couldNotRevealDiagnostics(error.localizedDescription)
+            )
+        }
+    }
+
+    @MainActor
+    private func exportDiagnostics() {
+        let savePanel = NSSavePanel()
+        savePanel.canCreateDirectories = true
+        savePanel.nameFieldStringValue = CrashDiagnosticsExporter.defaultArchiveName()
+        if let zipType = UTType(filenameExtension: "zip") {
+            savePanel.allowedContentTypes = [zipType]
+        }
+
+        guard savePanel.runModal() == .OK, let destinationURL = savePanel.url else {
+            return
+        }
+
+        do {
+            let summary = try CrashDiagnosticsExporter.exportArchive(
+                to: destinationURL,
+                context: .current(state: viewModel.state)
+            )
+            diagnosticsStatus = StatusEvent(
+                severity: .info,
+                message: AppStrings.Status.exportedDiagnostics(fileCount: summary.supportFileCount)
+            )
+            refreshDiagnosticsSummary()
+        } catch {
+            diagnosticsStatus = StatusEvent(
+                severity: .error,
+                message: AppStrings.Status.couldNotExportDiagnostics(error.localizedDescription)
+            )
+        }
+    }
+
+    @MainActor
+    private func refreshDiagnosticsSummary() {
+        diagnosticsSummary = CrashDiagnosticsExporter.diagnosticSummary()
+    }
+
+    @MainActor
+    private func checkForModUpdates() {
+        guard !isCheckingForModUpdates else {
+            return
+        }
+
+        isCheckingForModUpdates = true
+        modUpdateStatus = StatusEvent(
+            severity: .info,
+            message: AppStrings.Status.checkingForModUpdates
+        )
+
+        Task { @MainActor in
+            await viewModel.checkForModUpdates()
+            modUpdateStatus = viewModel.state.activityStatus
+                ?? StatusEvent(severity: viewModel.state.statusLineSeverity, message: viewModel.state.statusLineMessage)
+            isCheckingForModUpdates = false
         }
     }
 }

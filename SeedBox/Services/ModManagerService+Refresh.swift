@@ -65,7 +65,7 @@ extension ModManagerService {
 
             state.modSets = loadedSets
             if !loadedSets.contains(where: { $0.id == state.selectedModSetID }) {
-                setSelectedModSetID(ModSetStore.defaultSetID, in: &state)
+                setSelectedModSetID(fallbackSelectedModSetID(in: loadedSets), in: &state)
             }
             if let appliedModSetID = state.appliedModSetID,
                !loadedSets.contains(where: { $0.id == appliedModSetID }) {
@@ -87,6 +87,12 @@ extension ModManagerService {
             state.appliedModSetID = nil
             record(AppStrings.Status.couldNotReadModSets(error.localizedDescription), severity: .error, in: &state)
         }
+    }
+
+    private func fallbackSelectedModSetID(in sets: [ModSet]) -> String {
+        sets.first { $0.id == ModSetStore.defaultSetID }?.id
+            ?? sets.first?.id
+            ?? ModSetStore.defaultSetID
     }
 
     func reloadAuditTrail(in state: inout ModManagerState) {
