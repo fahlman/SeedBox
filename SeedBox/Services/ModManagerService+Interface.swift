@@ -1,5 +1,10 @@
 import Foundation
 
+struct ModManagerServiceResult<Value: Sendable>: Sendable {
+    var state: ModManagerState
+    var value: Value
+}
+
 /// The actor's public surface. Each method runs against the actor's canonical
 /// `state`, commits the result, and returns the committed snapshot for the
 /// caller to mirror.
@@ -138,6 +143,23 @@ extension ModManagerService {
         return commit(setMod(mod, enabled: enabled, in: state))
     }
 
+    func setModResult(
+        id: ModInfo.ID,
+        enabled: Bool,
+        expectedEnabled: Bool? = nil
+    ) -> ModManagerServiceResult<Bool> {
+        guard let before = state.mods.first(where: { $0.id == id }),
+              expectedEnabled == nil || before.isEnabled == expectedEnabled
+        else {
+            return ModManagerServiceResult(state: state, value: false)
+        }
+
+        let nextState = setMod(id: id, enabled: enabled)
+        let didChange = before.isEnabled != enabled
+            && nextState.mods.first(where: { $0.id == id })?.isEnabled == enabled
+        return ModManagerServiceResult(state: nextState, value: didChange)
+    }
+
     func setMods(ids: [ModInfo.ID], enabled: Bool) -> ModManagerState {
         let requestedIDs = Set(ids)
         let mods = state.mods.filter { requestedIDs.contains($0.id) }
@@ -150,6 +172,51 @@ extension ModManagerService {
         return commit(setMods(mods, enabled: enabled, in: state))
     }
 
+    func setModsResult(
+        ids: [ModInfo.ID],
+        enabled: Bool,
+        expectedStates: [ModInfo.ID: Bool]? = nil
+    ) -> ModManagerServiceResult<[ModEnabledStateMutation]> {
+        let requestedIDs = Set(ids)
+        let before = Dictionary(
+            uniqueKeysWithValues: state.mods
+                .filter { requestedIDs.contains($0.id) }
+                .map { ($0.id, $0.isEnabled) }
+        )
+        guard before.count == requestedIDs.count else {
+            return ModManagerServiceResult(
+                state: recordActivity(
+                    CocoaError(.fileNoSuchFile).localizedDescription,
+                    severity: .error
+                ),
+                value: []
+            )
+        }
+        if let expectedStates {
+            guard expectedStates.count == requestedIDs.count,
+                  expectedStates.allSatisfy({ before[$0.key] == $0.value })
+            else {
+                return ModManagerServiceResult(state: state, value: [])
+            }
+        }
+
+        let nextState = setMods(ids: ids, enabled: enabled)
+        let changes = ids.compactMap { id -> ModEnabledStateMutation? in
+            guard let previousEnabled = before[id],
+                  previousEnabled != enabled,
+                  nextState.mods.first(where: { $0.id == id })?.isEnabled == enabled
+            else {
+                return nil
+            }
+            return ModEnabledStateMutation(
+                modID: id,
+                previousEnabled: previousEnabled,
+                appliedEnabled: enabled
+            )
+        }
+        return ModManagerServiceResult(state: nextState, value: changes)
+    }
+
     func deleteMod(id: ModInfo.ID) -> ModManagerState {
         guard let mod = state.mods.first(where: { $0.id == id }) else {
             return recordActivity(
@@ -158,6 +225,15 @@ extension ModManagerService {
             )
         }
         return commit(deleteMod(mod, in: state))
+    }
+
+    func deleteModResult(id: ModInfo.ID) -> ModManagerServiceResult<Bool> {
+        let existed = state.mods.contains { $0.id == id }
+        let nextState = deleteMod(id: id)
+        return ModManagerServiceResult(
+            state: nextState,
+            value: existed && !nextState.mods.contains { $0.id == id }
+        )
     }
 
     func restoreArchivedMods(ids: [ArchivedModInfo.ID]) -> ModManagerState {
@@ -170,6 +246,27 @@ extension ModManagerService {
             )
         }
         return commit(restoreArchivedMods(archivedMods, in: state))
+    }
+
+    func restoreArchivedModsResult(
+        ids: [ArchivedModInfo.ID]
+    ) -> ModManagerServiceResult<[String]> {
+        let requestedIDs = Set(ids)
+        let candidates = state.archivedMods.filter { requestedIDs.contains($0.id) }
+        let installedTokens = Set(state.mods.map { $0.enabledFolderName.normalizedFolderToken })
+        let nextState = restoreArchivedMods(ids: ids)
+        let restoredFolderNames = candidates.compactMap { archivedMod -> String? in
+            let token = archivedMod.enabledFolderName.normalizedFolderToken
+            guard !installedTokens.contains(token),
+                  nextState.mods.contains(where: {
+                      $0.enabledFolderName.normalizedFolderToken == token
+                  })
+            else {
+                return nil
+            }
+            return archivedMod.enabledFolderName
+        }
+        return ModManagerServiceResult(state: nextState, value: restoredFolderNames)
     }
 
     func deleteArchivedMods(ids: [ArchivedModInfo.ID]) -> ModManagerState {
@@ -214,16 +311,71 @@ extension ModManagerService {
         commit(createModSet(named: name, from: sourceSet, parentID: parentID, in: state))
     }
 
+    func createModSetResult(
+        named name: String,
+        from sourceSet: ModSet? = nil,
+        parentID: String? = nil
+    ) -> ModManagerServiceResult<ModSet?> {
+        let existingIDs = Set(state.modSets.map(\.id))
+        let nextState = createModSet(named: name, from: sourceSet, parentID: parentID)
+        let createdSet = nextState.modSets.first { !existingIDs.contains($0.id) }
+        return ModManagerServiceResult(state: nextState, value: createdSet)
+    }
+
     func duplicateSelectedModSet(named name: String, parentID: String? = nil) -> ModManagerState {
         commit(duplicateSelectedModSet(named: name, parentID: parentID, in: state))
+    }
+
+    func duplicateSelectedModSetResult(
+        named name: String,
+        parentID: String? = nil
+    ) -> ModManagerServiceResult<ModSet?> {
+        let existingIDs = Set(state.modSets.map(\.id))
+        let nextState = duplicateSelectedModSet(named: name, parentID: parentID)
+        let createdSet = nextState.modSets.first { !existingIDs.contains($0.id) }
+        return ModManagerServiceResult(state: nextState, value: createdSet)
     }
 
     func renameSelectedModSet(to requestedName: String) -> ModManagerState {
         commit(renameSelectedModSet(to: requestedName, in: state))
     }
 
+    func renameModSetResult(
+        id: ModSet.ID,
+        to requestedName: String,
+        expectedName: String? = nil
+    ) -> ModManagerServiceResult<Bool> {
+        guard state.selectedModSetID == id,
+              let before = state.modSets.first(where: { $0.id == id }),
+              expectedName == nil || before.name == expectedName
+        else {
+            return ModManagerServiceResult(state: state, value: false)
+        }
+
+        let nextState = renameSelectedModSet(to: requestedName)
+        let didChange = before.name != requestedName
+            && nextState.modSets.first(where: { $0.id == id })?.name == requestedName
+        return ModManagerServiceResult(state: nextState, value: didChange)
+    }
+
     func selectModSet(id: String) -> ModManagerState {
         commit(selectModSet(id: id, in: state))
+    }
+
+    func selectModSetResult(
+        id: String,
+        expectedSelectedSetID: String? = nil
+    ) -> ModManagerServiceResult<Bool> {
+        let beforeID = state.selectedModSetID
+        guard expectedSelectedSetID == nil || beforeID == expectedSelectedSetID else {
+            return ModManagerServiceResult(state: state, value: false)
+        }
+
+        let nextState = selectModSet(id: id)
+        return ModManagerServiceResult(
+            state: nextState,
+            value: beforeID != id && nextState.selectedModSetID == id
+        )
     }
 
     func restoreSelectedModSet(id: String) -> ModManagerState {
@@ -246,8 +398,26 @@ extension ModManagerService {
         return commit(deleteModSet(set, in: state))
     }
 
+    func deleteModSetResult(id: ModSet.ID) -> ModManagerServiceResult<Bool> {
+        let existed = state.modSets.contains { $0.id == id }
+        let nextState = deleteModSet(id: id)
+        return ModManagerServiceResult(
+            state: nextState,
+            value: existed && !nextState.modSets.contains { $0.id == id }
+        )
+    }
+
     func restoreModSet(_ set: ModSet) -> ModManagerState {
         commit(restoreModSet(set, in: state))
+    }
+
+    func restoreModSetResult(_ set: ModSet) -> ModManagerServiceResult<Bool> {
+        let existed = state.modSets.contains { $0.id == set.id }
+        let nextState = restoreModSet(set)
+        return ModManagerServiceResult(
+            state: nextState,
+            value: !existed && nextState.modSets.contains { $0.id == set.id }
+        )
     }
 
     func importModSet(fromFileAt url: URL) -> ModManagerState {

@@ -39,16 +39,84 @@ enum ModUndoRegistrar {
                     appliedValue: previousEnabled
                 )
 
-                // Detached so the inverse does not inherit the caller's
-                // task-local context (e.g. an async test's), whose teardown can
-                // race the spawned task. The call still hops to the main actor.
-                Task.detached { await viewModel.setMod(current, enabled: previousEnabled) }
+                // Recheck on the service actor too. The main-actor guard above
+                // can become stale while this asynchronous operation is queued.
+                Task.detached {
+                    await viewModel.setMod(
+                        id: modID,
+                        enabled: previousEnabled,
+                        ifCurrently: appliedValue
+                    )
+                }
             }
         }
 
         undoManager.setActionName(
             appliedValue ? AppStrings.Undo.enableMod : AppStrings.Undo.disableMod
         )
+    }
+
+    static func registerModToggles(
+        in undoManager: UndoManager,
+        viewModel: ModManagerViewModel,
+        changes: [ModEnabledStateMutation]
+    ) {
+        guard let firstChange = changes.first,
+              changes.allSatisfy({
+                  $0.previousEnabled == firstChange.previousEnabled
+                      && $0.appliedEnabled == firstChange.appliedEnabled
+              })
+        else {
+            return
+        }
+
+        undoManager.registerUndo(withTarget: viewModel) { viewModel in
+            MainActor.assumeIsolated {
+                guard changes.allSatisfy({ change in
+                    viewModel.state.mods.first(where: { $0.id == change.modID })?
+                        .isEnabled == change.appliedEnabled
+                }) else {
+                    return
+                }
+
+                registerModToggles(
+                    in: undoManager,
+                    viewModel: viewModel,
+                    changes: changes.map {
+                        ModEnabledStateMutation(
+                            modID: $0.modID,
+                            previousEnabled: $0.appliedEnabled,
+                            appliedEnabled: $0.previousEnabled
+                        )
+                    }
+                )
+
+                let expectedStates = Dictionary(
+                    uniqueKeysWithValues: changes.map {
+                        ($0.modID, $0.appliedEnabled)
+                    }
+                )
+                Task.detached {
+                    await viewModel.setMods(
+                        ids: changes.map(\.modID),
+                        enabled: firstChange.previousEnabled,
+                        ifCurrently: expectedStates
+                    )
+                }
+            }
+        }
+
+        let actionName: String
+        if changes.count == 1 {
+            actionName = firstChange.appliedEnabled
+                ? AppStrings.Undo.enableMod
+                : AppStrings.Undo.disableMod
+        } else {
+            actionName = firstChange.appliedEnabled
+                ? AppStrings.Undo.enableMods
+                : AppStrings.Undo.disableMods
+        }
+        undoManager.setActionName(actionName)
     }
 
     /// Registers undo for applying a Mod Set. Undo re-applies the previously
@@ -73,7 +141,12 @@ enum ModUndoRegistrar {
                     appliedSetID: previousSetID
                 )
 
-                Task.detached { await viewModel.selectModSet(id: previousSetID) }
+                Task.detached {
+                    await viewModel.selectModSet(
+                        id: previousSetID,
+                        ifCurrentlySelected: appliedSetID
+                    )
+                }
             }
         }
 
@@ -108,7 +181,13 @@ enum ModUndoRegistrar {
                     newName: previousName
                 )
 
-                Task.detached { await viewModel.renameSelectedModSet(to: previousName) }
+                Task.detached {
+                    await viewModel.renameModSet(
+                        id: setID,
+                        to: previousName,
+                        ifNamed: newName
+                    )
+                }
             }
         }
 

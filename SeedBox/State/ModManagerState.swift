@@ -72,6 +72,9 @@ struct ModManagerActivityState: Equatable, Sendable {
 }
 
 struct ModManagerState: Equatable, Sendable {
+    /// Monotonically increases whenever the service actor commits. The UI uses
+    /// it to reject snapshots that finish crossing actors out of order.
+    var revision: UInt64
     var folder: ModManagerFolderState
     var inventory: ModManagerInventoryState
     var archive: ModManagerArchiveState
@@ -111,8 +114,10 @@ struct ModManagerState: Equatable, Sendable {
         pendingLastSessionNotice: LastSessionNotice? = nil,
         auditTrail: AuditTrailState,
         dataStoreIssues: [DataStoreIssue] = [],
-        pendingSourceCleanupOffer: SourceCleanupOffer?
+        pendingSourceCleanupOffer: SourceCleanupOffer?,
+        revision: UInt64 = 0
     ) {
+        self.revision = revision
         folder = ModManagerFolderState(
             modsDirectoryPath: modsDirectoryPath,
             status: status,

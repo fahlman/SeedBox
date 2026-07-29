@@ -159,10 +159,11 @@ extension ModManagerView {
         case .deleteMod(let mod):
             Button(AppStrings.Common.delete, role: .destructive) {
                 Task {
-                    await viewModel.deleteMod(mod)
-                    removeSelectedModID(mod.id)
-                    if let undoManager,
-                       ModUndoRegistrar.canUndoDeletion(of: mod.enabledFolderName, in: viewModel.state) {
+                    let didDelete = await viewModel.deleteMod(mod)
+                    if didDelete {
+                        removeSelectedModID(mod.id)
+                    }
+                    if didDelete, let undoManager {
                         ModUndoRegistrar.registerModDeletion(
                             in: undoManager,
                             viewModel: viewModel,
@@ -179,9 +180,8 @@ extension ModManagerView {
         case .deleteModSet(let set):
             Button(AppStrings.Common.delete, role: .destructive) {
                 Task {
-                    await viewModel.deleteModSet(set)
-                    if !viewModel.state.modSets.contains(where: { $0.id == set.id }),
-                       let undoManager {
+                    let didDelete = await viewModel.deleteModSet(set)
+                    if didDelete, let undoManager {
                         ModUndoRegistrar.registerModSetExistence(
                             in: undoManager,
                             viewModel: viewModel,

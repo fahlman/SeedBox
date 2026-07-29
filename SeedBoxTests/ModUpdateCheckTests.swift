@@ -179,6 +179,91 @@ final class ModUpdateCheckTests: SeedBoxTestCase {
         XCTAssertFalse(ModManagerPreferences(defaults: defaults).checksForModUpdates)
     }
 
+    func testDisablingChecksWhileRequestIsInFlightDiscardsItsResults() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        let checker = ControlledModUpdateChecker()
+        let modURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Content Patcher", to: modURL)
+        let viewModel = ModManagerViewModel(
+            defaults: defaults,
+            modSetDirectory: install.modSetDirectoryURL,
+            updateChecker: checker
+        )
+        await viewModel.chooseModsFolder(install.modDirectoryURL)
+
+        let checkTask = Task {
+            await viewModel.checkForModUpdates()
+        }
+        await checker.waitForRequestCount(1)
+
+        await viewModel.setChecksForModUpdates(false)
+        await checker.succeedRequest(
+            0,
+            with: [
+                ModUpdateCheckResult(
+                    uniqueID: "Test.ContentPatcher",
+                    suggestedVersion: "9.0.0",
+                    downloadURL: nil
+                )
+            ]
+        )
+        await checkTask.value
+
+        XCTAssertFalse(viewModel.state.checksForModUpdates)
+        XCTAssertTrue(viewModel.state.availableUpdates.isEmpty)
+    }
+
+    func testSlowerOlderCheckCannotOverwriteNewerResults() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        let checker = ControlledModUpdateChecker()
+        let modURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Content Patcher", to: modURL, version: "1.0.0")
+        let viewModel = ModManagerViewModel(
+            defaults: defaults,
+            modSetDirectory: install.modSetDirectoryURL,
+            updateChecker: checker
+        )
+        await viewModel.chooseModsFolder(install.modDirectoryURL)
+
+        let olderCheck = Task {
+            await viewModel.checkForModUpdates()
+        }
+        await checker.waitForRequestCount(1)
+        let newerCheck = Task {
+            await viewModel.checkForModUpdates()
+        }
+        await checker.waitForRequestCount(2)
+
+        await checker.succeedRequest(
+            1,
+            with: [
+                ModUpdateCheckResult(
+                    uniqueID: "Test.ContentPatcher",
+                    suggestedVersion: "3.0.0",
+                    downloadURL: nil
+                )
+            ]
+        )
+        await newerCheck.value
+        await checker.succeedRequest(
+            0,
+            with: [
+                ModUpdateCheckResult(
+                    uniqueID: "Test.ContentPatcher",
+                    suggestedVersion: "2.0.0",
+                    downloadURL: nil
+                )
+            ]
+        )
+        await olderCheck.value
+
+        XCTAssertEqual(viewModel.state.availableUpdates.map(\.latestVersion), ["3.0.0"])
+    }
+
     func testDerivesSMAPIVersionFromBundledModAndReportsSMAPIUpdate() async throws {
         let install = try makeInstall()
         let defaults = try makeIsolatedUserDefaults()
@@ -415,5 +500,31 @@ private final class SpyModUpdateChecker: ModUpdateChecking, @unchecked Sendable 
             throw error
         }
         return results
+    }
+}
+
+private actor ControlledModUpdateChecker: ModUpdateChecking {
+    private var requestCount = 0
+    private var pending: [Int: CheckedContinuation<[ModUpdateCheckResult], any Error>] = [:]
+
+    func checkForUpdates(
+        _ queries: [ModUpdateQuery],
+        apiVersion: String?
+    ) async throws -> [ModUpdateCheckResult] {
+        let requestID = requestCount
+        requestCount += 1
+        return try await withCheckedThrowingContinuation { continuation in
+            pending[requestID] = continuation
+        }
+    }
+
+    func waitForRequestCount(_ expectedCount: Int) async {
+        while requestCount < expectedCount {
+            await Task.yield()
+        }
+    }
+
+    func succeedRequest(_ requestID: Int, with results: [ModUpdateCheckResult]) {
+        pending.removeValue(forKey: requestID)?.resume(returning: results)
     }
 }

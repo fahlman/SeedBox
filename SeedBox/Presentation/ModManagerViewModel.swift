@@ -187,20 +187,58 @@ final class ModManagerViewModel {
         commit(await service.checkForModUpdates())
     }
 
-    func setMod(_ mod: ModInfo, enabled: Bool) async {
-        commit(await service.setMod(id: mod.id, enabled: enabled))
+    @discardableResult
+    func setMod(_ mod: ModInfo, enabled: Bool) async -> Bool {
+        await setMod(id: mod.id, enabled: enabled)
     }
 
-    func setMods(_ mods: [ModInfo], enabled: Bool) async {
-        commit(await service.setMods(ids: mods.map(\.id), enabled: enabled))
+    @discardableResult
+    func setMod(
+        id: ModInfo.ID,
+        enabled: Bool,
+        ifCurrently expectedEnabled: Bool? = nil
+    ) async -> Bool {
+        let result = await service.setModResult(
+            id: id,
+            enabled: enabled,
+            expectedEnabled: expectedEnabled
+        )
+        commit(result.state)
+        return result.value
     }
 
-    func deleteMod(_ mod: ModInfo) async {
-        commit(await service.deleteMod(id: mod.id))
+    @discardableResult
+    func setMods(_ mods: [ModInfo], enabled: Bool) async -> [ModEnabledStateMutation] {
+        await setMods(ids: mods.map(\.id), enabled: enabled)
     }
 
-    func restoreArchivedMods(_ archivedMods: [ArchivedModInfo]) async {
-        commit(await service.restoreArchivedMods(ids: archivedMods.map(\.id)))
+    @discardableResult
+    func setMods(
+        ids: [ModInfo.ID],
+        enabled: Bool,
+        ifCurrently expectedStates: [ModInfo.ID: Bool]? = nil
+    ) async -> [ModEnabledStateMutation] {
+        let result = await service.setModsResult(
+            ids: ids,
+            enabled: enabled,
+            expectedStates: expectedStates
+        )
+        commit(result.state)
+        return result.value
+    }
+
+    @discardableResult
+    func deleteMod(_ mod: ModInfo) async -> Bool {
+        let result = await service.deleteModResult(id: mod.id)
+        commit(result.state)
+        return result.value
+    }
+
+    @discardableResult
+    func restoreArchivedMods(_ archivedMods: [ArchivedModInfo]) async -> [String] {
+        let result = await service.restoreArchivedModsResult(ids: archivedMods.map(\.id))
+        commit(result.state)
+        return result.value
     }
 
     func deleteArchivedMods(_ archivedMods: [ArchivedModInfo]) async {
@@ -243,32 +281,86 @@ final class ModManagerViewModel {
         commit(await service.cancelBisection())
     }
 
-    func createModSet(named name: String, from sourceSet: ModSet? = nil, parentID: String? = nil) async {
-        commit(await service.createModSet(named: name, from: sourceSet, parentID: parentID))
+    @discardableResult
+    func createModSet(
+        named name: String,
+        from sourceSet: ModSet? = nil,
+        parentID: String? = nil
+    ) async -> ModSet? {
+        let result = await service.createModSetResult(
+            named: name,
+            from: sourceSet,
+            parentID: parentID
+        )
+        commit(result.state)
+        return result.value
     }
 
-    func duplicateSelectedModSet(named name: String, parentID: String? = nil) async {
-        commit(await service.duplicateSelectedModSet(named: name, parentID: parentID))
+    @discardableResult
+    func duplicateSelectedModSet(named name: String, parentID: String? = nil) async -> ModSet? {
+        let result = await service.duplicateSelectedModSetResult(
+            named: name,
+            parentID: parentID
+        )
+        commit(result.state)
+        return result.value
     }
 
-    func renameSelectedModSet(to requestedName: String) async {
-        commit(await service.renameSelectedModSet(to: requestedName))
+    @discardableResult
+    func renameSelectedModSet(to requestedName: String) async -> Bool {
+        guard let selectedSet = state.modSetSelection.selectedSet else {
+            return false
+        }
+        return await renameModSet(
+            id: selectedSet.id,
+            to: requestedName
+        )
     }
 
-    func selectModSet(id: String) async {
-        commit(await service.selectModSet(id: id))
+    @discardableResult
+    func renameModSet(
+        id: ModSet.ID,
+        to requestedName: String,
+        ifNamed expectedName: String? = nil
+    ) async -> Bool {
+        let result = await service.renameModSetResult(
+            id: id,
+            to: requestedName,
+            expectedName: expectedName
+        )
+        commit(result.state)
+        return result.value
+    }
+
+    @discardableResult
+    func selectModSet(
+        id: String,
+        ifCurrentlySelected expectedSetID: String? = nil
+    ) async -> Bool {
+        let result = await service.selectModSetResult(
+            id: id,
+            expectedSelectedSetID: expectedSetID
+        )
+        commit(result.state)
+        return result.value
     }
 
     func restoreSelectedModSet(id: String) async {
         commit(await service.restoreSelectedModSet(id: id))
     }
 
-    func deleteModSet(_ set: ModSet) async {
-        commit(await service.deleteModSet(id: set.id))
+    @discardableResult
+    func deleteModSet(_ set: ModSet) async -> Bool {
+        let result = await service.deleteModSetResult(id: set.id)
+        commit(result.state)
+        return result.value
     }
 
-    func restoreModSet(_ set: ModSet) async {
-        commit(await service.restoreModSet(set))
+    @discardableResult
+    func restoreModSet(_ set: ModSet) async -> Bool {
+        let result = await service.restoreModSetResult(set)
+        commit(result.state)
+        return result.value
     }
 
     func importModSet(fromFileAt url: URL) async {
@@ -352,7 +444,10 @@ final class ModManagerViewModel {
         }
     }
 
-    private func commit(_ nextState: ModManagerState) {
+    func commit(_ nextState: ModManagerState) {
+        guard nextState.revision >= state.revision else {
+            return
+        }
         state = nextState
         updateModsFolderMonitor()
     }

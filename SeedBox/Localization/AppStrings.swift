@@ -177,9 +177,12 @@ enum AppStrings {
     enum Undo {
         static let enableMod = String(localized: "Enable Mod")
         static let disableMod = String(localized: "Disable Mod")
+        static let enableMods = String(localized: "Enable Mods")
+        static let disableMods = String(localized: "Disable Mods")
         static let deleteMod = String(localized: "Delete Mod")
         static let restoreMod = String(localized: "Restore Mod")
         static let applyModSet = String(localized: "Apply Mod Set")
+        static let createModSet = String(localized: "Create Mod Set")
         static let renameModSet = String(localized: "Rename Mod Set")
         static let deleteModSet = String(localized: "Delete Mod Set")
         static let duplicateModSet = String(localized: "Duplicate Mod Set")

@@ -14,6 +14,8 @@ actor ModManagerService {
     /// current value, so overlapping operations can never lose each other's
     /// updates.
     private(set) var state: ModManagerState
+    private var nextRevision: UInt64
+    var activeUpdateCheckID: UUID?
 
     init(
         folderAccess: SecurityScopedFolderAccess,
@@ -28,6 +30,7 @@ actor ModManagerService {
         self.smapiLogFolderAccess = smapiLogFolderAccess
         self.stateStore = stateStore
         state = initialState
+        nextRevision = initialState.revision
         self.modSetDirectory = modSetDirectory
         let auditLogURL = auditLogURL ?? StardewInstall.auditLogURL(forModSetDirectory: modSetDirectory)
         auditRecorder = ModManagerAuditRecorder(logURL: auditLogURL)
@@ -35,7 +38,9 @@ actor ModManagerService {
     }
 
     func commit(_ nextState: ModManagerState) -> ModManagerState {
+        nextRevision &+= 1
         state = nextState
+        state.revision = nextRevision
         stateStore.save(state)
         return state
     }

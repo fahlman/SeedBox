@@ -6,6 +6,7 @@ extension ModManagerService {
         var nextState = state
         mirrorSettings(in: &nextState)
         if !isEnabled {
+            activeUpdateCheckID = nil
             nextState.availableUpdates = []
             nextState.availableSMAPIUpdate = nil
             nextState.knownModPageURLs = [:]
@@ -14,6 +15,9 @@ extension ModManagerService {
     }
 
     func checkForModUpdates() async -> ModManagerState {
+        // Any newer attempt supersedes a request currently in flight, even if
+        // this attempt exits before reaching the network.
+        activeUpdateCheckID = nil
         var nextState = state
         guard stateStore.checksForModUpdates else {
             record(AppStrings.Status.enableModUpdateChecksFirst, in: &nextState)
@@ -23,44 +27,15 @@ extension ModManagerService {
             return commit(nextState)
         }
 
-        var queries = nextState.mods.compactMap { mod -> ModUpdateQuery? in
-            guard let uniqueID = mod.manifest?.uniqueID?.trimmedNonEmpty else {
-                return nil
-            }
-
-            return ModUpdateQuery(
-                uniqueID: uniqueID,
-                installedVersion: mod.manifest?.version?.trimmedNonEmpty,
-                updateKeys: mod.manifest?.updateKeys ?? []
-            )
-        }
+        let queries = updateQueries(in: nextState)
         guard !queries.isEmpty else {
             record(AppStrings.Status.noModsToCheckForUpdates, in: &nextState)
             return commit(nextState)
         }
 
-        // SMAPI itself is checked through the same API as a synthetic entry,
-        // using the version derived from its bundled mods.
         let detectedSMAPIVersion = nextState.detectedSMAPIVersion
-        if let detectedSMAPIVersion {
-            queries.append(
-                ModUpdateQuery(
-                    uniqueID: SMAPIIdentifiers.smapiModID,
-                    installedVersion: detectedSMAPIVersion,
-                    updateKeys: [SMAPIIdentifiers.smapiUpdateKey]
-                )
-            )
-        }
-
-        // Missing dependencies ride along so their mod pages can be offered
-        // as "Get Mod" links.
-        let queriedIDs = Set(queries.map { $0.uniqueID.normalizedDependencyID })
-        for dependencyID in missingDependencyIDs(in: nextState.mods).sorted()
-        where !queriedIDs.contains(dependencyID.normalizedDependencyID) {
-            queries.append(
-                ModUpdateQuery(uniqueID: dependencyID, installedVersion: nil, updateKeys: [])
-            )
-        }
+        let requestID = UUID()
+        activeUpdateCheckID = requestID
 
         do {
             let results = try await updateChecker.checkForUpdates(
@@ -68,17 +43,26 @@ extension ModManagerService {
                 apiVersion: detectedSMAPIVersion
             )
 
-            // The await suspended this actor; start from the current state.
+            guard activeUpdateCheckID == requestID,
+                  stateStore.checksForModUpdates,
+                  updateQueries(in: state) == queries
+            else {
+                return state
+            }
+            activeUpdateCheckID = nil
+
+            // The await suspended this actor; apply results to current state.
             var nextState = state
             let updates = availableUpdates(from: results, mods: nextState.mods)
             nextState.availableUpdates = updates
-            for result in results {
-                guard let pageURL = result.pageURL else {
-                    continue
-                }
-
-                nextState.knownModPageURLs[result.uniqueID.normalizedDependencyID] = pageURL
-            }
+            nextState.knownModPageURLs = Dictionary(
+                results.compactMap { result in
+                    result.pageURL.map {
+                        (result.uniqueID.normalizedDependencyID, $0)
+                    }
+                },
+                uniquingKeysWith: { _, latest in latest }
+            )
             nextState.availableSMAPIUpdate = smapiUpdate(
                 from: results,
                 installedVersion: nextState.detectedSMAPIVersion
@@ -121,6 +105,14 @@ extension ModManagerService {
             )
             return commit(nextState)
         } catch {
+            guard activeUpdateCheckID == requestID,
+                  stateStore.checksForModUpdates,
+                  updateQueries(in: state) == queries
+            else {
+                return state
+            }
+            activeUpdateCheckID = nil
+
             AppLog.updateCheck.error("Update check failed: \(error)")
             var nextState = state
             record(
@@ -130,6 +122,43 @@ extension ModManagerService {
             )
             return commit(nextState)
         }
+    }
+
+    private func updateQueries(in state: ModManagerState) -> [ModUpdateQuery] {
+        var queries = state.mods.compactMap { mod -> ModUpdateQuery? in
+            guard let uniqueID = mod.manifest?.uniqueID?.trimmedNonEmpty else {
+                return nil
+            }
+
+            return ModUpdateQuery(
+                uniqueID: uniqueID,
+                installedVersion: mod.manifest?.version?.trimmedNonEmpty,
+                updateKeys: mod.manifest?.updateKeys ?? []
+            )
+        }
+
+        // SMAPI itself is checked through the same API as a synthetic entry,
+        // using the version derived from its bundled mods.
+        if let detectedSMAPIVersion = state.detectedSMAPIVersion {
+            queries.append(
+                ModUpdateQuery(
+                    uniqueID: SMAPIIdentifiers.smapiModID,
+                    installedVersion: detectedSMAPIVersion,
+                    updateKeys: [SMAPIIdentifiers.smapiUpdateKey]
+                )
+            )
+        }
+
+        // Missing dependencies ride along so their mod pages can be offered
+        // as "Get Mod" links.
+        let queriedIDs = Set(queries.map { $0.uniqueID.normalizedDependencyID })
+        for dependencyID in missingDependencyIDs(in: state.mods).sorted()
+        where !queriedIDs.contains(dependencyID.normalizedDependencyID) {
+            queries.append(
+                ModUpdateQuery(uniqueID: dependencyID, installedVersion: nil, updateKeys: [])
+            )
+        }
+        return queries
     }
 
     private func missingDependencyIDs(in mods: [ModInfo]) -> Set<String> {

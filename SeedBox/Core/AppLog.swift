@@ -21,4 +21,5 @@ enum AppLog {
     static let bisection = Logger(subsystem: subsystem, category: "Bisection")
     static let diagnostics = Logger(subsystem: subsystem, category: "Diagnostics")
     static let smartModSets = Logger(subsystem: subsystem, category: "SmartModSets")
+    static let spotlight = Logger(subsystem: subsystem, category: "Spotlight")
 }
