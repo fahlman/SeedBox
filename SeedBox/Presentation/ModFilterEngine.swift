@@ -3,38 +3,64 @@ import Foundation
 struct ModFilterContext {
     var state: ModManagerState
     var dependencyGraph: ModDependencyGraph
+    var availableUpdateModIDs: Set<ModInfo.ID>
+    var errorModIDs: Set<ModInfo.ID>
+    var warningModIDs: Set<ModInfo.ID>
+    var recentlyAddedModIDs: Set<ModInfo.ID>
+    var recentlyUpdatedModIDs: Set<ModInfo.ID>
+    var userSearchQueries: [UserSmartModSet.ID: ModSearchQuery]
+
+    init(state: ModManagerState, dependencyGraph: ModDependencyGraph) {
+        self.state = state
+        self.dependencyGraph = dependencyGraph
+
+        availableUpdateModIDs = Set(
+            state.mods.compactMap { mod in
+                state.availableUpdate(for: mod) == nil ? nil : mod.id
+            }
+        )
+        errorModIDs = ModFilterEngine.errorModIDs(in: state)
+        warningModIDs = ModFilterEngine.warningModIDs(
+            in: state,
+            excluding: errorModIDs
+        )
+        recentlyAddedModIDs = ModFilterEngine.recentModIDs(
+            for: [.modsAdded],
+            in: state
+        )
+        recentlyUpdatedModIDs = ModFilterEngine.recentlyUpdatedModIDs(in: state)
+        userSearchQueries = Dictionary(
+            uniqueKeysWithValues: state.userSmartModSets.map {
+                ($0.id, ModSearchQuery($0.searchText))
+            }
+        )
+    }
 }
 
 enum ModFilterEngine {
     static func filteredMods(
-        in state: ModManagerState,
+        context: ModFilterContext,
         librarySelection: ModLibrarySelection,
-        searchText: String,
-        dependencyGraph: ModDependencyGraph
+        searchText: String
     ) -> [ModInfo] {
-        let context = ModFilterContext(state: state, dependencyGraph: dependencyGraph)
         let query = ModSearchQuery(searchText)
 
-        return state.mods.filter { mod in
+        return context.state.mods.filter { mod in
             includes(mod, in: librarySelection, context: context)
                 && query.matches(
                     mod,
-                    in: dependencyGraph,
-                    hasAvailableUpdate: state.availableUpdate(for: mod) != nil
+                    in: context.dependencyGraph,
+                    hasAvailableUpdate: context.availableUpdateModIDs.contains(mod.id)
                 )
         }
     }
 
-    static func count(for smartSet: SmartModSet, in state: ModManagerState) -> Int {
+    static func count(for smartSet: SmartModSet, context: ModFilterContext) -> Int {
         switch smartSet {
         case .recentlyDeleted:
-            return recentlyDeletedArchivedMods(in: state).count
+            return recentlyDeletedArchivedMods(in: context.state).count
         default:
-            let context = ModFilterContext(
-                state: state,
-                dependencyGraph: ModDependencyGraph(mods: state.mods)
-            )
-            return state.mods.filter { mod in
+            return context.state.mods.filter { mod in
                 includes(mod, in: smartSet, context: context)
             }.count
         }
@@ -49,10 +75,10 @@ enum ModFilterEngine {
         case .builtInSmart(let smartSet):
             return includes(mod, in: smartSet, context: context)
         case .userSmart(let id):
-            guard let smartModSet = context.state.userSmartModSets.first(where: { $0.id == id }) else {
+            guard let query = context.userSearchQueries[id] else {
                 return false
             }
-            return savedSearch(smartModSet.searchText, matches: mod, context: context)
+            return savedSearch(query, matches: mod, context: context)
         case .modSet:
             return true
         }
@@ -75,15 +101,15 @@ enum ModFilterEngine {
         case .contentPatcherMods:
             return mod.isContentPatcherContentPack
         case .updatesAvailable:
-            return context.state.availableUpdate(for: mod) != nil
+            return context.availableUpdateModIDs.contains(mod.id)
         case .errors:
-            return errorModIDs(in: context.state).contains(mod.id)
+            return context.errorModIDs.contains(mod.id)
         case .warnings:
-            return warningModIDs(in: context.state).contains(mod.id)
+            return context.warningModIDs.contains(mod.id)
         case .recentlyAdded:
-            return recentModIDs(for: [.modsAdded], in: context.state).contains(mod.id)
+            return context.recentlyAddedModIDs.contains(mod.id)
         case .recentlyUpdated:
-            return recentlyUpdatedModIDs(in: context.state).contains(mod.id)
+            return context.recentlyUpdatedModIDs.contains(mod.id)
         case .recentlyDeleted:
             return false
         }
@@ -108,29 +134,31 @@ enum ModFilterEngine {
             }
     }
 
-    static func count(for smartModSet: UserSmartModSet, in state: ModManagerState) -> Int {
-        let context = ModFilterContext(
-            state: state,
-            dependencyGraph: ModDependencyGraph(mods: state.mods)
-        )
-        return state.mods.filter { mod in
-            savedSearch(smartModSet.searchText, matches: mod, context: context)
+    static func count(
+        for smartModSet: UserSmartModSet,
+        context: ModFilterContext
+    ) -> Int {
+        guard let query = context.userSearchQueries[smartModSet.id] else {
+            return 0
+        }
+        return context.state.mods.filter { mod in
+            savedSearch(query, matches: mod, context: context)
         }.count
     }
 
     private static func savedSearch(
-        _ searchText: String,
+        _ query: ModSearchQuery,
         matches mod: ModInfo,
         context: ModFilterContext
     ) -> Bool {
-        ModSearchQuery(searchText).matches(
+        query.matches(
             mod,
             in: context.dependencyGraph,
-            hasAvailableUpdate: context.state.availableUpdate(for: mod) != nil
+            hasAvailableUpdate: context.availableUpdateModIDs.contains(mod.id)
         )
     }
 
-    private static func errorModIDs(in state: ModManagerState) -> Set<String> {
+    fileprivate static func errorModIDs(in state: ModManagerState) -> Set<String> {
         var ids = Set(
             state.mods
                 .filter(\.hasMissingRequiredDependencies)
@@ -144,8 +172,10 @@ enum ModFilterEngine {
         return ids
     }
 
-    private static func warningModIDs(in state: ModManagerState) -> Set<String> {
-        let errorIDs = errorModIDs(in: state)
+    fileprivate static func warningModIDs(
+        in state: ModManagerState,
+        excluding errorIDs: Set<String>
+    ) -> Set<String> {
         return Set(
             state.mods
                 .filter { mod in
@@ -155,7 +185,7 @@ enum ModFilterEngine {
         )
     }
 
-    private static func recentlyUpdatedModIDs(in state: ModManagerState) -> Set<String> {
+    fileprivate static func recentlyUpdatedModIDs(in state: ModManagerState) -> Set<String> {
         var ids = recentModIDs(for: [.modsUpdated], in: state)
         let archivedUpdatedMods = state.archivedMods.filter { archivedMod in
             archivedMod.reason == .updated
@@ -168,7 +198,7 @@ enum ModFilterEngine {
         return ids
     }
 
-    private static func recentModIDs(
+    fileprivate static func recentModIDs(
         for actions: Set<AuditLogAction>,
         in state: ModManagerState
     ) -> Set<String> {

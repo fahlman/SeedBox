@@ -229,12 +229,23 @@ extension ModManagerService {
     }
 
     func renameSelectedModSet(to requestedName: String, in state: ModManagerState) -> ModManagerState {
+        guard let selectedSetID = state.modSetSelection.selectedSet?.id else {
+            return state
+        }
+        return renameModSet(id: selectedSetID, to: requestedName, in: state)
+    }
+
+    func renameModSet(
+        id: ModSet.ID,
+        to requestedName: String,
+        in state: ModManagerState
+    ) -> ModManagerState {
         var nextState = state
         guard guardCanManageMods(in: &nextState) else {
             return nextState
         }
 
-        guard var selectedSet = nextState.modSetSelection.selectedSet else {
+        guard var selectedSet = nextState.modSets.first(where: { $0.id == id }) else {
             return nextState
         }
         guard selectedSet.isUserRenamable else {

@@ -1,19 +1,36 @@
 import Foundation
 
 enum ModInstallWorkflow {
+    static let installStagingDirectoryPrefix = ".seedbox-install-staging-"
+    private static let installStagingMarkerFileName = ".seedbox-staging"
+
     static func installMods(
         from sourceURLs: [URL],
         into install: StardewInstall,
         enabled: Bool = true,
         replacementPolicy: ModInstallReplacementPolicy = .newerOnly,
         archiveDirectory: URL? = nil,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        moveItem: ((URL, URL) throws -> Void)? = nil
     ) throws -> ModInstallResult {
         guard fileManager.directoryExists(at: install.modDirectoryURL) else {
             throw ModLibraryError.modFolderMissing(install.modDirectoryURL)
         }
 
         let resolvedArchiveDirectory = archiveDirectory ?? install.archivedModsDirectoryURL
+        try FileMoveTransaction.recoverIfNeeded(
+            in: resolvedArchiveDirectory,
+            fileManager: fileManager
+        )
+        try FileMoveTransaction.recoverIfNeeded(
+            in: install.modDirectoryURL,
+            fileManager: fileManager
+        )
+        try removeAbandonedStagingDirectories(
+            in: install.modDirectoryURL,
+            fileManager: fileManager
+        )
+
         var result = ModInstallResult()
         var pendingOperations: [PendingInstallOperation] = []
         var temporaryExtractionDirectories: [URL] = []
@@ -96,66 +113,153 @@ enum ModInstallWorkflow {
             }
         }
 
-        var completedOperations: [CompletedInstallOperation] = []
-        do {
-            for pendingOperation in pendingOperations {
-                switch pendingOperation {
-                case .install(let candidate, let destinationURL):
-                    try fileManager.copyItem(at: candidate.sourceURL, to: destinationURL)
-                    result.installed.append(
-                        InstalledModResult(
-                            sourceURL: candidate.sourceURL,
-                            destinationURL: destinationURL,
-                            displayName: ModInstallPlanner.displayName(for: candidate),
-                            version: candidate.manifest?.version?.trimmedNonEmpty
-                        )
-                    )
-                    completedOperations.append(.installed(destinationURL))
-                case .update(let candidate, let existingMod, let replacementKind):
-                    let archivedURL = try ModArchive.archive(
-                        existingMod.url,
-                        in: resolvedArchiveDirectory,
-                        reason: .updated,
-                        fileManager: fileManager
-                    )
-                    do {
-                        try fileManager.copyItem(at: candidate.sourceURL, to: existingMod.url)
-                    } catch {
-                        try? fileManager.moveItem(at: archivedURL, to: existingMod.url)
-                        throw error
-                    }
-                    let configOutcome = preserveUserConfig(
-                        from: archivedURL,
-                        to: existingMod.url,
-                        fileManager: fileManager
-                    )
-                    result.updated.append(
-                        UpdatedModResult(
-                            sourceURL: candidate.sourceURL,
-                            destinationURL: existingMod.url,
-                            archivedURL: archivedURL,
-                            displayName: ModInstallPlanner.displayName(for: candidate, fallback: existingMod.displayName),
-                            previousVersion: existingMod.version,
-                            installedVersion: candidate.manifest?.version?.trimmedNonEmpty,
-                            replacementKind: replacementKind,
-                            preservedConfig: configOutcome == .preserved,
-                            configPreservationFailed: configOutcome == .failed
-                        )
-                    )
-                    completedOperations.append(.updated(destinationURL: existingMod.url, archivedURL: archivedURL))
-                }
+        guard !pendingOperations.isEmpty else {
+            return result
+        }
+
+        let stagingDirectoryURL = install.modDirectoryURL.appendingPathComponent(
+            "\(installStagingDirectoryPrefix)\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try fileManager.createDirectory(
+            at: stagingDirectoryURL,
+            withIntermediateDirectories: false
+        )
+        try Data().write(
+            to: stagingDirectoryURL.appendingPathComponent(
+                installStagingMarkerFileName
+            ),
+            options: .atomic
+        )
+        defer {
+            try? fileManager.removeItem(at: stagingDirectoryURL)
+        }
+
+        var stagedOperations: [StagedInstallOperation] = []
+        for (index, pendingOperation) in pendingOperations.enumerated() {
+            let candidate: ModInstallCandidate
+            let destinationURL: URL
+            let existingMod: InstalledModLocation?
+            let replacementKind: ModReplacementKind?
+            switch pendingOperation {
+            case .install(let pendingCandidate, let pendingDestinationURL):
+                candidate = pendingCandidate
+                destinationURL = pendingDestinationURL
+                existingMod = nil
+                replacementKind = nil
+            case .update(
+                let pendingCandidate,
+                let pendingExistingMod,
+                let pendingReplacementKind
+            ):
+                candidate = pendingCandidate
+                destinationURL = pendingExistingMod.url
+                existingMod = pendingExistingMod
+                replacementKind = pendingReplacementKind
             }
+
+            let stagedURL = stagingDirectoryURL.appendingPathComponent(
+                "\(index)-\(candidate.sourceURL.lastPathComponent)",
+                isDirectory: true
+            )
+            try fileManager.copyItem(at: candidate.sourceURL, to: stagedURL)
+            let configOutcome = existingMod.map {
+                preserveUserConfig(
+                    from: $0.url,
+                    to: stagedURL,
+                    fileManager: fileManager
+                )
+            } ?? .nothingToPreserve
+            stagedOperations.append(
+                StagedInstallOperation(
+                    candidate: candidate,
+                    stagedURL: stagedURL,
+                    destinationURL: destinationURL,
+                    existingMod: existingMod,
+                    replacementKind: replacementKind,
+                    configOutcome: configOutcome,
+                    archivedURL: nil
+                )
+            )
+        }
+
+        let existingURLs = stagedOperations.compactMap { $0.existingMod?.url }
+        let archivePlan = try existingURLs.isEmpty
+            ? nil
+            : ModArchive.prepareArchiveMoves(
+                for: existingURLs,
+                in: resolvedArchiveDirectory,
+                reason: .updated,
+                fileManager: fileManager
+            )
+        let archiveURLsBySourcePath = Dictionary(
+            uniqueKeysWithValues: (archivePlan?.operations ?? []).map {
+                ($0.sourceURL.standardizedFileURL.path, $0.destinationURL)
+            }
+        )
+        for index in stagedOperations.indices {
+            guard let existingURL = stagedOperations[index].existingMod?.url else {
+                continue
+            }
+            guard let archivedURL = archiveURLsBySourcePath[existingURL.standardizedFileURL.path] else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+            stagedOperations[index].archivedURL = archivedURL
+        }
+
+        let installMoves = stagedOperations.map {
+            FileMoveOperation(
+                sourceURL: $0.stagedURL,
+                destinationURL: $0.destinationURL
+            )
+        }
+        do {
+            try FileMoveTransaction.perform(
+                (archivePlan?.operations ?? []) + installMoves,
+                journalDirectoryURL: install.modDirectoryURL,
+                fileManager: fileManager,
+                moveItem: moveItem
+            )
         } catch {
-            for completedOperation in completedOperations.reversed() {
-                switch completedOperation {
-                case .installed(let destinationURL):
-                    try? fileManager.removeItem(at: destinationURL)
-                case .updated(let destinationURL, let archivedURL):
-                    try? fileManager.removeItem(at: destinationURL)
-                    try? fileManager.moveItem(at: archivedURL, to: destinationURL)
-                }
+            if let archivePlan {
+                ModArchive.removeContainerIfEmpty(
+                    archivePlan.containerURL,
+                    fileManager: fileManager
+                )
             }
             throw error
+        }
+
+        for operation in stagedOperations {
+            if let existingMod = operation.existingMod,
+               let replacementKind = operation.replacementKind,
+               let archivedURL = operation.archivedURL {
+                result.updated.append(
+                    UpdatedModResult(
+                        sourceURL: operation.candidate.sourceURL,
+                        destinationURL: operation.destinationURL,
+                        archivedURL: archivedURL,
+                        displayName: ModInstallPlanner.displayName(
+                            for: operation.candidate,
+                            fallback: existingMod.displayName
+                        ),
+                        previousVersion: existingMod.version,
+                        installedVersion: operation.candidate.manifest?.version?.trimmedNonEmpty,
+                        replacementKind: replacementKind,
+                        preservedConfig: operation.configOutcome == .preserved,
+                        configPreservationFailed: operation.configOutcome == .failed
+                    )
+                )
+            } else {
+                result.installed.append(
+                    InstalledModResult(
+                        sourceURL: operation.candidate.sourceURL,
+                        destinationURL: operation.destinationURL,
+                        displayName: ModInstallPlanner.displayName(for: operation.candidate),
+                        version: operation.candidate.manifest?.version?.trimmedNonEmpty
+                    )
+                )
+            }
         }
 
         return result
@@ -280,26 +384,59 @@ enum ModInstallWorkflow {
         case update(candidate: ModInstallCandidate, existingMod: InstalledModLocation, replacementKind: ModReplacementKind)
     }
 
-    private enum CompletedInstallOperation {
-        case installed(URL)
-        case updated(destinationURL: URL, archivedURL: URL)
-    }
-
     private enum ConfigPreservationOutcome: Equatable {
         case nothingToPreserve
         case preserved
         case failed
     }
 
+    private struct StagedInstallOperation {
+        var candidate: ModInstallCandidate
+        var stagedURL: URL
+        var destinationURL: URL
+        var existingMod: InstalledModLocation?
+        var replacementKind: ModReplacementKind?
+        var configOutcome: ConfigPreservationOutcome
+        var archivedURL: URL?
+    }
+
+    static func removeAbandonedStagingDirectories(
+        in modsDirectoryURL: URL,
+        fileManager: FileManager
+    ) throws {
+        let children = try fileManager.contentsOfDirectory(
+            at: modsDirectoryURL,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: []
+        )
+        for childURL in children
+        where childURL.lastPathComponent.hasPrefix(installStagingDirectoryPrefix)
+            && fileManager.directoryExists(at: childURL) {
+            let markerURL = childURL.appendingPathComponent(
+                installStagingMarkerFileName
+            )
+            let contents = try fileManager.contentsOfDirectory(
+                at: childURL,
+                includingPropertiesForKeys: nil
+            )
+            guard fileManager.fileExists(atPath: markerURL.path)
+                    || contents.isEmpty
+            else {
+                continue
+            }
+            try fileManager.removeItem(at: childURL)
+        }
+    }
+
     private static func preserveUserConfig(
-        from archivedModURL: URL,
+        from sourceModURL: URL,
         to destinationURL: URL,
         fileManager: FileManager
     ) -> ConfigPreservationOutcome {
         let configFileName = "config.json"
-        let archivedConfigURL = archivedModURL.appendingPathComponent(configFileName)
-        guard fileManager.fileExists(atPath: archivedConfigURL.path),
-              !fileManager.directoryExists(at: archivedConfigURL)
+        let sourceConfigURL = sourceModURL.appendingPathComponent(configFileName)
+        guard fileManager.fileExists(atPath: sourceConfigURL.path),
+              !fileManager.directoryExists(at: sourceConfigURL)
         else {
             return .nothingToPreserve
         }
@@ -309,7 +446,7 @@ enum ModInstallWorkflow {
         try? fileManager.removeItem(at: stagedConfigURL)
 
         do {
-            try fileManager.copyItem(at: archivedConfigURL, to: stagedConfigURL)
+            try fileManager.copyItem(at: sourceConfigURL, to: stagedConfigURL)
             if fileManager.fileExists(atPath: destinationConfigURL.path) {
                 _ = try fileManager.replaceItemAt(destinationConfigURL, withItemAt: stagedConfigURL)
             } else {

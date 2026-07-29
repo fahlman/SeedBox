@@ -36,8 +36,8 @@ struct ModManagerAuditRecorder: Sendable {
         )
 
         do {
-            try AuditLogStore.append(entry, to: logURL)
-            reloadTrail(in: &state)
+            state.auditTrail.recentEntries = try AuditLogStore.append(entry, to: logURL)
+            state.auditTrail.lastErrorMessage = nil
             state.activityMessage = ""
         } catch {
             state.auditTrail.lastErrorMessage = error.localizedDescription

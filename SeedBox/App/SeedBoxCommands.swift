@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct SeedBoxCommands: Commands {
     @FocusedValue(\.modManagerCommandContext) private var context
@@ -25,18 +24,8 @@ struct SeedBoxCommands: Commands {
 
             Divider()
 
-            Button {
-                importModSetFromPanel()
-            } label: {
-                Label(AppStrings.Commands.importModSet, systemImage: "square.and.arrow.down")
-            }
-
-            Button {
-                exportSelectedModSetToPanel()
-            } label: {
-                Label(AppStrings.Commands.exportModSet, systemImage: "square.and.arrow.up")
-            }
-            .disabled(!canExportSelectedModSet)
+            commandButton(.importModSet)
+            commandButton(.exportModSet)
         }
 
         CommandGroup(replacing: .printItem) {}
@@ -103,51 +92,6 @@ struct SeedBoxCommands: Commands {
             Divider()
 
             commandButton(.deleteModSet)
-        }
-    }
-
-    private var canExportSelectedModSet: Bool {
-        ModManagerViewModel.shared.state.modSetSelection.selectedSet != nil
-    }
-
-    private func importModSetFromPanel() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [SeedBoxSetDocument.contentType]
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        guard panel.runModal() == .OK, let url = panel.url else {
-            return
-        }
-
-        Task {
-            let didAccess = url.startAccessingSecurityScopedResource()
-            await ModManagerViewModel.shared.importModSet(fromFileAt: url)
-            if didAccess {
-                url.stopAccessingSecurityScopedResource()
-            }
-        }
-    }
-
-    private func exportSelectedModSetToPanel() {
-        let viewModel = ModManagerViewModel.shared
-        guard
-            let selectedSet = viewModel.state.modSetSelection.selectedSet,
-            let data = viewModel.exportDataForSelectedModSet()
-        else {
-            return
-        }
-
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [SeedBoxSetDocument.contentType]
-        panel.nameFieldStringValue = "\(selectedSet.name).\(SeedBoxSetDocument.fileExtension)"
-        guard panel.runModal() == .OK, let url = panel.url else {
-            return
-        }
-
-        let didAccess = url.startAccessingSecurityScopedResource()
-        try? data.write(to: url, options: .atomic)
-        if didAccess {
-            url.stopAccessingSecurityScopedResource()
         }
     }
 

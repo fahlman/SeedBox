@@ -267,4 +267,77 @@ final class UserSmartModSetStoreTests: SeedBoxTestCase {
             XCTAssertEqual(error as? UserSmartModSetStoreError, .duplicateName("updates"))
         }
     }
+
+    func testRejectsUnsupportedSchemaVersion() throws {
+        let storeURL = temporaryDirectory.appendingPathComponent("Smart Mod Sets.plist")
+        let payload: [String: Any] = [
+            "schemaVersion": UserSmartModSetStore.currentSchemaVersion + 1,
+            "smartModSets": []
+        ]
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: payload,
+            format: .xml,
+            options: 0
+        )
+        try data.write(to: storeURL, options: .atomic)
+
+        XCTAssertThrowsError(
+            try UserSmartModSetStore.loadSmartModSets(from: storeURL)
+        ) { error in
+            XCTAssertEqual(
+                error as? UserSmartModSetStoreError,
+                .unsupportedSchemaVersion(UserSmartModSetStore.currentSchemaVersion + 1)
+            )
+        }
+    }
+
+    func testStateStorePreservesUnreadableSavedSearchesBeforeSavingAgain() throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        let smartStoreURL = StardewInstall.smartModSetStoreURL(
+            forModSetDirectory: install.modSetDirectoryURL
+        )
+        try FileManager.default.createDirectory(
+            at: smartStoreURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let originalData = Data("not a property list".utf8)
+        try originalData.write(to: smartStoreURL)
+
+        let stateStore = ModManagerStateStore(
+            folderAccess: SecurityScopedFolderAccess(defaults: defaults),
+            modSetDirectory: install.modSetDirectoryURL,
+            preferences: ModManagerPreferences(defaults: defaults)
+        )
+        var state = stateStore.initialState(selectedModSetID: ModSetStore.defaultSetID)
+
+        XCTAssertEqual(state.userSmartModSets, [])
+        XCTAssertEqual(state.dataStoreIssues.map(\.id), ["user-smart-mod-sets"])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: smartStoreURL.path))
+
+        let recoveryDirectory = smartStoreURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("Recovered Data", isDirectory: true)
+        let recoveredURL = try XCTUnwrap(
+            FileManager.default.contentsOfDirectory(
+                at: recoveryDirectory,
+                includingPropertiesForKeys: nil
+            ).first
+        )
+        XCTAssertEqual(try Data(contentsOf: recoveredURL), originalData)
+
+        let recoveredSet = UserSmartModSet(
+            id: "recovered",
+            name: "Recovered",
+            searchText: "enabled:true"
+        )
+        state.userSmartModSets = [recoveredSet]
+        stateStore.save(state)
+
+        XCTAssertEqual(
+            try UserSmartModSetStore.loadSmartModSets(from: smartStoreURL),
+            [recoveredSet]
+        )
+        XCTAssertEqual(try Data(contentsOf: recoveredURL), originalData)
+    }
 }

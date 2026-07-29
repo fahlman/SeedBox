@@ -61,17 +61,13 @@ struct ModManagerWindow: View {
     }
 
     /// Imports a `.seedboxset` file the user double-clicked or opened with Seed
-    /// Box. Security-scoped access is held for the read.
+    /// Box. The view model owns security-scoped access for every import route.
     private func openSeedBoxSetFile(_ url: URL) {
         guard url.pathExtension.lowercased() == SeedBoxSetDocument.fileExtension else {
             return
         }
         Task {
-            let didAccess = url.startAccessingSecurityScopedResource()
             await viewModel.importModSet(fromFileAt: url)
-            if didAccess {
-                url.stopAccessingSecurityScopedResource()
-            }
         }
     }
 
@@ -122,7 +118,12 @@ struct ModManagerWindow: View {
 }
 
 struct SettingsSceneView: View {
+    var menuBarCompanion: MenuBarCompanionState
+
     var body: some View {
-        SettingsView(viewModel: ModManagerViewModel.shared)
+        SettingsView(
+            viewModel: ModManagerViewModel.shared,
+            menuBarCompanion: menuBarCompanion
+        )
     }
 }

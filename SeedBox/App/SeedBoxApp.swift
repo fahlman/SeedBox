@@ -4,6 +4,7 @@ import SwiftUI
 @main
 struct SeedBoxApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @State private var menuBarCompanion = MenuBarCompanionState()
 
     var body: some Scene {
         Window(AppStrings.App.name, id: "mod-manager") {
@@ -25,24 +26,25 @@ struct SeedBoxApp: App {
         .windowResizability(.contentSize)
         .commandsRemoved()
 
+        MenuBarExtra(
+            AppStrings.App.name,
+            systemImage: "puzzlepiece.extension.fill",
+            isInserted: $menuBarCompanion.isEnabled
+        ) {
+            MenuBarContentView(viewModel: .shared)
+        }
+        .menuBarExtraStyle(.menu)
+
         Settings {
-            SettingsSceneView()
+            SettingsSceneView(menuBarCompanion: menuBarCompanion)
         }
     }
 }
 
-/// Shared constants for the optional menu bar companion.
-enum MenuBarCompanion {
-    static let enabledDefaultsKey = "seedbox.menuBarCompanionEnabled"
-}
-
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let menuBarController = MenuBarController()
-
     func applicationDidFinishLaunching(_ notification: Notification) {
         CrashDiagnosticsCollector.shared.start()
-        menuBarController.start()
     }
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {

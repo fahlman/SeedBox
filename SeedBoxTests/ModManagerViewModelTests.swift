@@ -3,6 +3,78 @@ import XCTest
 
 @MainActor
 final class ModManagerViewModelTests: SeedBoxTestCase {
+    func testOlderServiceSnapshotCannotReplaceNewerWindowState() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        var newerState = viewModel.state
+        newerState.revision += 2
+        newerState.activityStatus = StatusEvent(severity: .info, message: "newer")
+        viewModel.commit(newerState)
+
+        var olderState = newerState
+        olderState.revision -= 1
+        olderState.activityStatus = StatusEvent(severity: .info, message: "older")
+        viewModel.commit(olderState)
+
+        XCTAssertEqual(viewModel.state.revision, newerState.revision)
+        XCTAssertEqual(viewModel.state.activityMessage, "newer")
+    }
+
+    func testModCommandResolvesCurrentFolderFromStableID() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        try makeInstalledMod(name: "Example", in: install)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        await viewModel.selectModSet(id: ModSetStore.allSetID)
+        await viewModel.createModSet(named: "Personal")
+        let originalModel = try XCTUnwrap(viewModel.state.mods.first)
+
+        await viewModel.setMod(originalModel, enabled: false)
+        XCTAssertFalse(try XCTUnwrap(viewModel.state.mods.first).isEnabled)
+
+        // The model still points to the old folder name. The service must use
+        // only its stable ID and resolve the current model from actor state.
+        await viewModel.setMod(originalModel, enabled: true)
+
+        XCTAssertTrue(try XCTUnwrap(viewModel.state.mods.first).isEnabled)
+        XCTAssertTrue(FileManager.default.directoryExists(
+            at: install.modDirectoryURL.appendingPathComponent("Example")
+        ))
+    }
+
+    func testRepeatedModCommandReportsOnlyTheOperationThatChangedDisk() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        try makeInstalledMod(name: "Example", in: install)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        let mod = try XCTUnwrap(viewModel.state.mods.first)
+
+        let firstDidChange = await viewModel.setMod(mod, enabled: false)
+        let secondDidChange = await viewModel.setMod(mod, enabled: false)
+
+        XCTAssertTrue(firstDidChange)
+        XCTAssertFalse(secondDidChange)
+    }
+
+    func testConditionalModCommandDoesNotOverwriteNewerState() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        try makeInstalledMod(name: "Example", in: install)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        let mod = try XCTUnwrap(viewModel.state.mods.first)
+        await viewModel.setMod(mod, enabled: false)
+
+        let didChange = await viewModel.setMod(
+            id: mod.id,
+            enabled: true,
+            ifCurrently: true
+        )
+
+        XCTAssertFalse(didChange)
+        XCTAssertFalse(try XCTUnwrap(viewModel.state.mods.first).isEnabled)
+    }
+
     func testSelectingModSetAppliesStoredModStates() async throws {
         let install = try makeInstall()
         let defaults = try makeIsolatedUserDefaults()
@@ -235,7 +307,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
         let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
 
-        switch viewModel.prepareImportPreview(from: [invalidZipURL]) {
+        switch await viewModel.prepareImportPreview(from: [invalidZipURL]) {
         case .success:
             XCTFail("Invalid mod archives should not produce an import preview.")
         case .failure(.recorded(let event)):

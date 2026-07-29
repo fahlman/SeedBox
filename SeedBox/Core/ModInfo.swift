@@ -253,6 +253,12 @@ struct ModInfo: Identifiable, Equatable, Sendable {
     }
 }
 
+struct ModEnabledStateMutation: Equatable, Sendable {
+    var modID: ModInfo.ID
+    var previousEnabled: Bool
+    var appliedEnabled: Bool
+}
+
 private extension Array where Element == ModDependencyRequirement {
     func uniquedByNormalizedDependencyID() -> [ModDependencyRequirement] {
         var requirements: [ModDependencyRequirement] = []

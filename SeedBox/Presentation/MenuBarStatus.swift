@@ -17,22 +17,29 @@ struct MenuBarStatus: Equatable, Sendable {
     var hasUpdates: Bool { updatesCount > 0 }
 
     static func make(from state: ModManagerState) -> MenuBarStatus {
-        MenuBarStatus(
+        let context = ModFilterContext(
+            state: state,
+            dependencyGraph: ModDependencyGraph(mods: state.mods)
+        )
+        return MenuBarStatus(
             hasFolderAccess: state.hasSavedFolderAccess,
             selectedSetName: state.modSetSelection.selectedSet?.name,
-            warningsCount: ModFilterEngine.count(for: .warnings, in: state),
-            errorsCount: ModFilterEngine.count(for: .errors, in: state),
-            updatesCount: updatesCount(in: state),
+            warningsCount: ModFilterEngine.count(for: .warnings, context: context),
+            errorsCount: ModFilterEngine.count(for: .errors, context: context),
+            updatesCount: updatesCount(in: state, context: context),
             hasLastSessionIssues: !state.lastSessionIssues.isEmpty,
             checksForUpdates: state.checksForModUpdates
         )
     }
 
-    private static func updatesCount(in state: ModManagerState) -> Int {
+    private static func updatesCount(
+        in state: ModManagerState,
+        context: ModFilterContext
+    ) -> Int {
         guard state.checksForModUpdates else {
             return 0
         }
-        var count = state.mods.filter { state.availableUpdate(for: $0) != nil }.count
+        var count = context.availableUpdateModIDs.count
         if state.smapiUpdate != nil {
             count += 1
         }

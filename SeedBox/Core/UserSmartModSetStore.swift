@@ -1,11 +1,21 @@
 import Foundation
 
-enum UserSmartModSetStoreError: Error, Equatable, Sendable {
+enum UserSmartModSetStoreError: Error, Equatable, LocalizedError, Sendable {
     case emptyID
     case emptyName
     case emptySearchText
     case duplicateName(String)
     case duplicateID(String)
+    case unsupportedSchemaVersion(Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .unsupportedSchemaVersion:
+            return CocoaError(.fileReadUnknown).localizedDescription
+        case .emptyID, .emptyName, .emptySearchText, .duplicateName, .duplicateID:
+            return CocoaError(.fileReadCorruptFile).localizedDescription
+        }
+    }
 }
 
 enum UserSmartModSetStore {
@@ -53,12 +63,24 @@ enum UserSmartModSetStore {
         let data = try Data(contentsOf: storeURL)
         let decoder = PropertyListDecoder()
 
-        if let storedSmartModSets = try? decoder.decode(StoredUserSmartModSets.self, from: data) {
-            return normalizeLoadedSmartModSets(storedSmartModSets.smartModSets)
+        do {
+            let storedSmartModSets = try decoder.decode(StoredUserSmartModSets.self, from: data)
+            guard storedSmartModSets.schemaVersion == currentSchemaVersion else {
+                throw UserSmartModSetStoreError.unsupportedSchemaVersion(
+                    storedSmartModSets.schemaVersion
+                )
+            }
+            return try normalizeSmartModSetsForSaving(storedSmartModSets.smartModSets)
+        } catch let error as UserSmartModSetStoreError {
+            throw error
+        } catch let versionedFormatError {
+            do {
+                let smartModSets = try decoder.decode([UserSmartModSet].self, from: data)
+                return try normalizeSmartModSetsForSaving(smartModSets)
+            } catch {
+                throw versionedFormatError
+            }
         }
-
-        let smartModSets = try decoder.decode([UserSmartModSet].self, from: data)
-        return normalizeLoadedSmartModSets(smartModSets)
     }
 
     static func saveSmartModSets(
@@ -79,6 +101,25 @@ enum UserSmartModSetStore {
         try data.write(to: storeURL, options: .atomic)
     }
 
+    static func preserveUnreadableStore(
+        at storeURL: URL,
+        fileManager: FileManager = .default
+    ) throws -> URL {
+        let recoveryDirectory = storeURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("Recovered Data", isDirectory: true)
+        try fileManager.createDirectory(
+            at: recoveryDirectory,
+            withIntermediateDirectories: true
+        )
+
+        let recoveryURL = recoveryDirectory
+            .appendingPathComponent("Smart Mod Sets \(UUID().uuidString)")
+            .appendingPathExtension("plist")
+        try fileManager.moveItem(at: storeURL, to: recoveryURL)
+        return recoveryURL
+    }
+
     private struct StoredUserSmartModSets: Codable {
         var schemaVersion: Int
         var smartModSets: [UserSmartModSet]
@@ -97,33 +138,6 @@ enum UserSmartModSetStore {
             at: directoryURL,
             withIntermediateDirectories: true
         )
-    }
-
-    private static func normalizeLoadedSmartModSets(
-        _ smartModSets: [UserSmartModSet]
-    ) -> [UserSmartModSet] {
-        var seenIDs: Set<String> = []
-        var seenNames: Set<String> = []
-        var normalizedSmartModSets: [UserSmartModSet] = []
-
-        for smartModSet in smartModSets {
-            guard let normalizedSmartModSet = normalized(smartModSet) else {
-                continue
-            }
-
-            let normalizedName = normalizedSmartModSet.name.normalizedSearchText
-            guard !seenIDs.contains(normalizedSmartModSet.id),
-                  !seenNames.contains(normalizedName)
-            else {
-                continue
-            }
-
-            seenIDs.insert(normalizedSmartModSet.id)
-            seenNames.insert(normalizedName)
-            normalizedSmartModSets.append(normalizedSmartModSet)
-        }
-
-        return sortSmartModSets(normalizedSmartModSets)
     }
 
     private static func normalizeSmartModSetsForSaving(

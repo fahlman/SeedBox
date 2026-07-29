@@ -85,6 +85,7 @@ struct AuditTrailState: Equatable, Sendable {
 
 enum AuditLogStore {
     static let recentEntryLimit = 100
+    static let storedEntryLimit = 1_000
 
     private struct StoredAuditLog: Codable {
         var entries: [AuditLogEntry]
@@ -95,11 +96,13 @@ enum AuditLogStore {
         category: "Audit"
     )
 
+    @discardableResult
     static func append(
         _ entry: AuditLogEntry,
         to logURL: URL,
-        fileManager: FileManager = .default
-    ) throws {
+        fileManager: FileManager = .default,
+        retentionLimit: Int = storedEntryLimit
+    ) throws -> [AuditLogEntry] {
         let directoryURL = logURL.deletingLastPathComponent()
         if !fileManager.directoryExists(at: directoryURL) {
             try fileManager.createDirectory(
@@ -108,10 +111,24 @@ enum AuditLogStore {
             )
         }
 
+        var persistedEntry = entry
+        // XML property lists store dates to whole-second precision. Keep the
+        // in-memory tail identical to what a later launch will decode.
+        persistedEntry.timestamp = Date(
+            timeIntervalSince1970: floor(entry.timestamp.timeIntervalSince1970)
+        )
+
         var entries = try loadEntries(from: logURL)
-        entries.append(entry)
+        entries.append(persistedEntry)
+        let normalizedRetentionLimit = max(retentionLimit, recentEntryLimit)
+        if entries.count > normalizedRetentionLimit {
+            entries = Array(entries.suffix(normalizedRetentionLimit))
+        }
         try saveEntries(entries, to: logURL, fileManager: fileManager)
-        logger.info("\(entry.action.rawValue, privacy: .public): \(consoleSummary(for: entry), privacy: .public)")
+        logger.info(
+            "\(persistedEntry.action.rawValue, privacy: .public): \(consoleSummary(for: persistedEntry), privacy: .public)"
+        )
+        return Array(entries.suffix(recentEntryLimit))
     }
 
     static func loadEntries(

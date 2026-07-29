@@ -13,6 +13,7 @@ final class ModManagerViewModel {
     @ObservationIgnored private let importPreviewCoordinator: ModImportPreviewCoordinator
     @ObservationIgnored private let modSetDirectory: URL
     @ObservationIgnored private let service: ModManagerService
+    @ObservationIgnored private let undoOperationQueue = ModUndoOperationQueue()
     @ObservationIgnored private let workspacePresenter: ModManagerWorkspacePresenter
     @ObservationIgnored private var folderObservation: ModManagerFolderObservation?
 
@@ -113,8 +114,8 @@ final class ModManagerViewModel {
         commit(await service.createModFolder())
     }
 
-    func prepareImportPreview(from selectedURLs: [URL]) -> ModImportPreviewResult {
-        let result = importPreviewCoordinator.prepareImportPreview(
+    func prepareImportPreview(from selectedURLs: [URL]) async -> ModImportPreviewResult {
+        let result = await importPreviewCoordinator.prepareImportPreview(
             from: selectedURLs,
             install: install,
             readiness: state.readiness
@@ -136,7 +137,10 @@ final class ModManagerViewModel {
         commit(await service.addMods(from: selectedURLs, replacementPolicy: replacementPolicy))
     }
 
-    func addPreviewedMods(_ preview: ModImportPreview) async {
+    func addPreviewedMods(_ session: ModImportPreviewSession) async {
+        guard let preview = session.takeForInstallation() else {
+            return
+        }
         commit(await service.addPreviewedMods(preview))
     }
 
@@ -184,28 +188,84 @@ final class ModManagerViewModel {
         commit(await service.checkForModUpdates())
     }
 
-    func setMod(_ mod: ModInfo, enabled: Bool) async {
-        commit(await service.setMod(mod, enabled: enabled))
+    @discardableResult
+    func setMod(_ mod: ModInfo, enabled: Bool) async -> Bool {
+        await setMod(id: mod.id, enabled: enabled)
     }
 
-    func setMods(_ mods: [ModInfo], enabled: Bool) async {
-        commit(await service.setMods(mods, enabled: enabled))
+    @discardableResult
+    func setMod(
+        id: ModInfo.ID,
+        enabled: Bool,
+        ifCurrently expectedEnabled: Bool? = nil
+    ) async -> Bool {
+        let result = await service.setModResult(
+            id: id,
+            enabled: enabled,
+            expectedEnabled: expectedEnabled
+        )
+        commit(result.state)
+        return result.value
     }
 
-    func deleteMod(_ mod: ModInfo) async {
-        commit(await service.deleteMod(mod))
+    @discardableResult
+    func setMods(_ mods: [ModInfo], enabled: Bool) async -> [ModEnabledStateMutation] {
+        await setMods(ids: mods.map(\.id), enabled: enabled)
     }
 
-    func restoreArchivedMods(_ archivedMods: [ArchivedModInfo]) async {
-        commit(await service.restoreArchivedMods(archivedMods))
+    @discardableResult
+    func setMods(
+        ids: [ModInfo.ID],
+        enabled: Bool,
+        ifCurrently expectedStates: [ModInfo.ID: Bool]? = nil
+    ) async -> [ModEnabledStateMutation] {
+        let result = await service.setModsResult(
+            ids: ids,
+            enabled: enabled,
+            expectedStates: expectedStates
+        )
+        commit(result.state)
+        return result.value
+    }
+
+    @discardableResult
+    func deleteMod(_ mod: ModInfo) async -> Bool {
+        let result = await service.deleteModResult(id: mod.id)
+        commit(result.state)
+        return result.value
+    }
+
+    @discardableResult
+    func restoreArchivedMods(_ archivedMods: [ArchivedModInfo]) async -> [String] {
+        let result = await service.restoreArchivedModsResult(ids: archivedMods.map(\.id))
+        commit(result.state)
+        return result.value
+    }
+
+    @discardableResult
+    func restoreMostRecentDeletedMod(folderName: String) async -> Bool {
+        let result = await service.restoreMostRecentDeletedModResult(
+            folderName: folderName
+        )
+        commit(result.state)
+        return result.value
+    }
+
+    @discardableResult
+    func deleteInstalledMod(folderName: String) async -> Bool {
+        let result = await service.deleteInstalledModResult(
+            folderName: folderName
+        )
+        commit(result.state)
+        return result.value
     }
 
     func deleteArchivedMods(_ archivedMods: [ArchivedModInfo]) async {
-        commit(await service.deleteArchivedMods(archivedMods))
+        commit(await service.deleteArchivedMods(ids: archivedMods.map(\.id)))
     }
 
     func restorePreviousVersion(of mod: ModInfo) async {
-        commit(await service.restorePreviousVersion(of: mod))
+        commit(await service.restorePreviousVersion(ofModWithID: mod.id))
     }
 
     func pruneExpiredArchives() async {
@@ -240,49 +300,132 @@ final class ModManagerViewModel {
         commit(await service.cancelBisection())
     }
 
-    func createModSet(named name: String, from sourceSet: ModSet? = nil, parentID: String? = nil) async {
-        commit(await service.createModSet(named: name, from: sourceSet, parentID: parentID))
+    @discardableResult
+    func createModSet(
+        named name: String,
+        from sourceSet: ModSet? = nil,
+        parentID: String? = nil
+    ) async -> ModSet? {
+        let result = await service.createModSetResult(
+            named: name,
+            from: sourceSet,
+            parentID: parentID
+        )
+        commit(result.state)
+        return result.value
     }
 
-    func duplicateSelectedModSet(named name: String, parentID: String? = nil) async {
-        commit(await service.duplicateSelectedModSet(named: name, parentID: parentID))
+    @discardableResult
+    func duplicateSelectedModSet(named name: String, parentID: String? = nil) async -> ModSet? {
+        let result = await service.duplicateSelectedModSetResult(
+            named: name,
+            parentID: parentID
+        )
+        commit(result.state)
+        return result.value
     }
 
-    func renameSelectedModSet(to requestedName: String) async {
-        commit(await service.renameSelectedModSet(to: requestedName))
+    @discardableResult
+    func renameSelectedModSet(to requestedName: String) async -> Bool {
+        guard let selectedSet = state.modSetSelection.selectedSet else {
+            return false
+        }
+        return await renameModSet(
+            id: selectedSet.id,
+            to: requestedName
+        )
     }
 
-    func selectModSet(id: String) async {
-        commit(await service.selectModSet(id: id))
+    @discardableResult
+    func renameModSet(
+        id: ModSet.ID,
+        to requestedName: String,
+        ifNamed expectedName: String? = nil
+    ) async -> Bool {
+        let result = await service.renameModSetResult(
+            id: id,
+            to: requestedName,
+            expectedName: expectedName
+        )
+        commit(result.state)
+        return result.value
+    }
+
+    @discardableResult
+    func selectModSet(
+        id: String,
+        ifCurrentlySelected expectedSetID: String? = nil
+    ) async -> Bool {
+        let result = await service.selectModSetResult(
+            id: id,
+            expectedSelectedSetID: expectedSetID
+        )
+        commit(result.state)
+        return result.value
     }
 
     func restoreSelectedModSet(id: String) async {
         commit(await service.restoreSelectedModSet(id: id))
     }
 
-    func deleteModSet(_ set: ModSet) async {
-        commit(await service.deleteModSet(set))
+    @discardableResult
+    func deleteModSet(_ set: ModSet) async -> Bool {
+        let result = await service.deleteModSetResult(id: set.id)
+        commit(result.state)
+        return result.value
     }
 
-    func restoreModSet(_ set: ModSet) async {
-        commit(await service.restoreModSet(set))
+    @discardableResult
+    func restoreModSet(_ set: ModSet) async -> Bool {
+        let result = await service.restoreModSetResult(set)
+        commit(result.state)
+        return result.value
     }
 
     func importModSet(fromFileAt url: URL) async {
+        let token = SecurityScopedAccessToken(url: url)
+        defer {
+            token.stop()
+        }
         commit(await service.importModSet(fromFileAt: url))
     }
 
-    /// The export bytes for the selected Mod Set, or nil when no editable set is
-    /// selected. The view writes these to a user-chosen `.seedboxset` file.
-    func exportDataForSelectedModSet() -> Data? {
-        guard let selectedSet = state.modSetSelection.selectedSet else {
-            return nil
-        }
-        return try? ModSetTransfer.exportData(
-            for: selectedSet,
-            mods: state.mods,
-            in: state.modSets
+    func recordModSetImportSelectionError(_ error: Error) {
+        record(
+            AppStrings.Status.couldNotImportModSet(error.localizedDescription),
+            severity: .error
         )
+    }
+
+    func recordModSetExported(named setName: String) async {
+        commit(
+            await service.recordActivity(
+                AppStrings.Status.exportedModSet(setName)
+            )
+        )
+    }
+
+    func recordModSetExportError(_ error: Error) async {
+        commit(
+            await service.recordActivity(
+                AppStrings.Status.couldNotExportModSet(error.localizedDescription),
+                severity: .error
+            )
+        )
+    }
+
+    var hasPendingUndoOperation: Bool {
+        !undoOperationQueue.isIdle
+    }
+
+    func enqueueUndoOperation(
+        _ operation: @escaping @MainActor () async -> Bool
+    ) {
+        undoOperationQueue.enqueue(operation)
+    }
+
+    func waitUntilUndoOperationsComplete() async {
+        await undoOperationQueue.waitUntilIdle()
     }
 
     /// A shareable item for the selected Mod Set, or nil when none is selected,
@@ -313,7 +456,10 @@ final class ModManagerViewModel {
         }
     }
 
-    private func commit(_ nextState: ModManagerState) {
+    func commit(_ nextState: ModManagerState) {
+        guard nextState.revision >= state.revision else {
+            return
+        }
         state = nextState
         updateModsFolderMonitor()
     }

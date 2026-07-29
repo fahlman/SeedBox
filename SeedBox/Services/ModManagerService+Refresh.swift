@@ -58,12 +58,14 @@ extension ModManagerService {
         }
 
         do {
-            let loadedSets = try ModSetStore.loadSets(
+            let loadResult = try ModSetStore.loadSetsWithIssues(
                 install: install(for: state),
                 currentMods: state.mods
             )
+            let loadedSets = loadResult.sets
 
             state.modSets = loadedSets
+            state.dataStoreIssues.removeAll { $0.id == "mod-sets" }
             if !loadedSets.contains(where: { $0.id == state.selectedModSetID }) {
                 setSelectedModSetID(fallbackSelectedModSetID(in: loadedSets), in: &state)
             }
@@ -81,8 +83,31 @@ extension ModManagerService {
                modSetMatchesCurrentMods(selectedSet, in: state) {
                 state.appliedModSetID = selectedSet.id
             }
+            if let issue = loadResult.issues.first {
+                let detail = AppStrings.Status.couldNotReadModSets(issue.localizedDescription)
+                state.dataStoreIssues.append(
+                    DataStoreIssue(
+                        id: "mod-sets",
+                        title: AppStrings.Spotlight.modSetDescription,
+                        detail: detail
+                    )
+                )
+                record(
+                    detail,
+                    severity: .error,
+                    in: &state
+                )
+            }
         } catch {
             state.modSets = []
+            state.dataStoreIssues.removeAll { $0.id == "mod-sets" }
+            state.dataStoreIssues.append(
+                DataStoreIssue(
+                    id: "mod-sets",
+                    title: AppStrings.Spotlight.modSetDescription,
+                    detail: AppStrings.Status.couldNotReadModSets(error.localizedDescription)
+                )
+            )
             setSelectedModSetID(ModSetStore.defaultSetID, in: &state)
             state.appliedModSetID = nil
             record(AppStrings.Status.couldNotReadModSets(error.localizedDescription), severity: .error, in: &state)

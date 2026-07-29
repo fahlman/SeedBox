@@ -74,6 +74,43 @@ struct ModManagerView: View {
                     viewModel.recordModsFolderSelectionError(error)
                 }
             }
+            .fileImporter(
+                isPresented: $presentation.isImportingModSet,
+                allowedContentTypes: [SeedBoxSetDocument.contentType]
+            ) { result in
+                switch result {
+                case .success(let url):
+                    Task {
+                        await viewModel.importModSet(fromFileAt: url)
+                    }
+                case .failure(let error):
+                    viewModel.recordModSetImportSelectionError(error)
+                }
+            }
+            .fileExporter(
+                isPresented: $presentation.isExportingModSet,
+                item: presentation.exportedModSet,
+                contentTypes: [SeedBoxSetDocument.contentType],
+                defaultFilename: presentation.exportedModSet?.suggestedFileName
+            ) { result in
+                let setName = presentation.exportedModSet?.name
+                presentation.exportedModSet = nil
+
+                switch result {
+                case .success:
+                    if let setName {
+                        Task {
+                            await viewModel.recordModSetExported(named: setName)
+                        }
+                    }
+                case .failure(let error):
+                    Task {
+                        await viewModel.recordModSetExportError(error)
+                    }
+                }
+            } onCancellation: {
+                presentation.exportedModSet = nil
+            }
             .sheet(item: activeSheet) { sheet in
                 sheetContent(for: sheet, presentationState: presentationState)
             }

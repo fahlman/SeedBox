@@ -206,15 +206,15 @@ extension ModManagerService {
     ) throws -> ModManagerState {
         var nextState = state
         let mods = nextState.mods
+        let currentInstall = install(for: nextState)
         try performWithFolderAccess(state: &nextState) {
-            for mod in mods {
-                let shouldBeEnabled = enabledTokens.contains(mod.enabledFolderName.normalizedFolderToken)
-                guard mod.isEnabled != shouldBeEnabled else {
-                    continue
+            _ = try ModLibrary.applyEnabledStates(
+                to: mods,
+                journalDirectoryURL: currentInstall.modDirectoryURL,
+                shouldEnable: {
+                    enabledTokens.contains($0.enabledFolderName.normalizedFolderToken)
                 }
-
-                _ = try ModLibrary.setEnabled(mod, enabled: shouldBeEnabled)
-            }
+            )
         }
         return refreshedState(from: nextState)
     }

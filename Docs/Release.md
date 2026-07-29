@@ -110,9 +110,12 @@ Use this path for the Steam-compatible macOS build:
 6. Choose **Developer ID** distribution.
 7. Let Xcode sign and notarize the app.
 
-The Steam scheme uses `Release Steam`, `SeedBox/Steam.entitlements`, hardened
-runtime, and `ENABLE_APP_SANDBOX = NO`. The normal **Seed Box** scheme continues
-to use `SeedBox/Sandbox.entitlements` for the App Store candidate.
+The Steam scheme uses `Release Steam`, hardened runtime, and
+`ENABLE_APP_SANDBOX = NO`. It does not weaken library validation or permit
+dynamic-loader environment variables. Add a narrowly scoped entitlement only
+if a future, tested Steamworks integration proves that it is required. The
+normal **Seed Box** scheme continues to use `SeedBox/Sandbox.entitlements` for
+the App Store candidate.
 
 ## Automated Developer ID ZIP
 

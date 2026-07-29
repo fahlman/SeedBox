@@ -1,13 +1,20 @@
 import Foundation
 
 struct ModManagerPresentationState {
-    var state: ModManagerState
+    var filterContext: ModFilterContext
     var searchText: String
     var selectedModIDs: Set<String>
     var librarySelection: ModLibrarySelection
-    var dependencyGraph: ModDependencyGraph
     var filteredMods: [ModInfo]
     var selection: ModSelectionState
+
+    var state: ModManagerState {
+        filterContext.state
+    }
+
+    var dependencyGraph: ModDependencyGraph {
+        filterContext.dependencyGraph
+    }
 
     init(
         state: ModManagerState,
@@ -16,22 +23,24 @@ struct ModManagerPresentationState {
         selectedLibraryItemID: String = ModLibrarySelection.initialID
     ) {
         let dependencyGraph = ModDependencyGraph(mods: state.mods)
+        let filterContext = ModFilterContext(
+            state: state,
+            dependencyGraph: dependencyGraph
+        )
         let librarySelection = ModLibrarySelection(
             id: ModLibrarySelection.resolvedID(selectedLibraryItemID, in: state)
         )
         let filteredMods = ModFilterEngine.filteredMods(
-            in: state,
+            context: filterContext,
             librarySelection: librarySelection,
-            searchText: searchText,
-            dependencyGraph: dependencyGraph
+            searchText: searchText
         )
         let selectedMod = Self.selectedMod(in: filteredMods, selectedModIDs: selectedModIDs)
 
-        self.state = state
+        self.filterContext = filterContext
         self.searchText = searchText
         self.selectedModIDs = selectedModIDs
         self.librarySelection = librarySelection
-        self.dependencyGraph = dependencyGraph
         self.filteredMods = filteredMods
         selection = ModSelectionState(
             selectedModIDs: selectedModIDs,
@@ -84,19 +93,19 @@ struct ModManagerPresentationState {
     }
 
     var selectedLibraryItem: ModLibraryItem? {
-        librarySelection.item(in: state)
+        librarySelection.item(in: filterContext)
     }
 
     var builtInSmartModSetItems: [ModLibraryItem] {
-        ModLibrarySelection.builtInSmartItems(in: state)
+        ModLibrarySelection.builtInSmartItems(in: filterContext)
     }
 
     var userSmartModSetItems: [ModLibraryItem] {
-        ModLibrarySelection.userSmartItems(in: state)
+        ModLibrarySelection.userSmartItems(in: filterContext)
     }
 
     var modSetItems: [ModLibraryItem] {
-        ModLibrarySelection.modSetItems(in: state)
+        ModLibrarySelection.modSetItems(in: filterContext)
     }
 
     var selectedSet: ModSet? {

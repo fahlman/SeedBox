@@ -23,6 +23,8 @@ extension ModManagerView {
         ModManagerActions(
             chooseModsFolder: chooseModsFolder,
             addMods: addMods,
+            importModSet: importModSet,
+            exportModSet: exportModSet,
             refresh: {
                 Task {
                     await viewModel.refresh()
@@ -67,7 +69,22 @@ extension ModManagerView {
     }
 
     func addMods() {
+        guard presentation.importPreviewRequestID == nil else {
+            return
+        }
         presentation.isAddingMods = true
+    }
+
+    func importModSet() {
+        presentation.isImportingModSet = true
+    }
+
+    func exportModSet() {
+        guard let exportable = viewModel.exportableSelectedModSet() else {
+            return
+        }
+        presentation.exportedModSet = exportable
+        presentation.isExportingModSet = true
     }
 
     func createModFolder() {
@@ -102,15 +119,13 @@ extension ModManagerView {
         }
 
         presentation.dismissSheet()
-        let restoredFolderNames = archivedMods.map(\.enabledFolderName)
         Task {
-            await viewModel.restoreArchivedMods(archivedMods)
+            let restoredFolderNames = await viewModel.restoreArchivedMods(archivedMods)
 
             // Register one undo (grouped within this event) that re-archives all
             // the mods this restore brought back.
             if let undoManager {
-                for folderName in restoredFolderNames
-                where ModUndoRegistrar.canUndoRestoration(of: folderName, in: viewModel.state) {
+                for folderName in restoredFolderNames {
                     ModUndoRegistrar.registerModRestoration(
                         in: undoManager,
                         viewModel: viewModel,
@@ -190,12 +205,10 @@ extension ModManagerView {
         selectedLibraryItemID = ModLibrarySelection.modSetID(id)
         selectedModIDs = []
         Task {
-            await viewModel.selectModSet(id: id)
+            let didApply = await viewModel.selectModSet(id: id)
 
             // Register undo only when the switch actually applied.
-            if previousSetID != id,
-               viewModel.state.selectedModSetID == id,
-               let undoManager {
+            if didApply, let undoManager {
                 ModUndoRegistrar.registerModSetApply(
                     in: undoManager,
                     viewModel: viewModel,
@@ -239,11 +252,28 @@ extension ModManagerView {
     }
 
     func previewMods(from urls: [URL]) {
-        switch viewModel.prepareImportPreview(from: urls) {
-        case .success(let preview):
-            presentation.sheet = .importPreview(preview)
-        case .failure(let outcome):
-            presentImportPreviewFailure(outcome)
+        guard presentation.importPreviewRequestID == nil else {
+            return
+        }
+
+        let requestID = UUID()
+        presentation.importPreviewRequestID = requestID
+        Task {
+            let result = await viewModel.prepareImportPreview(from: urls)
+            guard presentation.importPreviewRequestID == requestID else {
+                if case .success(let session) = result {
+                    session.discardInBackground()
+                }
+                return
+            }
+
+            presentation.importPreviewRequestID = nil
+            switch result {
+            case .success(let session):
+                presentation.sheet = .importPreview(session)
+            case .failure(let outcome):
+                presentImportPreviewFailure(outcome)
+            }
         }
     }
 
@@ -271,15 +301,17 @@ extension ModManagerView {
         }
     }
 
-    func installPreviewedMods(_ preview: ModImportPreview) {
+    func installPreviewedMods(_ session: ModImportPreviewSession) {
         presentation.dismissSheet()
         Task {
-            await viewModel.addPreviewedMods(preview)
+            await viewModel.addPreviewedMods(session)
         }
     }
 
     func installDroppedMods(from urls: [URL]) -> Bool {
-        guard presentationState.canManageMods else {
+        guard presentationState.canManageMods,
+              presentation.importPreviewRequestID == nil
+        else {
             return false
         }
 
@@ -387,10 +419,10 @@ extension ModManagerView {
     func setMod(_ mod: ModInfo, enabled: Bool) {
         let previousEnabled = mod.isEnabled
         Task {
-            await viewModel.setMod(mod, enabled: enabled)
+            let didChange = await viewModel.setMod(mod, enabled: enabled)
 
             // Register undo only for an actual change, after it is applied.
-            if previousEnabled != enabled, let undoManager {
+            if didChange, let undoManager {
                 ModUndoRegistrar.registerModToggle(
                     in: undoManager,
                     viewModel: viewModel,
@@ -419,7 +451,14 @@ extension ModManagerView {
 
     func setMods(_ mods: [ModInfo], enabled: Bool) {
         Task {
-            await viewModel.setMods(mods, enabled: enabled)
+            let changes = await viewModel.setMods(mods, enabled: enabled)
+            if !changes.isEmpty, let undoManager {
+                ModUndoRegistrar.registerModToggles(
+                    in: undoManager,
+                    viewModel: viewModel,
+                    changes: changes
+                )
+            }
         }
     }
 
@@ -439,11 +478,21 @@ extension ModManagerView {
     func commitModSetEditor(mode: ModSetEditorMode, name: String, parentID: String?) async {
         switch mode {
         case .create:
-            await viewModel.createModSet(named: name, parentID: parentID)
+            if let newSet = await viewModel.createModSet(named: name, parentID: parentID),
+               let undoManager {
+                ModUndoRegistrar.registerModSetExistence(
+                    in: undoManager,
+                    viewModel: viewModel,
+                    set: newSet,
+                    deleted: false,
+                    actionName: AppStrings.Undo.createModSet
+                )
+            }
         case .duplicate:
-            await viewModel.duplicateSelectedModSet(named: name, parentID: parentID)
-            if let newSet = viewModel.state.modSetSelection.selectedSet,
-               newSet.name == name,
+            if let newSet = await viewModel.duplicateSelectedModSet(
+                named: name,
+                parentID: parentID
+            ),
                let undoManager {
                 ModUndoRegistrar.registerModSetExistence(
                     in: undoManager,
@@ -454,11 +503,12 @@ extension ModManagerView {
                 )
             }
         case .rename(let set):
-            await viewModel.renameSelectedModSet(to: name)
-            if set.name != name,
-               viewModel.state.modSetSelection.selectedSet?.id == set.id,
-               viewModel.state.modSetSelection.selectedSet?.name == name,
-               let undoManager {
+            let didRename = await viewModel.renameModSet(
+                id: set.id,
+                to: name,
+                ifNamed: set.name
+            )
+            if didRename, let undoManager {
                 ModUndoRegistrar.registerModSetRename(
                     in: undoManager,
                     viewModel: viewModel,

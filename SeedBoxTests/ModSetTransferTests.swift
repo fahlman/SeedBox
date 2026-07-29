@@ -73,9 +73,9 @@ final class ModSetTransferTests: SeedBoxTestCase {
         let cp = try XCTUnwrap(viewModel.state.mods.first { $0.displayName == "Content Patcher" })
         await viewModel.setMod(cp, enabled: false)
 
-        let data = try XCTUnwrap(viewModel.exportDataForSelectedModSet())
+        let exportable = try XCTUnwrap(viewModel.exportableSelectedModSet())
         let url = temporaryDirectory.appendingPathComponent("Travelers.seedboxset")
-        try data.write(to: url)
+        try exportable.data.write(to: url)
 
         // Importing adds a new, non-colliding set selected but not applied.
         let beforeIDs = Set(viewModel.state.modSets.map(\.id))
@@ -85,5 +85,21 @@ final class ModSetTransferTests: SeedBoxTestCase {
         XCTAssertEqual(newSet.name, "Travelers 2")
         XCTAssertEqual(newSet.disabledFolderNames, ["ContentPatcher"])
         XCTAssertEqual(viewModel.state.selectedModSetID, newSet.id)
+    }
+
+    @MainActor
+    func testViewModelCreatesExportableSelectedModSet() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        await viewModel.createModSet(named: "Travelers")
+
+        let exportable = try XCTUnwrap(viewModel.exportableSelectedModSet())
+        let document = try SeedBoxSetCodec.decode(exportable.data)
+        XCTAssertEqual(exportable.suggestedFileName, "Travelers.seedboxset")
+        XCTAssertEqual(document.modSet.name, "Travelers")
+
+        await viewModel.recordModSetExported(named: exportable.name)
+        XCTAssertEqual(viewModel.state.activityMessage, "Exported mod set Travelers.")
     }
 }
