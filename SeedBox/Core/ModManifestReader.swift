@@ -1,14 +1,38 @@
+import Darwin
 import Foundation
 
 private final class CachedManifestEntry {
-    let modificationDate: Date?
-    let fileSize: Int
+    let signature: ManifestFileSignature
     let manifest: ModManifest?
 
-    init(modificationDate: Date?, fileSize: Int, manifest: ModManifest?) {
-        self.modificationDate = modificationDate
-        self.fileSize = fileSize
+    init(signature: ManifestFileSignature, manifest: ModManifest?) {
+        self.signature = signature
         self.manifest = manifest
+    }
+}
+
+private struct ManifestFileSignature: Equatable {
+    var device: UInt64
+    var inode: UInt64
+    var fileSize: Int
+    var modificationSeconds: Int64
+    var modificationNanoseconds: Int64
+
+    init?(url: URL) {
+        var metadata = stat()
+        guard lstat(url.path, &metadata) == 0,
+              metadata.st_mode & UInt16(S_IFMT) == UInt16(S_IFREG),
+              metadata.st_size >= 0,
+              metadata.st_size <= off_t(Int.max)
+        else {
+            return nil
+        }
+
+        device = UInt64(bitPattern: Int64(metadata.st_dev))
+        inode = metadata.st_ino
+        fileSize = Int(metadata.st_size)
+        modificationSeconds = Int64(metadata.st_mtimespec.tv_sec)
+        modificationNanoseconds = Int64(metadata.st_mtimespec.tv_nsec)
     }
 }
 
@@ -27,32 +51,28 @@ enum ModManifestReader {
         return cache
     }()
 
-    /// Loads a manifest, reusing the previous decode when the file's
-    /// modification date and size are unchanged. Every rescan stats each
-    /// manifest but only re-reads and re-decodes the ones that changed.
+    /// Loads a manifest, reusing the previous decode while the same file has
+    /// the same size and modification time. Reads never follow symbolic links.
     static func loadManifest(at url: URL) -> ModManifest? {
-        // FileManager attributes are read fresh on every call, unlike URL
-        // resource values, which are cached per URL instance.
-        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
-              let fileSize = (attributes[.size] as? NSNumber)?.intValue
-        else {
+        guard let signature = ManifestFileSignature(url: url) else {
             return nil
         }
 
-        guard fileSize <= maximumManifestByteCount else {
-            AppLog.scan.error("Manifest exceeds the size cap (\(fileSize, privacy: .public) bytes): \(url.path)")
+        guard signature.fileSize <= maximumManifestByteCount else {
+            AppLog.scan.error("Manifest exceeds the size cap (\(signature.fileSize, privacy: .public) bytes): \(url.path)")
             return nil
         }
 
         let cacheKey = url.standardizedFileURL.path as NSString
-        let modificationDate = attributes[.modificationDate] as? Date
         if let cached = manifestCache.object(forKey: cacheKey),
-           cached.fileSize == fileSize,
-           cached.modificationDate == modificationDate {
+           cached.signature == signature {
             return cached.manifest
         }
 
-        guard let data = try? Data(contentsOf: url) else {
+        guard let data = try? BoundedFileReader.readRegularFile(
+            at: url,
+            maximumByteCount: maximumManifestByteCount
+        ) else {
             AppLog.scan.error("Manifest exists but couldn't be read: \(url.path)")
             return nil
         }
@@ -63,8 +83,7 @@ enum ModManifestReader {
         }
         manifestCache.setObject(
             CachedManifestEntry(
-                modificationDate: modificationDate,
-                fileSize: fileSize,
+                signature: signature,
                 manifest: manifest
             ),
             forKey: cacheKey
@@ -108,7 +127,7 @@ enum ModManifestReader {
         fileManager: FileManager = .default
     ) -> URL? {
         let directURL = directoryURL.appendingPathComponent(fileName)
-        if fileManager.fileExists(atPath: directURL.path) {
+        if isSafeRegularFile(directURL) {
             return directURL
         }
 
@@ -118,11 +137,23 @@ enum ModManifestReader {
 
         let children = (try? fileManager.contentsOfDirectory(
             at: directoryURL,
-            includingPropertiesForKeys: [.isDirectoryKey],
+            includingPropertiesForKeys: [
+                .isDirectoryKey,
+                .isSymbolicLinkKey
+            ],
             options: [.skipsHiddenFiles]
         )) ?? []
 
-        for childURL in children where fileManager.directoryExists(at: childURL) {
+        for childURL in children {
+            let values = try? childURL.resourceValues(
+                forKeys: [.isDirectoryKey, .isSymbolicLinkKey]
+            )
+            guard values?.isDirectory == true,
+                  values?.isSymbolicLink != true
+            else {
+                continue
+            }
+
             if let foundURL = findManifest(
                 in: childURL,
                 maximumDepth: maximumDepth - 1,
@@ -137,8 +168,14 @@ enum ModManifestReader {
 
     static func directoryContainsManifest(
         _ directoryURL: URL,
-        fileManager: FileManager
+        fileManager _: FileManager
     ) -> Bool {
-        fileManager.fileExists(atPath: directoryURL.appendingPathComponent(fileName).path)
+        isSafeRegularFile(
+            directoryURL.appendingPathComponent(fileName)
+        )
+    }
+
+    private static func isSafeRegularFile(_ url: URL) -> Bool {
+        ManifestFileSignature(url: url) != nil
     }
 }

@@ -5,16 +5,28 @@ import Foundation
 /// mod's unique ID, installed version, and manifest update keys.
 struct SMAPIModUpdateClient: ModUpdateChecking {
     static let endpoint = URL(string: "https://smapi.io/api/v3.0/mods")!
+    static let maximumResponseByteCount = 8 * 1_024 * 1_024
 
     private let session: URLSession
+    private let responseByteLimit: Int
 
-    init() {
+    init(
+        session: URLSession? = nil,
+        maximumResponseByteCount: Int = SMAPIModUpdateClient.maximumResponseByteCount
+    ) {
+        responseByteLimit = maximumResponseByteCount
+        if let session {
+            self.session = session
+            return
+        }
+
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 15
+        configuration.timeoutIntervalForResource = 30
         configuration.httpAdditionalHeaders = [
             "User-Agent": "SeedBox/\(Bundle.main.shortVersionText) (macOS)"
         ]
-        session = URLSession(configuration: configuration)
+        self.session = URLSession(configuration: configuration)
     }
 
     /// The SMAPI version assumed when none can be detected from the Mods
@@ -37,7 +49,7 @@ struct SMAPIModUpdateClient: ModUpdateChecking {
         )
 
         AppLog.updateCheck.debug("Checking updates for \(queries.count, privacy: .public) entries.")
-        let (data, response) = try await session.data(for: request)
+        let (bytes, response) = try await session.bytes(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               (200..<300).contains(httpResponse.statusCode)
         else {
@@ -46,12 +58,44 @@ struct SMAPIModUpdateClient: ModUpdateChecking {
             throw ModUpdateCheckError.httpStatus(statusCode)
         }
 
+        let data = try await Self.collectResponse(
+            bytes,
+            response: response,
+            maximumByteCount: responseByteLimit
+        )
         do {
             return try Self.decodeResults(from: data)
         } catch {
             AppLog.updateCheck.error("Update check response couldn't be decoded: \(error)")
             throw error
         }
+    }
+
+    private static func collectResponse(
+        _ bytes: URLSession.AsyncBytes,
+        response: URLResponse,
+        maximumByteCount: Int
+    ) async throws -> Data {
+        if response.expectedContentLength > Int64(maximumByteCount) {
+            throw ModUpdateCheckError.responseTooLarge(
+                maximumByteCount: maximumByteCount
+            )
+        }
+
+        var data = Data()
+        if response.expectedContentLength > 0 {
+            data.reserveCapacity(Int(response.expectedContentLength))
+        }
+
+        for try await byte in bytes {
+            guard data.count < maximumByteCount else {
+                throw ModUpdateCheckError.responseTooLarge(
+                    maximumByteCount: maximumByteCount
+                )
+            }
+            data.append(byte)
+        }
+        return data
     }
 
     static func decodeResults(from data: Data) throws -> [ModUpdateCheckResult] {
@@ -112,13 +156,16 @@ struct SMAPIModUpdateClient: ModUpdateChecking {
     }
 }
 
-enum ModUpdateCheckError: LocalizedError {
+enum ModUpdateCheckError: Error, Equatable, LocalizedError, Sendable {
     case httpStatus(Int)
+    case responseTooLarge(maximumByteCount: Int)
 
     var errorDescription: String? {
         switch self {
         case .httpStatus(let statusCode):
             "SMAPI update service returned HTTP \(statusCode)."
+        case .responseTooLarge:
+            "SMAPI update service returned more data than Seed Box can process safely."
         }
     }
 }

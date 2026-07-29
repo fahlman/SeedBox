@@ -3,6 +3,8 @@ import UniformTypeIdentifiers
 
 /// Errors raised when reading an untrusted `.seedboxset` file.
 enum SeedBoxSetError: Error, Equatable, LocalizedError, Sendable {
+    /// The payload is too large to be a reasonable Mod Set document.
+    case tooLarge
     /// The data is not valid JSON or is missing required structure.
     case malformedData
     /// The document is not a Mod Set document.
@@ -13,9 +15,15 @@ enum SeedBoxSetError: Error, Equatable, LocalizedError, Sendable {
     case futureVersion(Int)
     /// The Mod Set has no usable name.
     case missingName
+    /// The document contains more mod references than Seed Box will process.
+    case tooManyMods
+    /// A name or identifier is not safe to use as Mod Set metadata.
+    case invalidContents
 
     var errorDescription: String? {
         switch self {
+        case .tooLarge:
+            return AppStrings.SeedBoxSet.tooLarge
         case .malformedData:
             return AppStrings.SeedBoxSet.malformedData
         case .unsupportedKind:
@@ -26,6 +34,10 @@ enum SeedBoxSetError: Error, Equatable, LocalizedError, Sendable {
             return AppStrings.SeedBoxSet.futureVersion
         case .missingName:
             return AppStrings.SeedBoxSet.missingName
+        case .tooManyMods:
+            return AppStrings.SeedBoxSet.tooManyMods
+        case .invalidContents:
+            return AppStrings.SeedBoxSet.invalidContents
         }
     }
 }
@@ -49,6 +61,12 @@ struct SeedBoxSetDocument: Codable, Equatable, Sendable {
     static let contentTypeIdentifier = "com.fahlsing.seedbox.modset"
     static let modSetKind = "modSet"
     static let generatorName = "Seed Box"
+    static let maximumDocumentByteCount = 4 * 1_024 * 1_024
+    static let maximumDisabledModCount = 10_000
+
+    fileprivate static let maximumSetNameByteCount = 512
+    fileprivate static let maximumFolderNameByteCount = 255
+    fileprivate static let maximumMetadataByteCount = 2_048
 
     /// The registered content type, used by file panels and document opening.
     /// Falls back to JSON before the exported type is registered.
@@ -127,9 +145,14 @@ enum SeedBoxSetCodec {
     }
 
     static func encode(_ document: SeedBoxSetDocument) throws -> Data {
+        try validateContents(of: document)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        return try encoder.encode(document)
+        let data = try encoder.encode(document)
+        guard data.count <= SeedBoxSetDocument.maximumDocumentByteCount else {
+            throw SeedBoxSetError.tooLarge
+        }
+        return data
     }
 
     /// Decodes and validates an untrusted `.seedboxset` payload.
@@ -138,6 +161,10 @@ enum SeedBoxSetCodec {
     /// future-version file is reported clearly even if its full structure has
     /// changed.
     static func decode(_ data: Data) throws -> SeedBoxSetDocument {
+        guard data.count <= SeedBoxSetDocument.maximumDocumentByteCount else {
+            throw SeedBoxSetError.tooLarge
+        }
+
         let envelope: Envelope
         do {
             envelope = try JSONDecoder().decode(Envelope.self, from: data)
@@ -162,9 +189,7 @@ enum SeedBoxSetCodec {
             throw SeedBoxSetError.malformedData
         }
 
-        guard !document.modSet.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw SeedBoxSetError.missingName
-        }
+        try validateContents(of: document)
 
         return document
     }
@@ -212,6 +237,81 @@ enum SeedBoxSetCodec {
             suffix += 1
         }
         return "\(base) \(suffix)"
+    }
+
+    private static func validateContents(
+        of document: SeedBoxSetDocument
+    ) throws {
+        let name = document.modSet.name.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        guard !name.isEmpty else {
+            throw SeedBoxSetError.missingName
+        }
+        guard isSafeMetadataText(
+            name,
+            maximumByteCount: SeedBoxSetDocument.maximumSetNameByteCount
+        ) else {
+            throw SeedBoxSetError.invalidContents
+        }
+        guard document.modSet.disabledMods.count
+                <= SeedBoxSetDocument.maximumDisabledModCount
+        else {
+            throw SeedBoxSetError.tooManyMods
+        }
+
+        for mod in document.modSet.disabledMods {
+            guard isSafeFolderName(mod.folderName),
+                  optionalMetadataIsSafe(mod.modName),
+                  optionalMetadataIsSafe(mod.uniqueID),
+                  optionalMetadataIsSafe(mod.version)
+            else {
+                throw SeedBoxSetError.invalidContents
+            }
+        }
+    }
+
+    private static func isSafeFolderName(_ folderName: String) -> Bool {
+        guard let trimmedName = folderName.trimmedNonEmpty,
+              trimmedName.utf8.count
+                <= SeedBoxSetDocument.maximumFolderNameByteCount,
+              !trimmedName.contains("/"),
+              !trimmedName.contains("\\"),
+              !trimmedName.utf8.contains(0)
+        else {
+            return false
+        }
+
+        let canonicalName = trimmedName.trimmingPrefix(Character("."))
+        return !canonicalName.isEmpty
+            && canonicalName != "."
+            && canonicalName != ".."
+            && isSafeMetadataText(
+                canonicalName,
+                maximumByteCount: SeedBoxSetDocument.maximumFolderNameByteCount
+            )
+    }
+
+    private static func optionalMetadataIsSafe(_ text: String?) -> Bool {
+        guard let text else {
+            return true
+        }
+        return isSafeMetadataText(
+            text,
+            maximumByteCount: SeedBoxSetDocument.maximumMetadataByteCount
+        )
+    }
+
+    private static func isSafeMetadataText(
+        _ text: String,
+        maximumByteCount: Int
+    ) -> Bool {
+        guard text.utf8.count <= maximumByteCount else {
+            return false
+        }
+        return text.unicodeScalars.allSatisfy {
+            !CharacterSet.controlCharacters.contains($0)
+        }
     }
 
     /// Minimal header used to validate version and kind before a full decode.

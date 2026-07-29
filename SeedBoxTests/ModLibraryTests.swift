@@ -1644,6 +1644,45 @@ final class ModLibraryTests: SeedBoxTestCase {
         XCTAssertEqual(mod.displayName, "OversizedManifestMod")
     }
 
+    func testManifestSearchDoesNotFollowSymbolicLinks() throws {
+        let modURL = temporaryDirectory.appendingPathComponent(
+            "LinkedManifestMod",
+            isDirectory: true
+        )
+        let outsideDirectory = temporaryDirectory.appendingPathComponent(
+            "Outside",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: modURL,
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: outsideDirectory,
+            withIntermediateDirectories: true
+        )
+        try writeManifest(name: "Outside Mod", to: outsideDirectory)
+
+        let linkedManifest = modURL.appendingPathComponent("manifest.json")
+        try FileManager.default.createSymbolicLink(
+            at: linkedManifest,
+            withDestinationURL: outsideDirectory.appendingPathComponent(
+                "manifest.json"
+            )
+        )
+        let linkedDirectory = modURL.appendingPathComponent(
+            "Nested",
+            isDirectory: true
+        )
+        try FileManager.default.createSymbolicLink(
+            at: linkedDirectory,
+            withDestinationURL: outsideDirectory
+        )
+
+        XCTAssertNil(ModManifestReader.loadManifest(at: linkedManifest))
+        XCTAssertNil(ModManifestReader.findManifest(in: modURL))
+    }
+
     func testUpdatingModPreservesUserConfig() throws {
         let modsDirectory = try makeModsDirectory()
         let install = StardewInstall(modsDirectory: modsDirectory)

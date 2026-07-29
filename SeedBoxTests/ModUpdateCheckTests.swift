@@ -10,6 +10,64 @@ final class ModUpdateCheckTests: SeedBoxTestCase {
         )
     }
 
+    func testClientRejectsResponseWhoseDeclaredSizeExceedsLimit() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [OversizedResponseURLProtocol.self]
+        let client = SMAPIModUpdateClient(
+            session: URLSession(configuration: configuration),
+            maximumResponseByteCount: 16
+        )
+
+        do {
+            _ = try await client.checkForUpdates(
+                [
+                    ModUpdateQuery(
+                        uniqueID: "Example.Mod",
+                        installedVersion: "1.0.0",
+                        updateKeys: []
+                    )
+                ],
+                apiVersion: "4.0.0"
+            )
+            XCTFail("An oversized response should be rejected.")
+        } catch {
+            XCTAssertEqual(
+                error as? ModUpdateCheckError,
+                .responseTooLarge(maximumByteCount: 16)
+            )
+        }
+    }
+
+    func testClientStopsUndeclaredResponseAtLimit() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [
+            UndeclaredOversizedResponseURLProtocol.self
+        ]
+        let client = SMAPIModUpdateClient(
+            session: URLSession(configuration: configuration),
+            maximumResponseByteCount: 16
+        )
+
+        do {
+            _ = try await client.checkForUpdates(
+                [
+                    ModUpdateQuery(
+                        uniqueID: "Example.Mod",
+                        installedVersion: "1.0.0",
+                        updateKeys: []
+                    )
+                ],
+                apiVersion: "4.0.0"
+            )
+            XCTFail("A streamed response should stop at the byte limit.")
+        } catch {
+            XCTAssertEqual(
+                error as? ModUpdateCheckError,
+                .responseTooLarge(maximumByteCount: 16)
+            )
+        }
+    }
+
     func testUpdateChecksDefaultToEnabled() throws {
         let defaults = try makeIsolatedUserDefaults()
 
@@ -501,6 +559,86 @@ private final class SpyModUpdateChecker: ModUpdateChecking, @unchecked Sendable 
         }
         return results
     }
+}
+
+private final class OversizedResponseURLProtocol: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let url = request.url,
+              let response = HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: [
+                    "Content-Type": "application/json",
+                    "Content-Length": "128"
+                ]
+              )
+        else {
+            client?.urlProtocol(
+                self,
+                didFailWithError: URLError(.badServerResponse)
+            )
+            return
+        }
+
+        client?.urlProtocol(
+            self,
+            didReceive: response,
+            cacheStoragePolicy: .notAllowed
+        )
+        client?.urlProtocol(self, didLoad: Data("[]".utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
+private final class UndeclaredOversizedResponseURLProtocol: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let url = request.url,
+              let response = HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]
+              )
+        else {
+            client?.urlProtocol(
+                self,
+                didFailWithError: URLError(.badServerResponse)
+            )
+            return
+        }
+
+        client?.urlProtocol(
+            self,
+            didReceive: response,
+            cacheStoragePolicy: .notAllowed
+        )
+        client?.urlProtocol(
+            self,
+            didLoad: Data(repeating: 0x20, count: 17)
+        )
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }
 
 private actor ControlledModUpdateChecker: ModUpdateChecking {

@@ -167,11 +167,14 @@ enum AppStrings {
     }
 
     enum SeedBoxSet {
+        static let tooLarge = String(localized: "This Seed Box Mod Set is too large to open safely.")
         static let malformedData = String(localized: "This file isn’t a valid Seed Box Mod Set.")
         static let unsupportedKind = String(localized: "This Seed Box file isn’t a Mod Set.")
         static let unsupportedVersion = String(localized: "This Seed Box file uses an older format that’s no longer supported.")
         static let futureVersion = String(localized: "This Seed Box file was made with a newer version of Seed Box. Update Seed Box to open it.")
         static let missingName = String(localized: "This Seed Box Mod Set is missing a name.")
+        static let tooManyMods = String(localized: "This Seed Box Mod Set contains too many mod entries to open safely.")
+        static let invalidContents = String(localized: "This Seed Box Mod Set contains an invalid name or identifier.")
     }
 
     enum Undo {

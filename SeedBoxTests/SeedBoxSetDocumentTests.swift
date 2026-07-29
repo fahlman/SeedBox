@@ -77,6 +77,64 @@ final class SeedBoxSetDocumentTests: SeedBoxTestCase {
         }
     }
 
+    func testDecodeRejectsOversizedDocumentBeforeParsing() {
+        let data = Data(
+            repeating: 0x20,
+            count: SeedBoxSetDocument.maximumDocumentByteCount + 1
+        )
+
+        XCTAssertThrowsError(try SeedBoxSetCodec.decode(data)) { error in
+            XCTAssertEqual(error as? SeedBoxSetError, .tooLarge)
+        }
+    }
+
+    func testDecodeRejectsPathLikeFolderName() {
+        let data = Data(
+            #"""
+            {
+              "schemaVersion": 1,
+              "kind": "modSet",
+              "generator": "Seed Box",
+              "modSet": {
+                "name": "Unsafe",
+                "disabledMods": [
+                  {"folderName": "../../Elsewhere"}
+                ]
+              }
+            }
+            """#.utf8
+        )
+
+        XCTAssertThrowsError(try SeedBoxSetCodec.decode(data)) { error in
+            XCTAssertEqual(error as? SeedBoxSetError, .invalidContents)
+        }
+    }
+
+    func testEncodeRejectsExcessiveModCount() {
+        let mod = SeedBoxSetDocument.ExportedMod(
+            folderName: "Mod",
+            modName: nil,
+            uniqueID: nil,
+            version: nil
+        )
+        let document = SeedBoxSetDocument(
+            schemaVersion: SeedBoxSetDocument.currentSchemaVersion,
+            kind: SeedBoxSetDocument.modSetKind,
+            generator: SeedBoxSetDocument.generatorName,
+            modSet: SeedBoxSetDocument.ExportedModSet(
+                name: "Too Many",
+                disabledMods: Array(
+                    repeating: mod,
+                    count: SeedBoxSetDocument.maximumDisabledModCount + 1
+                )
+            )
+        )
+
+        XCTAssertThrowsError(try SeedBoxSetCodec.encode(document)) { error in
+            XCTAssertEqual(error as? SeedBoxSetError, .tooManyMods)
+        }
+    }
+
     func testDecodeRejectsUnsupportedKind() throws {
         let data = Data(#"{"schemaVersion":1,"kind":"smartSet","generator":"Seed Box","modSet":{"name":"x","disabledMods":[]}}"#.utf8)
         XCTAssertThrowsError(try SeedBoxSetCodec.decode(data)) { error in

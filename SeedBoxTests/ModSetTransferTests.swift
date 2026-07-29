@@ -61,6 +61,30 @@ final class ModSetTransferTests: SeedBoxTestCase {
         }
     }
 
+    func testImportRejectsSymbolicLink() throws {
+        let targetURL = temporaryDirectory.appendingPathComponent("Target.seedboxset")
+        let linkURL = temporaryDirectory.appendingPathComponent("Link.seedboxset")
+        let document = SeedBoxSetCodec.makeDocument(
+            name: "Linked",
+            disabledFolderNames: [],
+            installedMods: []
+        )
+        try SeedBoxSetCodec.encode(document).write(to: targetURL)
+        try FileManager.default.createSymbolicLink(
+            at: linkURL,
+            withDestinationURL: targetURL
+        )
+
+        XCTAssertThrowsError(
+            try ModSetTransfer.importModSet(
+                fromFileAt: linkURL,
+                existingSets: []
+            )
+        ) { error in
+            XCTAssertEqual(error as? SeedBoxSetError, .malformedData)
+        }
+    }
+
     @MainActor
     func testViewModelExportsAndImportsModSet() async throws {
         let install = try makeInstall()

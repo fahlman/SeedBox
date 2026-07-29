@@ -369,7 +369,13 @@ enum FileMoveTransaction {
             return standardizedURL.path
         }
 
-        return unresolvedComponents.reversed().reduce(String(cString: pathBuffer)) {
+        let resolvedPath = String(
+            decoding: pathBuffer
+                .prefix { $0 != 0 }
+                .map(UInt8.init(bitPattern:)),
+            as: UTF8.self
+        )
+        return unresolvedComponents.reversed().reduce(resolvedPath) {
             URL(fileURLWithPath: $0, isDirectory: true)
                 .appendingPathComponent($1)
                 .path
