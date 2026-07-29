@@ -1,4 +1,3 @@
-import CryptoKit
 import Darwin
 import Foundation
 
@@ -24,10 +23,7 @@ struct FileMoveTransactionContext: Equatable, Sendable {
         )
         .sorted()
 
-        let identityData = Data(allowedRootPaths.joined(separator: "\u{0}").utf8)
-        let identity = SHA256.hash(data: identityData)
-            .map { String(format: "%02x", $0) }
-            .joined()
+        let identity = StableDigest.sha256Hex(components: allowedRootPaths)
         journalURL = self.journalDirectoryURL
             .appendingPathComponent("file-move-\(identity).plist", isDirectory: false)
     }

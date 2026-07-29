@@ -246,7 +246,7 @@ final class CrashDiagnosticsCollectorTests: SeedBoxTestCase {
             subjects: [
                 AuditLogSubject(
                     kind: .mod,
-                    id: "Example.PrivatePathMod",
+                    id: "\(modURL.path)#private-mod-id",
                     name: "Private Path Mod",
                     path: modURL.path
                 )

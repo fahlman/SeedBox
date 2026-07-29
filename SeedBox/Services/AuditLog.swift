@@ -126,7 +126,7 @@ enum AuditLogStore {
         }
         try saveEntries(entries, to: logURL, fileManager: fileManager)
         logger.info(
-            "\(persistedEntry.action.rawValue, privacy: .public): \(consoleSummary(for: persistedEntry), privacy: .public)"
+            "\(persistedEntry.action.rawValue, privacy: .public): \(consoleSummary(for: persistedEntry), privacy: .private)"
         )
         return Array(entries.suffix(recentEntryLimit))
     }

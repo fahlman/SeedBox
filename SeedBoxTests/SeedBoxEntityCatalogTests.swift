@@ -69,7 +69,11 @@ final class SeedBoxEntityCatalogTests: SeedBoxTestCase {
         let state = try makeState(mods: [mod], modSets: [], userSmartModSets: [])
 
         for entity in SeedBoxEntityCatalog.entities(from: state) {
-            let text = ([entity.title, entity.subtitle].compactMap { $0 } + entity.keywords)
+            let text = (
+                [entity.systemIdentifier, entity.title, entity.subtitle]
+                    .compactMap { $0 }
+                    + entity.keywords
+            )
                 .joined(separator: " ")
             XCTAssertFalse(text.contains("/Users/"), "Entity leaked a path: \(text)")
             XCTAssertFalse(text.contains("Library"), "Entity leaked a path: \(text)")

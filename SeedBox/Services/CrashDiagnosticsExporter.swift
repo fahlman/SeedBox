@@ -195,7 +195,8 @@ enum CrashDiagnosticsExporter {
                 includesAppState: context.state != nil
             ),
             named: "App Summary.json",
-            in: bundleDirectory
+            in: bundleDirectory,
+            knownPrivatePaths: paths
         )
         supportFileCount += 1
 
@@ -203,21 +204,24 @@ enum CrashDiagnosticsExporter {
             try writeJSON(
                 SettingsSummary(state: state),
                 named: "Settings Summary.json",
-                in: bundleDirectory
+                in: bundleDirectory,
+                knownPrivatePaths: paths
             )
             supportFileCount += 1
 
             try writeJSON(
                 InventorySummary(state: state),
                 named: "Mod Inventory Summary.json",
-                in: bundleDirectory
+                in: bundleDirectory,
+                knownPrivatePaths: paths
             )
             supportFileCount += 1
 
             try writeJSON(
                 AuditSummary(state: state, knownPrivatePaths: paths),
                 named: "Audit Summary.json",
-                in: bundleDirectory
+                in: bundleDirectory,
+                knownPrivatePaths: paths
             )
             supportFileCount += 1
 
@@ -225,7 +229,8 @@ enum CrashDiagnosticsExporter {
                 try writeJSON(
                     LastSessionSummary(report: report, knownPrivatePaths: paths),
                     named: "Last Session Summary.json",
-                    in: bundleDirectory
+                    in: bundleDirectory,
+                    knownPrivatePaths: paths
                 )
                 supportFileCount += 1
             }
@@ -269,12 +274,25 @@ enum CrashDiagnosticsExporter {
     private static func writeJSON<Value: Encodable>(
         _ value: Value,
         named fileName: String,
-        in directoryURL: URL
+        in directoryURL: URL,
+        knownPrivatePaths: [String]
     ) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(value)
-        try data.write(to: directoryURL.appendingPathComponent(fileName), options: .atomic)
+        let object = try JSONSerialization.jsonObject(with: data)
+        let sanitizedObject = sanitizedJSONObject(
+            object,
+            knownPrivatePaths: knownPrivatePaths
+        )
+        let sanitizedData = try JSONSerialization.data(
+            withJSONObject: sanitizedObject,
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        try sanitizedData.write(
+            to: directoryURL.appendingPathComponent(fileName),
+            options: .atomic
+        )
     }
 
     fileprivate static func iso8601String(from date: Date?) -> String? {
@@ -608,7 +626,12 @@ private struct AuditSubjectSummary: Encodable {
 
     init(subject: AuditLogSubject, knownPrivatePaths: [String]) {
         kind = subject.kind.rawValue
-        id = subject.id
+        id = subject.id.map {
+            CrashDiagnosticsExporter.redacted(
+                $0,
+                knownPrivatePaths: knownPrivatePaths
+            )
+        }
         name = CrashDiagnosticsExporter.redacted(subject.name, knownPrivatePaths: knownPrivatePaths)
         hadPath = subject.path != nil
     }

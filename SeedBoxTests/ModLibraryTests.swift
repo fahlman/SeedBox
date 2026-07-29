@@ -2,6 +2,35 @@ import XCTest
 @testable import SeedBox
 
 final class ModLibraryTests: SeedBoxTestCase {
+    func testModIdentityIsStableWithoutExposingItsFolderPath() {
+        let enabledURL = URL(
+            fileURLWithPath: "/Users/someone/Library/Stardew/Mods/ContentPatcher"
+        )
+        let disabledURL = enabledURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(".ContentPatcher")
+
+        let enabledID = ModInfo.stableID(
+            folderName: "ContentPatcher",
+            url: enabledURL
+        )
+        let disabledID = ModInfo.stableID(
+            folderName: ".ContentPatcher",
+            url: disabledURL
+        )
+        let otherInstallID = ModInfo.stableID(
+            folderName: "ContentPatcher",
+            url: URL(fileURLWithPath: "/Volumes/External/Mods/ContentPatcher")
+        )
+
+        XCTAssertEqual(enabledID, disabledID)
+        XCTAssertNotEqual(enabledID, otherInstallID)
+        XCTAssertTrue(enabledID.hasPrefix("mod-"))
+        XCTAssertFalse(enabledID.contains("/Users/"))
+        XCTAssertFalse(enabledID.contains("Library"))
+        XCTAssertFalse(enabledID.contains("ContentPatcher"))
+    }
+
     func testScansEnabledAndDisabledMods() throws {
         let modsDirectory = try makeModsDirectory()
         let install = StardewInstall(modsDirectory: modsDirectory)
