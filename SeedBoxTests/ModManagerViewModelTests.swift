@@ -341,6 +341,32 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         )
     }
 
+    func testSourceCleanupLeavesReplacementAtOriginalPathInPlace() async throws {
+        let install = try makeInstall()
+        let downloadsURL = try makeDownloadsDirectory()
+        let defaults = try makeIsolatedUserDefaults()
+
+        let sourceURL = try makeModPackage(name: "New Mod", in: downloadsURL)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        await viewModel.addMods(from: [sourceURL])
+        let offer = try XCTUnwrap(viewModel.state.pendingSourceCleanupOffer)
+
+        try FileManager.default.removeItem(at: sourceURL)
+        let replacementContents = Data("unrelated replacement".utf8)
+        try replacementContents.write(to: sourceURL)
+
+        await viewModel.moveSourceFilesToTrash(for: offer)
+
+        XCTAssertNil(viewModel.state.pendingSourceCleanupOffer)
+        XCTAssertEqual(try Data(contentsOf: sourceURL), replacementContents)
+        let cleanupEntry = try XCTUnwrap(viewModel.state.auditTrail.recentEntries.last)
+        XCTAssertEqual(cleanupEntry.action, .sourceFilesMovedToTrash)
+        XCTAssertEqual(
+            cleanupEntry.details["failure_messages"],
+            AppStrings.SourceCleanup.fileChangedSinceImport
+        )
+    }
+
     func testRememberingKeepFilesSuppressesFutureCleanupNotifications() async throws {
         let install = try makeInstall()
         let downloadsURL = try makeDownloadsDirectory()

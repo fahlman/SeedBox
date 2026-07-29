@@ -874,6 +874,9 @@ enum AppStrings {
 
     enum SourceCleanup {
         static let fileNoLongerExists = String(localized: "File no longer exists.")
+        static let fileChangedSinceImport = String(
+            localized: "The original file changed after Seed Box added it, so it was left in place."
+        )
         static let keepFiles = String(localized: "Keep Files")
         static let modsAddedTitle = String(localized: "Mods Added")
         static let moveOriginalFilesToTrashTitle = String(localized: "Move Original Files to Trash?")
