@@ -1,5 +1,6 @@
 #!/bin/zsh
 set -euo pipefail
+umask 077
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT_PATH="$ROOT_DIR/SeedBox.xcodeproj"
@@ -10,15 +11,11 @@ RELEASE_NAME="${SEEDBOX_RELEASE_NAME:-SeedBox}"
 RELEASE_CHANNEL="${SEEDBOX_RELEASE_CHANNEL:-app-store-candidate}"
 TEAM_ID="${SEEDBOX_TEAM_ID:-PUT2KYMV2W}"
 NOTARY_PROFILE="${SEEDBOX_NOTARY_PROFILE:-}"
-NOTARY_APPLE_ID="${SEEDBOX_NOTARY_APPLE_ID:-}"
-NOTARY_PASSWORD="${SEEDBOX_NOTARY_PASSWORD:-}"
 OUTPUT_DIR="$ROOT_DIR/dist"
-RELEASE_TMP_ROOT="${TMPDIR:-/private/tmp}"
-WORK_DIR="${SEEDBOX_RELEASE_WORK_DIR:-${RELEASE_TMP_ROOT%/}/seedbox-release-${USER:-user}-zip}"
+WORK_DIR=""
 ARCHIVE_PATH="${SEEDBOX_ARCHIVE_PATH:-}"
 REUSE_ARCHIVE=false
 SKIP_NOTARIZATION=false
-typeset -a NOTARY_ARGS
 
 usage() {
     cat <<'USAGE'
@@ -45,12 +42,9 @@ Environment variables:
   SEEDBOX_TEAM_ID
   SEEDBOX_ARCHIVE_PATH
   SEEDBOX_NOTARY_PROFILE
-  SEEDBOX_NOTARY_APPLE_ID
-  SEEDBOX_NOTARY_PASSWORD
-  SEEDBOX_RELEASE_WORK_DIR
 
-Notarization requires either a notarytool keychain profile or Apple ID
-credentials in the environment. Prefer SEEDBOX_NOTARY_PROFILE for local use.
+Notarization requires a notarytool Keychain profile. The script never accepts
+notary passwords or private keys through arguments or environment variables.
 USAGE
 }
 
@@ -97,46 +91,35 @@ apply_release_channel_defaults() {
     esac
 }
 
-refuse_unsafe_path() {
-    local path_to_check="${1:A}"
-    local label="$2"
-    local unsafe_root="${3:-}"
+require_safe_file_component() {
+    local label="$1"
+    local value="$2"
+    if [[ ! "$value" =~ "^[A-Za-z0-9][A-Za-z0-9._+-]*$" ]]; then
+        echo "ERROR: $label contains characters that are unsafe in a file name."
+        exit 1
+    fi
+}
 
-    case "$path_to_check" in
-        "/"|"$HOME")
-            echo "ERROR: Refusing to use unsafe $label: $path_to_check"
-            exit 1
-            ;;
-    esac
+create_release_workspace() {
+    local temporary_root
 
-    if [[ -z "$unsafe_root" ]]; then
-        return 0
+    temporary_root="$(/usr/bin/getconf DARWIN_USER_TEMP_DIR 2>/dev/null || true)"
+    if [[ -z "$temporary_root" || ! -d "$temporary_root" ]]; then
+        temporary_root="/private/tmp"
     fi
 
-    local unsafe_root_path="${unsafe_root:A}"
-    case "$path_to_check" in
-        "$unsafe_root_path"|"$unsafe_root_path"/*)
-            echo "ERROR: Refusing to use unsafe $label: $path_to_check"
-            exit 1
-            ;;
-    esac
+    WORK_DIR="$(/usr/bin/mktemp -d \
+        "${temporary_root%/}/com.fahlsing.SeedBox.release.XXXXXX")"
+    /bin/chmod 700 "$WORK_DIR"
 }
 
-json_escape() {
-    local value="$1"
+cleanup_release_workspace() {
+    local exit_status=$?
 
-    value="${value//\\/\\\\}"
-    value="${value//\"/\\\"}"
-    value="${value//$'\n'/\\n}"
-    value="${value//$'\r'/\\r}"
-    value="${value//$'\t'/\\t}"
-    printf '%s' "$value"
-}
-
-json_string() {
-    local value="$1"
-
-    printf '"%s"' "$(json_escape "$value")"
+    if [[ -n "$WORK_DIR" && -d "$WORK_DIR" ]]; then
+        /bin/rm -rf "$WORK_DIR"
+    fi
+    return "$exit_status"
 }
 
 write_release_manifest() {
@@ -144,34 +127,36 @@ write_release_manifest() {
     local version="$2"
     local build="$3"
     local bundle_identifier="$4"
-    local app_path="$5"
-    local zip_path="$6"
-    local notarized="$7"
+    local zip_path="$5"
+    local notarized="$6"
     local zip_name
     local zip_sha256
     local generated_at
+    local staged_manifest_path
+    local staged_manifest_plist_path
 
     zip_name="$(basename "$zip_path")"
     zip_sha256="$(/usr/bin/shasum -a 256 "$zip_path" | /usr/bin/awk '{print $1}')"
     generated_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    staged_manifest_path="$WORK_DIR/release-manifest.json"
+    staged_manifest_plist_path="$WORK_DIR/release-manifest.plist"
 
-    cat > "$manifest_path" <<EOF
-{
-  "appName": $(json_string "$APP_BUNDLE_NAME"),
-  "releaseName": $(json_string "$RELEASE_NAME"),
-  "version": $(json_string "$version"),
-  "build": $(json_string "$build"),
-  "bundleIdentifier": $(json_string "$bundle_identifier"),
-  "teamID": $(json_string "$TEAM_ID"),
-  "archivePath": $(json_string "$ARCHIVE_PATH"),
-  "appPath": $(json_string "$app_path"),
-  "zipName": $(json_string "$zip_name"),
-  "zipPath": $(json_string "$zip_path"),
-  "zipSHA256": $(json_string "$zip_sha256"),
-  "notarized": $notarized,
-  "generatedAt": $(json_string "$generated_at")
-}
-EOF
+    /usr/bin/plutil -create xml1 "$staged_manifest_plist_path"
+    /usr/bin/plutil -insert appName -string "$APP_BUNDLE_NAME" "$staged_manifest_plist_path"
+    /usr/bin/plutil -insert releaseName -string "$RELEASE_NAME" "$staged_manifest_plist_path"
+    /usr/bin/plutil -insert releaseChannel -string "$RELEASE_CHANNEL" "$staged_manifest_plist_path"
+    /usr/bin/plutil -insert version -string "$version" "$staged_manifest_plist_path"
+    /usr/bin/plutil -insert build -string "$build" "$staged_manifest_plist_path"
+    /usr/bin/plutil -insert bundleIdentifier -string "$bundle_identifier" "$staged_manifest_plist_path"
+    /usr/bin/plutil -insert teamID -string "$TEAM_ID" "$staged_manifest_plist_path"
+    /usr/bin/plutil -insert zipName -string "$zip_name" "$staged_manifest_plist_path"
+    /usr/bin/plutil -insert zipSHA256 -string "$zip_sha256" "$staged_manifest_plist_path"
+    /usr/bin/plutil -insert notarized -bool "$notarized" "$staged_manifest_plist_path"
+    /usr/bin/plutil -insert generatedAt -string "$generated_at" "$staged_manifest_plist_path"
+    /usr/bin/plutil -convert json -r \
+        -o "$staged_manifest_path" \
+        "$staged_manifest_plist_path"
+    /bin/cp "$staged_manifest_path" "$manifest_path"
 }
 
 write_export_options() {
@@ -414,6 +399,11 @@ done
 
 apply_release_channel_defaults
 require_value "TEAM_ID" "$TEAM_ID"
+require_safe_file_component "Release name" "$RELEASE_NAME"
+if [[ ! "$TEAM_ID" =~ "^[A-Z0-9]{10}$" ]]; then
+    echo "ERROR: TEAM_ID must be a 10-character Apple Developer Team ID."
+    exit 1
+fi
 require_command /usr/bin/awk
 require_command /usr/bin/codesign
 require_command /usr/bin/ditto
@@ -421,27 +411,34 @@ require_command /usr/bin/file
 require_command /usr/bin/find
 require_command /usr/bin/plutil
 require_command /usr/bin/shasum
+require_command /usr/bin/mktemp
 require_command /usr/bin/xattr
 require_command /usr/bin/xcodebuild
 require_command /usr/bin/xcrun
 require_command /usr/sbin/spctl
 
 if [[ "$SKIP_NOTARIZATION" == false ]]; then
-    if [[ -n "$NOTARY_PROFILE" ]]; then
-        NOTARY_ARGS=(--keychain-profile "$NOTARY_PROFILE")
-    elif [[ -n "$NOTARY_APPLE_ID" && -n "$NOTARY_PASSWORD" ]]; then
-        NOTARY_ARGS=(--apple-id "$NOTARY_APPLE_ID" --password "$NOTARY_PASSWORD" --team-id "$TEAM_ID")
-    else
-        echo "ERROR: Notarization needs --notary-profile or SEEDBOX_NOTARY_PROFILE."
+    if [[ -z "$NOTARY_PROFILE" ]]; then
+        echo "ERROR: Notarization needs a notarytool Keychain profile."
+        echo "Pass --notary-profile or set SEEDBOX_NOTARY_PROFILE."
         echo "Use --skip-notarization for a Developer ID export check without Apple notarization."
         exit 1
     fi
+    require_safe_file_component "Notary profile name" "$NOTARY_PROFILE"
 fi
 
-refuse_unsafe_path "$WORK_DIR" "release work directory" "$ROOT_DIR"
+create_release_workspace
+trap cleanup_release_workspace EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if [[ -n "$ARCHIVE_PATH" ]]; then
     REUSE_ARCHIVE=true
+    if [[ -L "$ARCHIVE_PATH" ]]; then
+        echo "ERROR: Refusing to reuse a symbolic-link archive path."
+        exit 1
+    fi
 else
     ARCHIVE_PATH="$WORK_DIR/$APP_BUNDLE_NAME.xcarchive"
 fi
@@ -488,6 +485,7 @@ APP_PATH="$(find_exported_app "$EXPORT_PATH")"
 VERSION="$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - "$APP_PATH/Contents/Info.plist")"
 BUILD="$(/usr/bin/plutil -extract CFBundleVersion raw -o - "$APP_PATH/Contents/Info.plist")"
 BUNDLE_IDENTIFIER="$(/usr/bin/plutil -extract CFBundleIdentifier raw -o - "$APP_PATH/Contents/Info.plist")"
+require_safe_file_component "App version" "$VERSION"
 ZIP_PATH="$OUTPUT_DIR/$RELEASE_NAME-$VERSION.zip"
 MANIFEST_PATH="$OUTPUT_DIR/$RELEASE_NAME-$VERSION-manifest.json"
 
@@ -502,7 +500,7 @@ echo "Creating notarization ZIP..."
 
 if [[ "$SKIP_NOTARIZATION" == true ]]; then
     /bin/cp "$NOTARY_ZIP_PATH" "$ZIP_PATH"
-    write_release_manifest "$MANIFEST_PATH" "$VERSION" "$BUILD" "$BUNDLE_IDENTIFIER" "$APP_PATH" "$ZIP_PATH" false
+    write_release_manifest "$MANIFEST_PATH" "$VERSION" "$BUILD" "$BUNDLE_IDENTIFIER" "$ZIP_PATH" false
     echo ""
     echo "Skipped notarization."
     echo "ZIP: $ZIP_PATH"
@@ -512,7 +510,9 @@ fi
 
 echo ""
 echo "Submitting ZIP for notarization..."
-/usr/bin/xcrun notarytool submit "$NOTARY_ZIP_PATH" --wait "${NOTARY_ARGS[@]}"
+/usr/bin/xcrun notarytool submit "$NOTARY_ZIP_PATH" \
+    --wait \
+    --keychain-profile "$NOTARY_PROFILE"
 
 echo ""
 echo "Stapling notarization ticket to app..."
@@ -528,7 +528,7 @@ echo "Creating final ZIP..."
 /usr/bin/ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
 
 run_gatekeeper_zip_check "$ZIP_PATH" "$GATEKEEPER_CHECK_PATH"
-write_release_manifest "$MANIFEST_PATH" "$VERSION" "$BUILD" "$BUNDLE_IDENTIFIER" "$APP_PATH" "$ZIP_PATH" true
+write_release_manifest "$MANIFEST_PATH" "$VERSION" "$BUILD" "$BUNDLE_IDENTIFIER" "$ZIP_PATH" true
 
 echo ""
 echo "Release ZIP is ready:"
