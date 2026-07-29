@@ -80,6 +80,42 @@ final class FileMoveTransactionTests: SeedBoxTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: sourceURL.path))
     }
 
+    func testRecoveryRefusesReplacementAtCompletedMoveDestination() throws {
+        let sourceURL = try makeDirectory(named: "Original")
+        let destinationURL = sourceURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(".Original")
+        let operations = [
+            FileMoveOperation(
+                sourceURL: sourceURL,
+                destinationURL: destinationURL
+            )
+        ]
+        try writeJournal(operations: operations, context: transactionContext)
+        try FileManager.default.moveItem(at: sourceURL, to: destinationURL)
+        try FileManager.default.removeItem(at: destinationURL)
+        try FileManager.default.createDirectory(
+            at: destinationURL,
+            withIntermediateDirectories: false
+        )
+        let sentinelURL = destinationURL.appendingPathComponent("replacement.txt")
+        try Data("replacement".utf8).write(to: sentinelURL)
+
+        XCTAssertThrowsError(
+            try FileMoveTransaction.recoverIfNeeded(context: transactionContext)
+        ) { error in
+            XCTAssertNotNil(error as? FileMoveTransactionError)
+        }
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sourceURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sentinelURL.path))
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: transactionContext.journalURL.path
+            )
+        )
+    }
+
     func testModsFolderJournalIsNeverTreatedAsTrustedRecoveryState() throws {
         let install = try makeInstall()
         let outsideDirectory = temporaryDirectory.appendingPathComponent("Outside", isDirectory: true)
@@ -270,7 +306,13 @@ final class FileMoveTransactionTests: SeedBoxTestCase {
         struct TestJournal: Codable {
             var schemaVersion: Int
             var allowedRootPaths: [String]
-            var operations: [FileMoveOperation]
+            var operations: [TestJournalOperation]
+        }
+
+        struct TestJournalOperation: Codable {
+            var operation: FileMoveOperation
+            var sourceIdentity: SourceFileIdentity
+            var preservesFileIdentity: Bool
         }
 
         try FileManager.default.createDirectory(
@@ -279,9 +321,19 @@ final class FileMoveTransactionTests: SeedBoxTestCase {
         )
         let data = try PropertyListEncoder().encode(
             TestJournal(
-                schemaVersion: 2,
+                schemaVersion: 3,
                 allowedRootPaths: context.allowedRootPaths,
-                operations: operations
+                operations: try operations.map { operation in
+                    let identity = try XCTUnwrap(
+                        SourceFileIdentity(url: operation.sourceURL)
+                            ?? SourceFileIdentity(url: operation.destinationURL)
+                    )
+                    return TestJournalOperation(
+                        operation: operation,
+                        sourceIdentity: identity,
+                        preservesFileIdentity: true
+                    )
+                }
             )
         )
         try data.write(to: context.journalURL)

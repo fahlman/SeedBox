@@ -594,12 +594,24 @@ enum CrashDiagnosticsExporter {
                 sanitizedJSONObject($0, knownPrivatePaths: knownPrivatePaths)
             }
         case let dictionary as [String: Any]:
-            return Dictionary(uniqueKeysWithValues: dictionary.map { key, value in
-                (
+            var sanitizedDictionary: [String: Any] = [:]
+            for (key, childValue) in dictionary {
+                let redactedKey = redacted(
                     key,
-                    sanitizedJSONObject(value, knownPrivatePaths: knownPrivatePaths)
+                    knownPrivatePaths: knownPrivatePaths
                 )
-            })
+                var uniqueKey = redactedKey
+                var collisionIndex = 2
+                while sanitizedDictionary[uniqueKey] != nil {
+                    uniqueKey = "\(redactedKey) [\(collisionIndex)]"
+                    collisionIndex += 1
+                }
+                sanitizedDictionary[uniqueKey] = sanitizedJSONObject(
+                    childValue,
+                    knownPrivatePaths: knownPrivatePaths
+                )
+            }
+            return sanitizedDictionary
         default:
             return value
         }

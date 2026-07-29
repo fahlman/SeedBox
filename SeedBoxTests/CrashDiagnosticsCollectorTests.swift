@@ -402,6 +402,7 @@ final class CrashDiagnosticsCollectorTests: SeedBoxTestCase {
         try Data(
             #"""
             {
+              "/Users/ryan/private-key": "key value",
               "path": "/Users/ryan/Library/Containers/com.example/private.json",
               "nested": ["Loaded file:///private/var/tmp/example.txt", "safe value"]
             }
@@ -428,6 +429,7 @@ final class CrashDiagnosticsCollectorTests: SeedBoxTestCase {
         )
         XCTAssertTrue(sanitizedPayload.contains("[redacted path]"))
         XCTAssertTrue(sanitizedPayload.contains("safe value"))
+        XCTAssertTrue(sanitizedPayload.contains("key value"))
         XCTAssertFalse(sanitizedPayload.contains("/Users/ryan"))
         XCTAssertFalse(sanitizedPayload.contains("/private/var/tmp"))
     }

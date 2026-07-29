@@ -3,6 +3,7 @@ import Foundation
 enum ModInstallWorkflow {
     static let installStagingDirectoryPrefix = ".seedbox-install-staging-"
     private static let installStagingMarkerFileName = ".seedbox-staging"
+    private static let maximumPreservedConfigByteCount = 64 * 1_024 * 1_024
 
     static func installMods(
         from sourceURLs: [URL],
@@ -145,14 +146,20 @@ enum ModInstallWorkflow {
         )
         try fileManager.createDirectory(
             at: stagingDirectoryURL,
-            withIntermediateDirectories: false
+            withIntermediateDirectories: false,
+            attributes: [.posixPermissions: 0o700]
         )
-        try Data().write(
-            to: stagingDirectoryURL.appendingPathComponent(
-                installStagingMarkerFileName
-            ),
-            options: .atomic
-        )
+        do {
+            try Data().write(
+                to: stagingDirectoryURL.appendingPathComponent(
+                    installStagingMarkerFileName
+                ),
+                options: .atomic
+            )
+        } catch {
+            try? fileManager.removeItem(at: stagingDirectoryURL)
+            throw error
+        }
         defer {
             try? fileManager.removeItem(at: stagingDirectoryURL)
         }
@@ -432,21 +439,31 @@ enum ModInstallWorkflow {
     ) throws {
         let children = try fileManager.contentsOfDirectory(
             at: modsDirectoryURL,
-            includingPropertiesForKeys: [.isDirectoryKey],
+            includingPropertiesForKeys: [
+                .isDirectoryKey,
+                .isSymbolicLinkKey
+            ],
             options: []
         )
         for childURL in children
-        where childURL.lastPathComponent.hasPrefix(installStagingDirectoryPrefix)
-            && fileManager.directoryExists(at: childURL) {
+        where childURL.lastPathComponent.hasPrefix(installStagingDirectoryPrefix) {
+            let childValues = try childURL.resourceValues(
+                forKeys: [.isDirectoryKey, .isSymbolicLinkKey]
+            )
+            guard childValues.isDirectory == true,
+                  childValues.isSymbolicLink != true
+            else {
+                continue
+            }
+
             let markerURL = childURL.appendingPathComponent(
                 installStagingMarkerFileName
             )
-            let contents = try fileManager.contentsOfDirectory(
-                at: childURL,
-                includingPropertiesForKeys: nil
+            let markerValues = try? markerURL.resourceValues(
+                forKeys: [.isRegularFileKey, .isSymbolicLinkKey]
             )
-            guard fileManager.fileExists(atPath: markerURL.path)
-                    || contents.isEmpty
+            guard (markerValues?.isRegularFile == true
+                    && markerValues?.isSymbolicLink != true)
             else {
                 continue
             }
@@ -461,9 +478,7 @@ enum ModInstallWorkflow {
     ) -> ConfigPreservationOutcome {
         let configFileName = "config.json"
         let sourceConfigURL = sourceModURL.appendingPathComponent(configFileName)
-        guard fileManager.fileExists(atPath: sourceConfigURL.path),
-              !fileManager.directoryExists(at: sourceConfigURL)
-        else {
+        guard fileManager.fileExists(atPath: sourceConfigURL.path) else {
             return .nothingToPreserve
         }
 
@@ -472,7 +487,11 @@ enum ModInstallWorkflow {
         try? fileManager.removeItem(at: stagedConfigURL)
 
         do {
-            try fileManager.copyItem(at: sourceConfigURL, to: stagedConfigURL)
+            let configData = try BoundedFileReader.readRegularFile(
+                at: sourceConfigURL,
+                maximumByteCount: maximumPreservedConfigByteCount
+            )
+            try configData.write(to: stagedConfigURL, options: .atomic)
             if fileManager.fileExists(atPath: destinationConfigURL.path) {
                 _ = try fileManager.replaceItemAt(destinationConfigURL, withItemAt: stagedConfigURL)
             } else {

@@ -55,6 +55,7 @@ enum FileMoveTransactionSecurityError: Error, Equatable, LocalizedError, Sendabl
     case operationOutsideApprovedFolders
     case symbolicLinkEndpoint
     case nonDirectoryEndpoint
+    case fileIdentityChanged
 
     var errorDescription: String? {
         switch self {
@@ -72,19 +73,27 @@ enum FileMoveTransactionSecurityError: Error, Equatable, LocalizedError, Sendabl
             "Seed Box refused a file operation through a symbolic link."
         case .nonDirectoryEndpoint:
             "Seed Box refused a file operation that did not reference a mod folder."
+        case .fileIdentityChanged:
+            "Seed Box stopped because a mod folder changed during the file operation."
         }
     }
 }
 
 enum FileMoveTransaction {
-    private static let schemaVersion = 2
-    private static let maximumJournalByteCount: Int64 = 4 * 1024 * 1024
+    private static let schemaVersion = 3
+    private static let maximumJournalByteCount = 4 * 1024 * 1024
     private static let maximumOperationCount = 10_000
 
     private struct Journal: Codable {
         var schemaVersion: Int
         var allowedRootPaths: [String]
-        var operations: [FileMoveOperation]
+        var operations: [JournalOperation]
+    }
+
+    private struct JournalOperation: Codable {
+        var operation: FileMoveOperation
+        var sourceIdentity: SourceFileIdentity
+        var preservesFileIdentity: Bool
     }
 
     static func perform(
@@ -116,6 +125,16 @@ enum FileMoveTransaction {
             fileManager: fileManager
         )
         try preflight(operations, fileManager: fileManager)
+        let journalOperations = try operations.map { operation in
+            guard let sourceIdentity = SourceFileIdentity(url: operation.sourceURL) else {
+                throw FileMoveTransactionSecurityError.fileIdentityChanged
+            }
+            return JournalOperation(
+                operation: operation,
+                sourceIdentity: sourceIdentity,
+                preservesFileIdentity: movePreservesFileIdentity(operation)
+            )
+        }
 
         let encoder = PropertyListEncoder()
         encoder.outputFormat = .xml
@@ -123,7 +142,7 @@ enum FileMoveTransaction {
             Journal(
                 schemaVersion: schemaVersion,
                 allowedRootPaths: context.allowedRootPaths,
-                operations: operations
+                operations: journalOperations
             )
         )
         guard journalData.count <= maximumJournalByteCount else {
@@ -134,17 +153,23 @@ enum FileMoveTransaction {
         let mover = moveItem ?? { sourceURL, destinationURL in
             try fileManager.moveItem(at: sourceURL, to: destinationURL)
         }
-        var completedOperations: [FileMoveOperation] = []
+        var completedOperations: [JournalOperation] = []
 
         do {
-            for operation in operations {
+            for journalOperation in journalOperations {
+                let operation = journalOperation.operation
+                guard journalOperation.sourceIdentity.matchesFile(
+                    at: operation.sourceURL
+                ) else {
+                    throw FileMoveTransactionSecurityError.fileIdentityChanged
+                }
                 try mover(operation.sourceURL, operation.destinationURL)
-                completedOperations.append(operation)
+                completedOperations.append(journalOperation)
+                try verifyCompletedMove(journalOperation)
             }
         } catch {
             let rollbackErrors = rollback(
                 completedOperations,
-                fileManager: fileManager,
                 moveItem: mover
             )
             let cleanupErrors = removeJournalIfRollbackCompleted(
@@ -163,7 +188,6 @@ enum FileMoveTransaction {
         } catch {
             let rollbackErrors = rollback(
                 completedOperations,
-                fileManager: fileManager,
                 moveItem: mover
             )
             let cleanupErrors = removeJournalIfRollbackCompleted(
@@ -196,11 +220,21 @@ enum FileMoveTransaction {
         guard values.isRegularFile == true else {
             throw FileMoveTransactionSecurityError.invalidJournal
         }
-        guard Int64(values.fileSize ?? 0) <= maximumJournalByteCount else {
+        guard values.fileSize ?? 0 <= maximumJournalByteCount else {
             throw FileMoveTransactionSecurityError.journalTooLarge
         }
 
-        let data = try Data(contentsOf: context.journalURL, options: .mappedIfSafe)
+        let data: Data
+        do {
+            data = try BoundedFileReader.readRegularFile(
+                at: context.journalURL,
+                maximumByteCount: maximumJournalByteCount
+            )
+        } catch BoundedFileReadError.exceedsLimit {
+            throw FileMoveTransactionSecurityError.journalTooLarge
+        } catch {
+            throw FileMoveTransactionSecurityError.invalidJournal
+        }
         let journal: Journal
         do {
             journal = try PropertyListDecoder().decode(Journal.self, from: data)
@@ -219,8 +253,8 @@ enum FileMoveTransaction {
 
         let operations = journal.operations.map {
             FileMoveOperation(
-                sourceURL: $0.sourceURL.standardizedFileURL,
-                destinationURL: $0.destinationURL.standardizedFileURL
+                sourceURL: $0.operation.sourceURL.standardizedFileURL,
+                destinationURL: $0.operation.destinationURL.standardizedFileURL
             )
         }
         try validateSecurityBoundary(
@@ -234,16 +268,47 @@ enum FileMoveTransaction {
         }
         var recoveryErrors: [String] = []
 
-        for operation in operations.reversed() {
-            let sourceExists = fileManager.fileExists(atPath: operation.sourceURL.path)
-            let destinationExists = fileManager.fileExists(atPath: operation.destinationURL.path)
+        let normalizedJournalOperations = zip(journal.operations, operations).map {
+            JournalOperation(
+                operation: $1,
+                sourceIdentity: $0.sourceIdentity,
+                preservesFileIdentity: $0.preservesFileIdentity
+            )
+        }
+        for journalOperation in normalizedJournalOperations.reversed() {
+            let operation = journalOperation.operation
+            let sourceExists = fileSystemEntryExists(at: operation.sourceURL)
+            let destinationExists = fileSystemEntryExists(at: operation.destinationURL)
 
             switch (sourceExists, destinationExists) {
             case (true, false):
+                guard journalOperation.sourceIdentity.matchesFile(
+                    at: operation.sourceURL
+                ) else {
+                    recoveryErrors.append(
+                        FileMoveTransactionSecurityError.fileIdentityChanged
+                            .localizedDescription
+                    )
+                    continue
+                }
                 continue
             case (false, true):
                 do {
+                    guard matchesMovedEndpoint(
+                        journalOperation,
+                        at: operation.destinationURL
+                    ) else {
+                        throw FileMoveTransactionSecurityError.fileIdentityChanged
+                    }
                     try mover(operation.destinationURL, operation.sourceURL)
+                    guard matchesMovedEndpoint(
+                        journalOperation,
+                        at: operation.sourceURL
+                    ),
+                    !fileSystemEntryExists(at: operation.destinationURL)
+                    else {
+                        throw FileMoveTransactionSecurityError.fileIdentityChanged
+                    }
                 } catch {
                     recoveryErrors.append(error.localizedDescription)
                 }
@@ -432,19 +497,30 @@ enum FileMoveTransaction {
     }
 
     private static func rollback(
-        _ completedOperations: [FileMoveOperation],
-        fileManager: FileManager,
+        _ completedOperations: [JournalOperation],
         moveItem: (URL, URL) throws -> Void
     ) -> [String] {
         var errors: [String] = []
-        for operation in completedOperations.reversed() {
+        for journalOperation in completedOperations.reversed() {
+            let operation = journalOperation.operation
             do {
-                guard !fileManager.fileExists(atPath: operation.sourceURL.path),
-                      fileManager.fileExists(atPath: operation.destinationURL.path)
+                guard !fileSystemEntryExists(at: operation.sourceURL),
+                      matchesMovedEndpoint(
+                          journalOperation,
+                          at: operation.destinationURL
+                      )
                 else {
-                    throw CocoaError(.fileWriteUnknown)
+                    throw FileMoveTransactionSecurityError.fileIdentityChanged
                 }
                 try moveItem(operation.destinationURL, operation.sourceURL)
+                guard matchesMovedEndpoint(
+                    journalOperation,
+                    at: operation.sourceURL
+                ),
+                !fileSystemEntryExists(at: operation.destinationURL)
+                else {
+                    throw FileMoveTransactionSecurityError.fileIdentityChanged
+                }
             } catch {
                 errors.append(error.localizedDescription)
             }
@@ -467,5 +543,49 @@ enum FileMoveTransaction {
         } catch {
             return [error.localizedDescription]
         }
+    }
+
+    private static func verifyCompletedMove(
+        _ journalOperation: JournalOperation
+    ) throws {
+        guard !fileSystemEntryExists(at: journalOperation.operation.sourceURL),
+              matchesMovedEndpoint(
+                  journalOperation,
+                  at: journalOperation.operation.destinationURL
+              )
+        else {
+            throw FileMoveTransactionSecurityError.fileIdentityChanged
+        }
+    }
+
+    private static func matchesMovedEndpoint(
+        _ journalOperation: JournalOperation,
+        at url: URL
+    ) -> Bool {
+        if journalOperation.preservesFileIdentity {
+            return journalOperation.sourceIdentity.matchesFile(at: url)
+        }
+        return journalOperation.sourceIdentity.matchesFileType(at: url)
+    }
+
+    private static func movePreservesFileIdentity(
+        _ operation: FileMoveOperation
+    ) -> Bool {
+        let sourceVolume = try? operation.sourceURL.resourceValues(
+            forKeys: [.volumeIdentifierKey]
+        ).volumeIdentifier
+        let destinationVolume = try? operation.destinationURL
+            .deletingLastPathComponent()
+            .resourceValues(forKeys: [.volumeIdentifierKey])
+            .volumeIdentifier
+        guard let sourceVolume, let destinationVolume else {
+            return false
+        }
+        return sourceVolume.isEqual(destinationVolume)
+    }
+
+    private static func fileSystemEntryExists(at url: URL) -> Bool {
+        var metadata = stat()
+        return lstat(url.path, &metadata) == 0
     }
 }

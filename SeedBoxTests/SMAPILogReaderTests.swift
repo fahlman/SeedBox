@@ -67,6 +67,29 @@ final class SMAPILogReaderTests: XCTestCase {
         XCTAssertEqual(secondReport.smapiVersion, "4.2.0")
         XCTAssertTrue(secondReport.skippedMods.isEmpty)
     }
+
+    func testLoadReportDoesNotFollowSymbolicLinks() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let folderURL = rootURL.appendingPathComponent("ErrorLogs", isDirectory: true)
+        let outsideLogURL = rootURL.appendingPathComponent("Outside.txt")
+        try FileManager.default.createDirectory(
+            at: folderURL,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        try fixtureLog.write(
+            to: outsideLogURL,
+            atomically: true,
+            encoding: .utf8
+        )
+        try FileManager.default.createSymbolicLink(
+            at: folderURL.appendingPathComponent(SMAPILogReader.fileName),
+            withDestinationURL: outsideLogURL
+        )
+
+        XCTAssertNil(SMAPILogReader.loadReport(inLogFolder: folderURL))
+    }
 }
 
 @MainActor

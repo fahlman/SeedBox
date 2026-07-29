@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 
-struct SourceFileIdentity: Equatable, Sendable {
+struct SourceFileIdentity: Codable, Equatable, Sendable {
     private var device: UInt64
     private var inode: UInt64
     private var fileType: UInt16
@@ -28,6 +28,10 @@ struct SourceFileIdentity: Equatable, Sendable {
 
     func matchesFile(at url: URL) -> Bool {
         SourceFileIdentity(url: url) == self
+    }
+
+    func matchesFileType(at url: URL) -> Bool {
+        SourceFileIdentity(url: url)?.fileType == fileType
     }
 }
 

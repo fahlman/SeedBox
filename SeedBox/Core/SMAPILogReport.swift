@@ -99,7 +99,12 @@ enum SMAPILogReader {
             return cached.report
         }
 
-        guard let text = try? String(contentsOf: logURL, encoding: .utf8) else {
+        guard let data = try? BoundedFileReader.readRegularFile(
+            at: logURL,
+            maximumByteCount: maximumLogByteCount
+        ),
+        let text = String(data: data, encoding: .utf8)
+        else {
             AppLog.logInsights.error("SMAPI log exists but couldn't be read as UTF-8.")
             return nil
         }
