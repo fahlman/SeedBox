@@ -4,6 +4,7 @@ import ZIPFoundation
 struct ModInstallSource {
     var candidates: [ModInstallCandidate]
     var temporaryExtractionDirectory: URL?
+    var resourceUsage: ModImportResourceUsage
 }
 
 struct ModInstallCandidate {
@@ -12,101 +13,171 @@ struct ModInstallCandidate {
     var manifest: ModManifest?
 }
 
-struct ModArchiveExtractionLimits: Sendable {
-    /// Generous ceilings for real mod archives that still stop decompression
-    /// bombs long before they exhaust disk space.
-    static let standard = ModArchiveExtractionLimits(
-        maximumEntryCount: 20_000,
-        maximumTotalUncompressedByteCount: 4 * 1024 * 1024 * 1024
-    )
-
-    var maximumEntryCount: Int
-    var maximumTotalUncompressedByteCount: UInt64
-}
-
-enum ModArchiveExtractionError: Error, Equatable, LocalizedError, Sendable {
-    case tooManyEntries(URL, limit: Int)
-    case expandsTooLarge(URL, limitByteCount: UInt64)
-
-    var errorDescription: String? {
-        switch self {
-        case .tooManyEntries(let url, let limit):
-            return AppStrings.Errors.archiveHasTooManyFiles(url.lastPathComponent, limit: limit)
-        case .expandsTooLarge(let url, let limitByteCount):
-            return AppStrings.Errors.archiveExpandsTooLarge(
-                url.lastPathComponent,
-                limitText: ByteCountFormatter.string(
-                    fromByteCount: Int64(clamping: limitByteCount),
-                    countStyle: .file
-                )
-            )
-        }
-    }
-}
-
 enum ModInstallSourceResolver {
     private static let maximumInstallSearchDepth = 8
+
+    static func resolveAll(
+        from sourceURLs: [URL],
+        sourceLimits: ModArchiveExtractionLimits = .standard,
+        selectionLimits: ModImportSelectionLimits = .standard,
+        fileManager: FileManager = .default
+    ) throws -> [ModInstallSource] {
+        guard sourceURLs.count <= selectionLimits.maximumSourceCount else {
+            throw ModArchiveExtractionError.tooManySources(
+                limit: selectionLimits.maximumSourceCount
+            )
+        }
+
+        ModImportSecurity.removeAbandonedExtractionDirectories(
+            fileManager: fileManager
+        )
+
+        var resolvedSources: [ModInstallSource] = []
+        var totalUsage = ModImportResourceUsage(entryCount: 0, totalByteCount: 0)
+        var shouldRemoveExtractionDirectories = true
+        defer {
+            if shouldRemoveExtractionDirectories {
+                for directoryURL in resolvedSources.compactMap(
+                    \.temporaryExtractionDirectory
+                ) {
+                    try? fileManager.removeItem(at: directoryURL)
+                }
+            }
+        }
+
+        for sourceURL in sourceURLs {
+            let resolvedSource = try resolveSource(
+                from: sourceURL,
+                limits: sourceLimits,
+                fileManager: fileManager
+            )
+            resolvedSources.append(resolvedSource)
+            totalUsage.add(resolvedSource.resourceUsage)
+
+            guard totalUsage.entryCount <= selectionLimits.maximumEntryCount else {
+                throw ModArchiveExtractionError.selectionHasTooManyEntries(
+                    limit: selectionLimits.maximumEntryCount
+                )
+            }
+            guard totalUsage.totalByteCount <= selectionLimits.maximumTotalByteCount else {
+                throw ModArchiveExtractionError.selectionExpandsTooLarge(
+                    limitByteCount: selectionLimits.maximumTotalByteCount
+                )
+            }
+        }
+
+        shouldRemoveExtractionDirectories = false
+        return resolvedSources
+    }
 
     static func resolve(
         from sourceURL: URL,
         limits: ModArchiveExtractionLimits = .standard,
         fileManager: FileManager = .default
     ) throws -> ModInstallSource {
-        guard sourceURL.pathExtension.lowercased() == "zip" else {
-            return ModInstallSource(
-                candidates: installCandidates(from: sourceURL, fileManager: fileManager),
-                temporaryExtractionDirectory: nil
-            )
-        }
-
-        try validateArchiveWithinLimits(sourceURL, limits: limits)
-
-        let extractionDirectory = fileManager.temporaryDirectory
-            .appendingPathComponent("SeedBoxZip-\(UUID().uuidString)", isDirectory: true)
-        try fileManager.createDirectory(at: extractionDirectory, withIntermediateDirectories: true)
-        do {
-            try fileManager.unzipItem(at: sourceURL, to: extractionDirectory)
-        } catch {
-            try? fileManager.removeItem(at: extractionDirectory)
-            throw error
-        }
-
-        return ModInstallSource(
-            candidates: installCandidates(
-                from: extractionDirectory,
-                rootDestinationFolderName: sourceURL.deletingPathExtension().lastPathComponent,
-                fileManager: fileManager
-            ),
-            temporaryExtractionDirectory: extractionDirectory
+        ModImportSecurity.removeAbandonedExtractionDirectories(
+            fileManager: fileManager
+        )
+        return try resolveSource(
+            from: sourceURL,
+            limits: limits,
+            fileManager: fileManager
         )
     }
 
-    private static func validateArchiveWithinLimits(
-        _ archiveURL: URL,
-        limits: ModArchiveExtractionLimits
-    ) throws {
-        let archive = try Archive(url: archiveURL, accessMode: .read)
-
-        var entryCount = 0
-        var totalUncompressedByteCount: UInt64 = 0
-        for entry in archive {
-            entryCount += 1
-            guard entryCount <= limits.maximumEntryCount else {
-                throw ModArchiveExtractionError.tooManyEntries(
-                    archiveURL,
-                    limit: limits.maximumEntryCount
+    private static func resolveSource(
+        from sourceURL: URL,
+        limits: ModArchiveExtractionLimits,
+        fileManager: FileManager
+    ) throws -> ModInstallSource {
+        guard sourceURL.pathExtension.lowercased() == "zip" else {
+            guard fileManager.directoryExists(at: sourceURL) else {
+                return ModInstallSource(
+                    candidates: [],
+                    temporaryExtractionDirectory: nil,
+                    resourceUsage: ModImportResourceUsage(
+                        entryCount: 0,
+                        totalByteCount: 0
+                    )
                 )
             }
 
-            let (sum, didOverflow) = totalUncompressedByteCount
-                .addingReportingOverflow(entry.uncompressedSize)
-            totalUncompressedByteCount = didOverflow ? .max : sum
-            guard totalUncompressedByteCount <= limits.maximumTotalUncompressedByteCount else {
-                throw ModArchiveExtractionError.expandsTooLarge(
-                    archiveURL,
-                    limitByteCount: limits.maximumTotalUncompressedByteCount
+            let usage = try ModImportSecurity.validateImportTree(
+                at: sourceURL,
+                limits: limits,
+                fileManager: fileManager
+            )
+            return ModInstallSource(
+                candidates: try installCandidates(
+                    from: sourceURL,
+                    fileManager: fileManager
+                ),
+                temporaryExtractionDirectory: nil,
+                resourceUsage: usage
+            )
+        }
+
+        let declaredUsage = try ModImportSecurity.validateArchive(
+            at: sourceURL,
+            limits: limits
+        )
+        try ModImportSecurity.validateAvailableCapacity(
+            for: declaredUsage.totalByteCount,
+            sourceURL: sourceURL,
+            destinationDirectoryURL: fileManager.temporaryDirectory,
+            limits: limits
+        )
+
+        let temporaryExtractionDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent(
+                "\(ModImportSecurity.extractionDirectoryPrefix)\(UUID().uuidString)",
+                isDirectory: true
+            )
+        try fileManager.createDirectory(
+            at: temporaryExtractionDirectory,
+            withIntermediateDirectories: false,
+            attributes: [.posixPermissions: 0o700]
+        )
+        try Data().write(
+            to: temporaryExtractionDirectory.appendingPathComponent(
+                ModImportSecurity.extractionMarkerFileName
+            ),
+            options: .atomic
+        )
+        let extractionDirectory = temporaryExtractionDirectory
+            .appendingPathComponent("Contents", isDirectory: true)
+        try fileManager.createDirectory(
+            at: extractionDirectory,
+            withIntermediateDirectories: false
+        )
+
+        do {
+            try fileManager.unzipItem(at: sourceURL, to: extractionDirectory)
+            let actualUsage = try ModImportSecurity.validateImportTree(
+                at: extractionDirectory,
+                limits: limits,
+                fileManager: fileManager
+            )
+            return ModInstallSource(
+                candidates: try installCandidates(
+                    from: extractionDirectory,
+                    rootDestinationFolderName: sourceURL
+                        .deletingPathExtension()
+                        .lastPathComponent,
+                    fileManager: fileManager
+                ),
+                temporaryExtractionDirectory: temporaryExtractionDirectory,
+                resourceUsage: ModImportResourceUsage(
+                    entryCount: max(declaredUsage.entryCount, actualUsage.entryCount),
+                    totalByteCount: max(
+                        declaredUsage.totalByteCount,
+                        actualUsage.totalByteCount
+                    )
                 )
-            }
+            )
+        } catch {
+            try? fileManager.removeItem(at: temporaryExtractionDirectory)
+            throw error
         }
     }
 
@@ -114,16 +185,17 @@ enum ModInstallSourceResolver {
         from sourceURL: URL,
         rootDestinationFolderName: String? = nil,
         fileManager: FileManager
-    ) -> [ModInstallCandidate] {
+    ) throws -> [ModInstallCandidate] {
         guard fileManager.directoryExists(at: sourceURL) else {
             return []
         }
 
-        if ModManifestReader.directoryContainsManifest(sourceURL, fileManager: fileManager) {
+        if try directoryContainsSafeManifest(sourceURL, fileManager: fileManager) {
             return [
                 ModInstallCandidate(
                     sourceURL: sourceURL,
-                    destinationFolderName: rootDestinationFolderName ?? sourceURL.lastPathComponent,
+                    destinationFolderName: rootDestinationFolderName
+                        ?? sourceURL.lastPathComponent,
                     manifest: ModManifestReader.loadManifest(
                         at: sourceURL.appendingPathComponent(ModManifestReader.fileName)
                     )
@@ -131,7 +203,7 @@ enum ModInstallSourceResolver {
             ]
         }
 
-        return nestedInstallCandidates(
+        return try nestedInstallCandidates(
             in: sourceURL,
             remainingDepth: maximumInstallSearchDepth,
             fileManager: fileManager
@@ -142,32 +214,40 @@ enum ModInstallSourceResolver {
         in directoryURL: URL,
         remainingDepth: Int,
         fileManager: FileManager
-    ) -> [ModInstallCandidate] {
+    ) throws -> [ModInstallCandidate] {
         guard remainingDepth > 0 else {
             return []
         }
 
-        let children = directoryChildren(in: directoryURL, fileManager: fileManager)
-        return children.flatMap { childURL -> [ModInstallCandidate] in
-            guard fileManager.directoryExists(at: childURL),
+        let children = try directoryChildren(in: directoryURL, fileManager: fileManager)
+        return try children.flatMap { childURL -> [ModInstallCandidate] in
+            let values = try childURL.resourceValues(
+                forKeys: [.isDirectoryKey, .isSymbolicLinkKey]
+            )
+            guard values.isSymbolicLink != true else {
+                throw ModArchiveExtractionError.symbolicLinkNotAllowed(childURL)
+            }
+            guard values.isDirectory == true,
                   !shouldSkipInstallSearchDirectory(childURL)
             else {
                 return []
             }
 
-            if ModManifestReader.directoryContainsManifest(childURL, fileManager: fileManager) {
+            if try directoryContainsSafeManifest(childURL, fileManager: fileManager) {
                 return [
                     ModInstallCandidate(
                         sourceURL: childURL,
                         destinationFolderName: childURL.lastPathComponent,
                         manifest: ModManifestReader.loadManifest(
-                            at: childURL.appendingPathComponent(ModManifestReader.fileName)
+                            at: childURL.appendingPathComponent(
+                                ModManifestReader.fileName
+                            )
                         )
                     )
                 ]
             }
 
-            return nestedInstallCandidates(
+            return try nestedInstallCandidates(
                 in: childURL,
                 remainingDepth: remainingDepth - 1,
                 fileManager: fileManager
@@ -175,17 +255,37 @@ enum ModInstallSourceResolver {
         }
     }
 
+    private static func directoryContainsSafeManifest(
+        _ directoryURL: URL,
+        fileManager: FileManager
+    ) throws -> Bool {
+        let manifestURL = directoryURL.appendingPathComponent(ModManifestReader.fileName)
+        guard fileManager.fileExists(atPath: manifestURL.path) else {
+            return false
+        }
+
+        let values = try manifestURL.resourceValues(
+            forKeys: [.isRegularFileKey, .isSymbolicLinkKey]
+        )
+        guard values.isSymbolicLink != true else {
+            throw ModArchiveExtractionError.symbolicLinkNotAllowed(manifestURL)
+        }
+        guard values.isRegularFile == true else {
+            throw ModArchiveExtractionError.unsupportedFileType(manifestURL)
+        }
+        return true
+    }
+
     private static func directoryChildren(
         in directoryURL: URL,
         fileManager: FileManager
-    ) -> [URL] {
-        let children = (try? fileManager.contentsOfDirectory(
+    ) throws -> [URL] {
+        try fileManager.contentsOfDirectory(
             at: directoryURL,
-            includingPropertiesForKeys: [.isDirectoryKey],
+            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
             options: []
-        )) ?? []
-
-        return children.sorted {
+        )
+        .sorted {
             $0.path.localizedCaseInsensitiveCompare($1.path) == .orderedAscending
         }
     }

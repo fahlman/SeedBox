@@ -707,6 +707,16 @@ final class ModLibraryTests: SeedBoxTestCase {
                     .path
                 )
         )
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent("RootPackedMod")
+                    .appendingPathComponent(
+                        ModImportSecurity.extractionMarkerFileName
+                    )
+                    .path
+            )
+        )
     }
 
     func testInstallUpdatesExistingModWhenSelectedVersionIsNewer() throws {
@@ -1398,6 +1408,171 @@ final class ModLibraryTests: SeedBoxTestCase {
         }
     }
 
+    func testRejectsLooseFolderContainingSymbolicLink() throws {
+        let packageURL = temporaryDirectory.appendingPathComponent("LinkedMod")
+        let outsideURL = temporaryDirectory.appendingPathComponent("Outside")
+        let linkURL = packageURL.appendingPathComponent("LinkedAssets")
+
+        try FileManager.default.createDirectory(at: packageURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Linked Mod", to: packageURL)
+        try FileManager.default.createDirectory(at: outsideURL, withIntermediateDirectories: true)
+        try "private".write(
+            to: outsideURL.appendingPathComponent("outside.txt"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try FileManager.default.createSymbolicLink(
+            at: linkURL,
+            withDestinationURL: outsideURL
+        )
+
+        XCTAssertThrowsError(
+            try ModInstallSourceResolver.resolve(from: packageURL)
+        ) { error in
+            guard case .symbolicLinkNotAllowed(let rejectedURL) =
+                    error as? ModArchiveExtractionError
+            else {
+                return XCTFail("Expected symbolicLinkNotAllowed, got \(error).")
+            }
+            XCTAssertEqual(rejectedURL.lastPathComponent, linkURL.lastPathComponent)
+        }
+    }
+
+    func testRejectsArchiveContainingSymbolicLinkBeforeExtraction() throws {
+        let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads")
+        let packageURL = downloadsURL.appendingPathComponent("LinkedArchive")
+        let outsideURL = temporaryDirectory.appendingPathComponent("Outside")
+        let linkURL = packageURL.appendingPathComponent("LinkedAssets")
+        let zipURL = downloadsURL.appendingPathComponent("LinkedArchive.zip")
+
+        try FileManager.default.createDirectory(at: packageURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Linked Archive", to: packageURL)
+        try FileManager.default.createDirectory(at: outsideURL, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(
+            at: linkURL,
+            withDestinationURL: outsideURL
+        )
+        try makeZip(from: packageURL, to: zipURL)
+        let extractionDirectoriesBefore = extractedArchiveDirectoryNames()
+
+        XCTAssertThrowsError(
+            try ModInstallSourceResolver.resolve(from: zipURL)
+        ) { error in
+            guard case .symbolicLinkNotAllowed(let rejectedURL) =
+                    error as? ModArchiveExtractionError
+            else {
+                return XCTFail("Expected symbolicLinkNotAllowed, got \(error).")
+            }
+            XCTAssertEqual(rejectedURL.lastPathComponent, linkURL.lastPathComponent)
+        }
+        XCTAssertEqual(extractedArchiveDirectoryNames(), extractionDirectoriesBefore)
+    }
+
+    func testAppliesResourceLimitsToLooseFolders() throws {
+        let packageURL = temporaryDirectory.appendingPathComponent("LargeFolderMod")
+        try FileManager.default.createDirectory(at: packageURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Large Folder Mod", to: packageURL)
+        try "asset".write(
+            to: packageURL.appendingPathComponent("asset.txt"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let limits = ModArchiveExtractionLimits(
+            maximumEntryCount: 1,
+            maximumTotalUncompressedByteCount: .max
+        )
+
+        XCTAssertThrowsError(
+            try ModInstallSourceResolver.resolve(from: packageURL, limits: limits)
+        ) { error in
+            XCTAssertEqual(
+                error as? ModArchiveExtractionError,
+                .tooManyEntries(packageURL, limit: 1)
+            )
+        }
+    }
+
+    func testSelectionLimitCleansAlreadyExtractedArchives() throws {
+        let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads")
+        let firstPackageURL = downloadsURL.appendingPathComponent("FirstMod")
+        let secondPackageURL = downloadsURL.appendingPathComponent("SecondMod")
+        let firstZipURL = downloadsURL.appendingPathComponent("FirstMod.zip")
+        let secondZipURL = downloadsURL.appendingPathComponent("SecondMod.zip")
+
+        try FileManager.default.createDirectory(
+            at: firstPackageURL,
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: secondPackageURL,
+            withIntermediateDirectories: true
+        )
+        try writeManifest(name: "First Mod", to: firstPackageURL)
+        try writeManifest(name: "Second Mod", to: secondPackageURL)
+        try makeZip(from: firstPackageURL, to: firstZipURL)
+        try makeZip(from: secondPackageURL, to: secondZipURL)
+
+        let extractionDirectoriesBefore = extractedArchiveDirectoryNames()
+        let selectionLimits = ModImportSelectionLimits(
+            maximumSourceCount: 2,
+            maximumEntryCount: 1,
+            maximumTotalByteCount: .max
+        )
+
+        XCTAssertThrowsError(
+            try ModInstallSourceResolver.resolveAll(
+                from: [firstZipURL, secondZipURL],
+                selectionLimits: selectionLimits
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? ModArchiveExtractionError,
+                .selectionHasTooManyEntries(limit: 1)
+            )
+        }
+        XCTAssertEqual(extractedArchiveDirectoryNames(), extractionDirectoriesBefore)
+    }
+
+    func testAbandonedExtractionCleanupRequiresSeedBoxMarker() throws {
+        let temporaryRoot = FileManager.default.temporaryDirectory
+        let suffix = UUID().uuidString
+        let markedURL = temporaryRoot.appendingPathComponent(
+            "\(ModImportSecurity.extractionDirectoryPrefix)\(suffix)-marked",
+            isDirectory: true
+        )
+        let unmarkedURL = temporaryRoot.appendingPathComponent(
+            "\(ModImportSecurity.extractionDirectoryPrefix)\(suffix)-unmarked",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: markedURL, withIntermediateDirectories: false)
+        try FileManager.default.createDirectory(at: unmarkedURL, withIntermediateDirectories: false)
+        defer {
+            try? FileManager.default.removeItem(at: markedURL)
+            try? FileManager.default.removeItem(at: unmarkedURL)
+        }
+        try Data().write(
+            to: markedURL.appendingPathComponent(
+                ModImportSecurity.extractionMarkerFileName
+            )
+        )
+        let oldDate = Date().addingTimeInterval(
+            -(ModImportSecurity.abandonedExtractionAge + 60)
+        )
+        try FileManager.default.setAttributes(
+            [.modificationDate: oldDate],
+            ofItemAtPath: markedURL.path
+        )
+        try FileManager.default.setAttributes(
+            [.modificationDate: oldDate],
+            ofItemAtPath: unmarkedURL.path
+        )
+
+        ModImportSecurity.removeAbandonedExtractionDirectories()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: markedURL.path))
+        XCTAssertTrue(FileManager.default.directoryExists(at: unmarkedURL))
+    }
+
     func testManifestCacheReflectsOnDiskChanges() throws {
         let modURL = temporaryDirectory.appendingPathComponent("CachedMod", isDirectory: true)
         try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
@@ -1772,7 +1947,11 @@ final class ModLibraryTests: SeedBoxTestCase {
         let children = (try? FileManager.default.contentsOfDirectory(
             atPath: FileManager.default.temporaryDirectory.path
         )) ?? []
-        return Set(children.filter { $0.hasPrefix("SeedBoxZip-") })
+        return Set(
+            children.filter {
+                $0.hasPrefix(ModImportSecurity.extractionDirectoryPrefix)
+            }
+        )
     }
 
     private func makeZip(from sourceURL: URL, to zipURL: URL) throws {

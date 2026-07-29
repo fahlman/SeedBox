@@ -1136,12 +1136,43 @@ enum AppStrings {
             String(localized: "Mod set \(id) was not found.")
         }
 
-        static func archiveHasTooManyFiles(_ archiveName: String, limit: Int) -> String {
-            String(localized: "Couldn't extract \(archiveName) because it contains more than \(limit) files.")
+        static func importHasTooManyFiles(_ sourceName: String, limit: Int) -> String {
+            String(localized: "Couldn't import \(sourceName) because it contains more than \(limit) files.")
         }
 
-        static func archiveExpandsTooLarge(_ archiveName: String, limitText: String) -> String {
-            String(localized: "Couldn't extract \(archiveName) because it expands to more than \(limitText).")
+        static func importExpandsTooLarge(_ sourceName: String, limitText: String) -> String {
+            String(localized: "Couldn't import \(sourceName) because its contents exceed \(limitText).")
+        }
+
+        static func tooManyImportSources(limit: Int) -> String {
+            String(localized: "Choose no more than \(limit) mod folders or ZIP archives at once.")
+        }
+
+        static func importSelectionHasTooManyFiles(limit: Int) -> String {
+            String(localized: "Couldn't import this selection because it contains more than \(limit) files.")
+        }
+
+        static func importSelectionExpandsTooLarge(limitText: String) -> String {
+            String(localized: "Couldn't import this selection because its contents exceed \(limitText).")
+        }
+
+        static func archiveContainsUnsafePath(_ archiveName: String, path: String) -> String {
+            String(localized: "Couldn't extract \(archiveName) because \(path) is an unsafe path.")
+        }
+
+        static func importContainsSymbolicLink(_ itemName: String) -> String {
+            String(localized: "Couldn't import \(itemName) because mod imports can't contain symbolic links.")
+        }
+
+        static func importContainsUnsupportedFile(_ itemName: String) -> String {
+            String(localized: "Couldn't import \(itemName) because it contains an unsupported file type.")
+        }
+
+        static func notEnoughSpaceToImport(
+            _ sourceName: String,
+            requiredText: String
+        ) -> String {
+            String(localized: "Couldn't import \(sourceName) because Seed Box needs at least \(requiredText) of available space.")
         }
 
         static func noInstallableMods(at path: String) -> String {

@@ -30,27 +30,27 @@ enum ModInstallWorkflow {
             fileManager: fileManager
         )
 
-        var result = ModInstallResult()
-        var pendingOperations: [PendingInstallOperation] = []
-        var temporaryExtractionDirectories: [URL] = []
+        let installSources = try ModInstallSourceResolver.resolveAll(
+            from: sourceURLs,
+            fileManager: fileManager
+        )
+        let temporaryExtractionDirectories = installSources
+            .compactMap(\.temporaryExtractionDirectory)
         defer {
             for temporaryExtractionDirectory in temporaryExtractionDirectories {
                 try? fileManager.removeItem(at: temporaryExtractionDirectory)
             }
         }
 
+        var result = ModInstallResult()
+        var pendingOperations: [PendingInstallOperation] = []
         var classifier = ModInstallClassifier(
             install: install,
             enabled: enabled,
             fileManager: fileManager
         )
 
-        for sourceURL in sourceURLs {
-            let installSource = try ModInstallSourceResolver.resolve(from: sourceURL, fileManager: fileManager)
-            if let temporaryExtractionDirectory = installSource.temporaryExtractionDirectory {
-                temporaryExtractionDirectories.append(temporaryExtractionDirectory)
-            }
-
+        for (sourceURL, installSource) in zip(sourceURLs, installSources) {
             guard !installSource.candidates.isEmpty else {
                 throw ModLibraryError.noInstallableMods(sourceURL)
             }
@@ -116,6 +116,29 @@ enum ModInstallWorkflow {
             return result
         }
 
+        var requiredStagingByteCount: UInt64 = 0
+        for pendingOperation in pendingOperations {
+            let candidate: ModInstallCandidate
+            switch pendingOperation {
+            case .install(let pendingCandidate, _),
+                 .update(let pendingCandidate, _, _):
+                candidate = pendingCandidate
+            }
+            let usage = try ModImportSecurity.validateImportTree(
+                at: candidate.sourceURL,
+                fileManager: fileManager
+            )
+            let (newTotal, didOverflow) = requiredStagingByteCount.addingReportingOverflow(
+                usage.totalByteCount
+            )
+            requiredStagingByteCount = didOverflow ? .max : newTotal
+        }
+        try ModImportSecurity.validateAvailableCapacity(
+            for: requiredStagingByteCount,
+            sourceURL: sourceURLs.first ?? install.modDirectoryURL,
+            destinationDirectoryURL: install.modDirectoryURL
+        )
+
         let stagingDirectoryURL = install.modDirectoryURL.appendingPathComponent(
             "\(installStagingDirectoryPrefix)\(UUID().uuidString)",
             isDirectory: true
@@ -162,6 +185,10 @@ enum ModInstallWorkflow {
                 isDirectory: true
             )
             try fileManager.copyItem(at: candidate.sourceURL, to: stagedURL)
+            _ = try ModImportSecurity.validateImportTree(
+                at: stagedURL,
+                fileManager: fileManager
+            )
             let configOutcome = existingMod.map {
                 preserveUserConfig(
                     from: $0.url,
@@ -273,8 +300,13 @@ enum ModInstallWorkflow {
             throw ModLibraryError.modFolderMissing(install.modDirectoryURL)
         }
 
+        let installSources = try ModInstallSourceResolver.resolveAll(
+            from: sourceURLs,
+            fileManager: fileManager
+        )
         var items: [ModImportPreviewItem] = []
-        var temporaryExtractionDirectories: [URL] = []
+        let temporaryExtractionDirectories = installSources
+            .compactMap(\.temporaryExtractionDirectory)
         // On success the extraction directories outlive this call: the preview
         // owns them until it is installed or discarded.
         var shouldRemoveTemporaryExtractionDirectories = true
@@ -292,12 +324,7 @@ enum ModInstallWorkflow {
             fileManager: fileManager
         )
 
-        for sourceURL in sourceURLs {
-            let installSource = try ModInstallSourceResolver.resolve(from: sourceURL, fileManager: fileManager)
-            if let temporaryExtractionDirectory = installSource.temporaryExtractionDirectory {
-                temporaryExtractionDirectories.append(temporaryExtractionDirectory)
-            }
-
+        for (sourceURL, installSource) in zip(sourceURLs, installSources) {
             guard !installSource.candidates.isEmpty else {
                 throw ModLibraryError.noInstallableMods(sourceURL)
             }
