@@ -277,50 +277,14 @@ enum ModImportSecurity {
         now: Date = Date(),
         fileManager: FileManager = .default
     ) {
-        let temporaryDirectory = fileManager.temporaryDirectory
-        guard let children = try? fileManager.contentsOfDirectory(
-            at: temporaryDirectory,
-            includingPropertiesForKeys: [
-                .contentModificationDateKey,
-                .isDirectoryKey,
-                .isSymbolicLinkKey
-            ],
-            options: []
-        ) else {
-            return
-        }
-        let cutoffDate = now.addingTimeInterval(-abandonedExtractionAge)
-
-        for childURL in children
-        where childURL.lastPathComponent.hasPrefix(extractionDirectoryPrefix) {
-            guard let values = try? childURL.resourceValues(
-                forKeys: [
-                    .contentModificationDateKey,
-                    .isDirectoryKey,
-                    .isSymbolicLinkKey
-                ]
-            ) else {
-                continue
-            }
-            guard values.isSymbolicLink != true,
-                  values.isDirectory == true,
-                  let modificationDate = values.contentModificationDate,
-                  modificationDate < cutoffDate
-            else {
-                continue
-            }
-
-            let markerURL = childURL.appendingPathComponent(extractionMarkerFileName)
-            let markerValues = try? markerURL.resourceValues(
-                forKeys: [.isRegularFileKey, .isSymbolicLinkKey]
-            )
-            guard markerValues?.isRegularFile == true,
-                  markerValues?.isSymbolicLink != true
-            else {
-                continue
-            }
-            try? fileManager.removeItem(at: childURL)
-        }
+        SecureTemporaryWorkspace.removeAbandonedDirectories(
+            in: fileManager.temporaryDirectory,
+            prefix: extractionDirectoryPrefix,
+            markerFileName: extractionMarkerFileName,
+            olderThan: abandonedExtractionAge,
+            now: now,
+            fileManager: fileManager
+        )
     }
 
     private static func archiveEntryPathIsSafe(_ path: String) -> Bool {

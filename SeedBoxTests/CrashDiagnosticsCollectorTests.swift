@@ -31,6 +31,12 @@ final class CrashDiagnosticsCollectorTests: SeedBoxTestCase {
             at: diagnosticsDirectory.appendingPathComponent("Nested.json", isDirectory: true),
             withIntermediateDirectories: true
         )
+        let outsidePayload = temporaryDirectory.appendingPathComponent("Outside.json")
+        try Data("{}".utf8).write(to: outsidePayload)
+        try FileManager.default.createSymbolicLink(
+            at: diagnosticsDirectory.appendingPathComponent("Linked.json"),
+            withDestinationURL: outsidePayload
+        )
 
         let payloads = try CrashDiagnosticsExporter.diagnosticPayloadURLs(
             in: diagnosticsDirectory,
@@ -38,6 +44,112 @@ final class CrashDiagnosticsCollectorTests: SeedBoxTestCase {
         )
 
         XCTAssertEqual(payloads.map(\.lastPathComponent), ["A.json", "B.json"])
+    }
+
+    func testSupportBundleRejectsOversizedDiagnosticPayload() throws {
+        let payloadURL = temporaryDirectory.appendingPathComponent("Large.json")
+        let bundleDirectory = temporaryDirectory.appendingPathComponent(
+            "Bundle",
+            isDirectory: true
+        )
+        try Data(#"{"value":true}"#.utf8).write(to: payloadURL)
+        let limits = CrashDiagnosticsExportLimits(
+            maximumPayloadCount: 1,
+            maximumPayloadByteCount: 4,
+            maximumTotalPayloadByteCount: 4
+        )
+
+        XCTAssertThrowsError(
+            try CrashDiagnosticsExporter.writeSupportBundle(
+                to: bundleDirectory,
+                payloadURLs: [payloadURL],
+                context: CrashDiagnosticsExportContext(
+                    appVersion: "1",
+                    buildVersion: "1",
+                    state: nil
+                ),
+                generatedAt: Date(),
+                limits: limits
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? CrashDiagnosticsExportError,
+                .payloadTooLarge(
+                    fileName: "Large.json",
+                    maximumByteCount: 4
+                )
+            )
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: bundleDirectory.path))
+    }
+
+    func testAbandonedDiagnosticsCleanupRequiresMarker() throws {
+        let temporaryRoot = temporaryDirectory.appendingPathComponent(
+            "Temporary",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: temporaryRoot,
+            withIntermediateDirectories: true
+        )
+        let markedDirectory = try SecureTemporaryWorkspace.create(
+            in: temporaryRoot,
+            prefix: CrashDiagnosticsExporter.stagingDirectoryPrefix,
+            markerFileName: CrashDiagnosticsExporter.stagingMarkerFileName
+        )
+        let unmarkedDirectory = temporaryRoot.appendingPathComponent(
+            "\(CrashDiagnosticsExporter.stagingDirectoryPrefix)unmarked",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: unmarkedDirectory,
+            withIntermediateDirectories: false
+        )
+        let oldDate = Date().addingTimeInterval(
+            -CrashDiagnosticsExporter.abandonedStagingAge - 60
+        )
+        for directory in [markedDirectory, unmarkedDirectory] {
+            try FileManager.default.setAttributes(
+                [.modificationDate: oldDate],
+                ofItemAtPath: directory.path
+            )
+        }
+
+        CrashDiagnosticsExporter.removeAbandonedStagingDirectories(
+            in: temporaryRoot
+        )
+
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: markedDirectory.path)
+        )
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: unmarkedDirectory.path)
+        )
+    }
+
+    func testSecureTemporaryWorkspaceUsesOwnerOnlyPermissions() throws {
+        let temporaryRoot = temporaryDirectory.appendingPathComponent(
+            "Temporary",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: temporaryRoot,
+            withIntermediateDirectories: true
+        )
+
+        let workspace = try SecureTemporaryWorkspace.create(
+            in: temporaryRoot,
+            prefix: "SeedBoxTest-",
+            markerFileName: ".seedbox-test"
+        )
+        let attributes = try FileManager.default.attributesOfItem(
+            atPath: workspace.path
+        )
+
+        XCTAssertEqual(
+            (attributes[.posixPermissions] as? NSNumber)?.intValue,
+            0o700
+        )
     }
 
     func testBuildsDiagnosticSummaryFromStoredPayloads() throws {

@@ -128,27 +128,18 @@ enum ModInstallSourceResolver {
             limits: limits
         )
 
-        let temporaryExtractionDirectory = fileManager.temporaryDirectory
-            .appendingPathComponent(
-                "\(ModImportSecurity.extractionDirectoryPrefix)\(UUID().uuidString)",
-                isDirectory: true
-            )
-        try fileManager.createDirectory(
-            at: temporaryExtractionDirectory,
-            withIntermediateDirectories: false,
-            attributes: [.posixPermissions: 0o700]
-        )
-        try Data().write(
-            to: temporaryExtractionDirectory.appendingPathComponent(
-                ModImportSecurity.extractionMarkerFileName
-            ),
-            options: .atomic
+        let temporaryExtractionDirectory = try SecureTemporaryWorkspace.create(
+            in: fileManager.temporaryDirectory,
+            prefix: ModImportSecurity.extractionDirectoryPrefix,
+            markerFileName: ModImportSecurity.extractionMarkerFileName,
+            fileManager: fileManager
         )
         let extractionDirectory = temporaryExtractionDirectory
             .appendingPathComponent("Contents", isDirectory: true)
         try fileManager.createDirectory(
             at: extractionDirectory,
-            withIntermediateDirectories: false
+            withIntermediateDirectories: false,
+            attributes: [.posixPermissions: 0o700]
         )
 
         do {
