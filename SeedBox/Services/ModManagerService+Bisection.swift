@@ -210,7 +210,7 @@ extension ModManagerService {
         try performWithFolderAccess(state: &nextState) {
             _ = try ModLibrary.applyEnabledStates(
                 to: mods,
-                journalDirectoryURL: currentInstall.modDirectoryURL,
+                install: currentInstall,
                 shouldEnable: {
                     enabledTokens.contains($0.enabledFolderName.normalizedFolderToken)
                 }

@@ -180,7 +180,7 @@ enum ModSetStore {
 
         let changes = try ModLibrary.applyEnabledStates(
             to: mods,
-            journalDirectoryURL: install.modDirectoryURL,
+            install: install,
             fileManager: fileManager,
             moveItem: moveItem,
             shouldEnable: resolvedSet.isEnabled

@@ -280,8 +280,13 @@ actor ModManagerService {
         }
 
         do {
+            let currentInstall = install(for: nextState)
             let destinationURL = try performWithFolderAccess(state: &nextState) {
-                try ModLibrary.setEnabled(mod, enabled: enabled)
+                try ModLibrary.setEnabled(
+                    mod,
+                    enabled: enabled,
+                    install: currentInstall
+                )
             }
             let changeMessage = enabled
                 ? AppStrings.Status.enabledMod(mod.displayName)
@@ -332,10 +337,20 @@ actor ModManagerService {
         var changedMods: [(mod: ModInfo, destinationURL: URL)] = []
         var failedMods: [(mod: ModInfo, error: any Error)] = []
         do {
+            let currentInstall = install(for: nextState)
             try performWithFolderAccess(state: &nextState) {
                 for mod in mods where mod.isEnabled != enabled {
                     do {
-                        changedMods.append((mod, try ModLibrary.setEnabled(mod, enabled: enabled)))
+                        changedMods.append(
+                            (
+                                mod,
+                                try ModLibrary.setEnabled(
+                                    mod,
+                                    enabled: enabled,
+                                    install: currentInstall
+                                )
+                            )
+                        )
                     } catch {
                         failedMods.append((mod, error))
                     }
@@ -405,7 +420,7 @@ actor ModManagerService {
             let archivedURL = try performWithFolderAccess(state: &nextState) {
                 try ModLibrary.archive(
                     mod,
-                    in: currentInstall.archivedModsDirectoryURL
+                    into: currentInstall
                 )
             }
             let changeMessage = AppStrings.Status.deletedModArchived(mod.displayName)
@@ -457,7 +472,7 @@ actor ModManagerService {
             let archivedURLs = try performWithFolderAccess(state: &nextState) {
                 try ModLibrary.archive(
                     modsToArchive,
-                    in: currentInstall.archivedModsDirectoryURL
+                    into: currentInstall
                 )
             }
             let changeMessage = AppStrings.Status.keptAndArchivedDuplicates(

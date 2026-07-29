@@ -708,7 +708,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         let modURL = try makeInstalledMod(name: "Content Patcher", in: install, version: "1.0.0")
         let archivedURL = try ModArchive.archive(
             modURL,
-            in: install.archivedModsDirectoryURL,
+            into: install,
             reason: .deleted
         )
 
@@ -744,7 +744,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
         let modURL = try makeInstalledMod(name: "Content Patcher", in: install, version: "1.0.0")
         let archivedURL = try ModArchive.archive(
             modURL,
-            in: install.archivedModsDirectoryURL,
+            into: install,
             reason: .deleted
         )
 

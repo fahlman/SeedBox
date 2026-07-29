@@ -69,14 +69,16 @@ enum ModArchive {
 
     static func archive(
         _ sourceURL: URL,
-        in archiveDirectory: URL,
+        into install: StardewInstall,
+        archiveDirectory: URL? = nil,
         reason: ModArchiveReason,
         date: Date = Date(),
         fileManager: FileManager = .default
     ) throws -> URL {
         guard let archivedURL = try archive(
             [sourceURL],
-            in: archiveDirectory,
+            into: install,
+            archiveDirectory: archiveDirectory,
             reason: reason,
             date: date,
             fileManager: fileManager
@@ -88,7 +90,8 @@ enum ModArchive {
 
     static func archive(
         _ sourceURLs: [URL],
-        in archiveDirectory: URL,
+        into install: StardewInstall,
+        archiveDirectory: URL? = nil,
         reason: ModArchiveReason,
         date: Date = Date(),
         fileManager: FileManager = .default
@@ -97,9 +100,17 @@ enum ModArchive {
             return []
         }
 
+        let resolvedArchiveDirectory = archiveDirectory ?? install.archivedModsDirectoryURL
+        let transactionContext = install.fileMoveTransactionContext(
+            archiveDirectory: resolvedArchiveDirectory
+        )
+        try FileMoveTransaction.recoverIfNeeded(
+            context: transactionContext,
+            fileManager: fileManager
+        )
         let plan = try prepareArchiveMoves(
             for: sourceURLs,
-            in: archiveDirectory,
+            in: resolvedArchiveDirectory,
             reason: reason,
             date: date,
             fileManager: fileManager
@@ -107,7 +118,7 @@ enum ModArchive {
         do {
             try FileMoveTransaction.perform(
                 plan.operations,
-                journalDirectoryURL: archiveDirectory,
+                context: transactionContext,
                 fileManager: fileManager
             )
         } catch {
@@ -128,10 +139,6 @@ enum ModArchive {
             throw CocoaError(.fileWriteUnknown)
         }
 
-        try FileMoveTransaction.recoverIfNeeded(
-            in: archiveDirectory,
-            fileManager: fileManager
-        )
         try fileManager.createDirectory(
             at: archiveDirectory,
             withIntermediateDirectories: true
@@ -169,15 +176,17 @@ enum ModArchive {
     }
 
     static func pruneExpiredArchives(
-        in archiveDirectory: URL,
+        in install: StardewInstall,
+        archiveDirectory: URL? = nil,
         olderThan cutoffDate: Date = Date().addingTimeInterval(-retentionInterval),
         fileManager: FileManager = .default
     ) throws -> Int {
+        let archiveDirectory = archiveDirectory ?? install.archivedModsDirectoryURL
         guard fileManager.directoryExists(at: archiveDirectory) else {
             return 0
         }
         try FileMoveTransaction.recoverIfNeeded(
-            in: archiveDirectory,
+            context: install.fileMoveTransactionContext(archiveDirectory: archiveDirectory),
             fileManager: fileManager
         )
 
@@ -209,11 +218,6 @@ enum ModArchive {
         guard fileManager.directoryExists(at: archiveDirectory) else {
             return []
         }
-        try FileMoveTransaction.recoverIfNeeded(
-            in: archiveDirectory,
-            fileManager: fileManager
-        )
-
         let containers = try fileManager.contentsOfDirectory(
             at: archiveDirectory,
             includingPropertiesForKeys: [.creationDateKey, .contentModificationDateKey],
@@ -266,11 +270,6 @@ enum ModArchive {
         guard fileManager.directoryExists(at: archiveDirectory) else {
             return ModArchiveSummary()
         }
-        try FileMoveTransaction.recoverIfNeeded(
-            in: archiveDirectory,
-            fileManager: fileManager
-        )
-
         // The deep byte-count walk runs on every state refresh, so it's
         // skipped whenever the shallow container signature is unchanged.
         let signature = containerSignature(in: archiveDirectory, fileManager: fileManager)

@@ -18,12 +18,11 @@ enum ModInstallWorkflow {
         }
 
         let resolvedArchiveDirectory = archiveDirectory ?? install.archivedModsDirectoryURL
-        try FileMoveTransaction.recoverIfNeeded(
-            in: resolvedArchiveDirectory,
-            fileManager: fileManager
+        let transactionContext = install.fileMoveTransactionContext(
+            archiveDirectory: resolvedArchiveDirectory
         )
         try FileMoveTransaction.recoverIfNeeded(
-            in: install.modDirectoryURL,
+            context: transactionContext,
             fileManager: fileManager
         )
         try removeAbandonedStagingDirectories(
@@ -216,7 +215,7 @@ enum ModInstallWorkflow {
         do {
             try FileMoveTransaction.perform(
                 (archivePlan?.operations ?? []) + installMoves,
-                journalDirectoryURL: install.modDirectoryURL,
+                context: transactionContext,
                 fileManager: fileManager,
                 moveItem: moveItem
             )

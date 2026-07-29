@@ -447,20 +447,27 @@ final class ModLibraryTests: SeedBoxTestCase {
     }
 
     func testDisablesAndEnablesWithDotPrefix() throws {
-        let modsDirectory = try makeModsDirectory()
-        let install = StardewInstall(modsDirectory: modsDirectory)
+        let install = try makeInstall()
         let modURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
 
         try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
         try writeManifest(name: "Content Patcher", to: modURL)
 
         let mod = try XCTUnwrap(ModLibrary.scan(install: install).first)
-        let disabledURL = try ModLibrary.setEnabled(mod, enabled: false)
+        let disabledURL = try ModLibrary.setEnabled(
+            mod,
+            enabled: false,
+            install: install
+        )
 
         XCTAssertEqual(disabledURL.lastPathComponent, ".ContentPatcher")
 
         let disabledMod = try XCTUnwrap(ModLibrary.scan(install: install).first)
-        let enabledURL = try ModLibrary.setEnabled(disabledMod, enabled: true)
+        let enabledURL = try ModLibrary.setEnabled(
+            disabledMod,
+            enabled: true,
+            install: install
+        )
 
         XCTAssertEqual(enabledURL.lastPathComponent, "ContentPatcher")
     }
@@ -483,8 +490,7 @@ final class ModLibraryTests: SeedBoxTestCase {
     }
 
     func testEnableRejectsExistingEnabledCopy() throws {
-        let modsDirectory = try makeModsDirectory()
-        let install = StardewInstall(modsDirectory: modsDirectory)
+        let install = try makeInstall()
         let enabledURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
         let disabledURL = install.modDirectoryURL.appendingPathComponent(".ContentPatcher")
 
@@ -498,7 +504,11 @@ final class ModLibraryTests: SeedBoxTestCase {
         )
 
         XCTAssertThrowsError(
-            try ModLibrary.setEnabled(disabledMod, enabled: true)
+            try ModLibrary.setEnabled(
+                disabledMod,
+                enabled: true,
+                install: install
+            )
         ) { error in
             guard case .modAlreadyInstalled(let folderName, let url) = error as? ModLibraryError else {
                 XCTFail("Expected modAlreadyInstalled error, got \(error).")
@@ -1005,7 +1015,7 @@ final class ModLibraryTests: SeedBoxTestCase {
         try writeManifest(name: "Content Patcher", to: modURL, version: "1.0.0")
         let archivedURL = try ModArchive.archive(
             modURL,
-            in: install.archivedModsDirectoryURL,
+            into: install,
             reason: .deleted
         )
         let archivedMod = try XCTUnwrap(ModArchive.archivedMods(in: install.archivedModsDirectoryURL).first)
@@ -1034,7 +1044,7 @@ final class ModLibraryTests: SeedBoxTestCase {
         try writeManifest(name: "Content Patcher", to: modURL, version: "1.0.0")
         let archivedURL = try ModArchive.archive(
             modURL,
-            in: install.archivedModsDirectoryURL,
+            into: install,
             reason: .deleted
         )
         let archivedMod = try XCTUnwrap(ModArchive.archivedMods(in: install.archivedModsDirectoryURL).first)
@@ -1244,7 +1254,7 @@ final class ModLibraryTests: SeedBoxTestCase {
         let archiveDate = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-06-05T12:00:00Z"))
         _ = try ModArchive.archive(
             modURL,
-            in: install.archivedModsDirectoryURL,
+            into: install,
             reason: .deleted,
             date: archiveDate
         )
@@ -1593,11 +1603,20 @@ final class ModLibraryTests: SeedBoxTestCase {
     func testArchiveSummaryCacheInvalidatesWhenArchiveChanges() throws {
         let modsDirectory = try makeModsDirectory()
         let archiveDirectory = temporaryDirectory.appendingPathComponent("Archived Mods")
+        let install = StardewInstall(
+            modsDirectory: modsDirectory,
+            modSetDirectory: temporaryDirectory.appendingPathComponent("Mod Sets", isDirectory: true)
+        )
 
         let firstModURL = modsDirectory.appendingPathComponent("FirstMod")
         try FileManager.default.createDirectory(at: firstModURL, withIntermediateDirectories: true)
         try writeManifest(name: "First Mod", to: firstModURL)
-        _ = try ModArchive.archive(firstModURL, in: archiveDirectory, reason: .deleted)
+        _ = try ModArchive.archive(
+            firstModURL,
+            into: install,
+            archiveDirectory: archiveDirectory,
+            reason: .deleted
+        )
 
         let firstSummary = try ModArchive.summary(in: archiveDirectory)
         XCTAssertEqual(firstSummary.archivedModCount, 1)
@@ -1606,7 +1625,12 @@ final class ModLibraryTests: SeedBoxTestCase {
         let secondModURL = modsDirectory.appendingPathComponent("SecondMod")
         try FileManager.default.createDirectory(at: secondModURL, withIntermediateDirectories: true)
         try writeManifest(name: "Second Mod", to: secondModURL)
-        _ = try ModArchive.archive(secondModURL, in: archiveDirectory, reason: .deleted)
+        _ = try ModArchive.archive(
+            secondModURL,
+            into: install,
+            archiveDirectory: archiveDirectory,
+            reason: .deleted
+        )
 
         let secondSummary = try ModArchive.summary(in: archiveDirectory)
         XCTAssertEqual(secondSummary.archivedModCount, 2)
@@ -1671,6 +1695,10 @@ final class ModLibraryTests: SeedBoxTestCase {
     func testArchiveSidecarPreservesExactDateAndReason() throws {
         let modsDirectory = try makeModsDirectory()
         let archiveDirectory = temporaryDirectory.appendingPathComponent("Archived Mods")
+        let install = StardewInstall(
+            modsDirectory: modsDirectory,
+            modSetDirectory: temporaryDirectory.appendingPathComponent("Mod Sets", isDirectory: true)
+        )
         let modURL = modsDirectory.appendingPathComponent("ArchivedMod")
         try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
         try writeManifest(name: "Archived Mod", to: modURL)
@@ -1678,7 +1706,8 @@ final class ModLibraryTests: SeedBoxTestCase {
         let archiveDate = Date(timeIntervalSince1970: 1_750_000_000.25)
         _ = try ModArchive.archive(
             modURL,
-            in: archiveDirectory,
+            into: install,
+            archiveDirectory: archiveDirectory,
             reason: .updated,
             date: archiveDate
         )
@@ -1712,14 +1741,18 @@ final class ModLibraryTests: SeedBoxTestCase {
     }
 
     func testRestoringLastArchivedModRemovesContainerDespiteSidecar() throws {
-        let modsDirectory = try makeModsDirectory()
-        let install = StardewInstall(modsDirectory: modsDirectory)
+        let install = try makeInstall()
         let archiveDirectory = install.archivedModsDirectoryURL
         let modURL = install.modDirectoryURL.appendingPathComponent("RestorableMod")
         try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
         try writeManifest(name: "Restorable Mod", to: modURL)
 
-        _ = try ModArchive.archive(modURL, in: archiveDirectory, reason: .deleted)
+        _ = try ModArchive.archive(
+            modURL,
+            into: install,
+            archiveDirectory: archiveDirectory,
+            reason: .deleted
+        )
         let archivedMod = try XCTUnwrap(ModArchive.archivedMods(in: archiveDirectory).first)
 
         _ = try ModLibrary.restoreArchivedMods(
