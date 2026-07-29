@@ -3,6 +3,8 @@ import Foundation
 enum ModSetStoreError: Error, Equatable, LocalizedError, Sendable {
     case duplicateSetName(String)
     case missingSet(String)
+    case invalidSetID(String)
+    case storedSetIDMismatch(fileID: String, storedID: String)
 
     var errorDescription: String? {
         switch self {
@@ -10,7 +12,28 @@ enum ModSetStoreError: Error, Equatable, LocalizedError, Sendable {
             return AppStrings.Errors.duplicateModSetName(name)
         case .missingSet(let id):
             return AppStrings.Errors.modSetNotFound(id)
+        case .invalidSetID(let id):
+            return CocoaError(
+                .fileReadInvalidFileName,
+                userInfo: [NSFilePathErrorKey: id]
+            ).localizedDescription
+        case .storedSetIDMismatch:
+            return CocoaError(.fileReadCorruptFile).localizedDescription
         }
+    }
+}
+
+struct ModSetLoadResult: Equatable, Sendable {
+    var sets: [ModSet]
+    var issues: [ModSetLoadIssue]
+}
+
+struct ModSetLoadIssue: Error, Equatable, LocalizedError, Sendable {
+    var fileName: String
+    var reason: String
+
+    var errorDescription: String? {
+        "\(fileName): \(reason)"
     }
 }
 
@@ -33,25 +56,42 @@ enum ModSetStore {
         currentMods: [ModInfo],
         fileManager: FileManager = .default
     ) throws -> [ModSet] {
+        let result = try loadSetsWithIssues(
+            install: install,
+            currentMods: currentMods,
+            fileManager: fileManager
+        )
+        if let issue = result.issues.first {
+            throw issue
+        }
+        return result.sets
+    }
+
+    static func loadSetsWithIssues(
+        install: StardewInstall,
+        currentMods: [ModInfo],
+        fileManager: FileManager = .default
+    ) throws -> ModSetLoadResult {
         try createStoreDirectoryIfNeeded(install: install, fileManager: fileManager)
 
         let existingSetURLs = try setFileURLs(install: install, fileManager: fileManager)
-        var sets = try loadUserSets(
+        var result = loadUserSets(
             from: existingSetURLs,
             currentMods: currentMods,
             install: install,
             fileManager: fileManager
         )
-        if existingSetURLs.isEmpty {
-            sets = starterSets(from: currentMods)
-            for set in sets {
+        if result.sets.isEmpty {
+            result.sets = starterSets(from: currentMods)
+            for set in result.sets {
                 try saveSet(set, install: install, fileManager: fileManager)
             }
         }
 
-        return sets.sorted {
+        result.sets.sort {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
+        return result
     }
 
     static func createSet(
@@ -91,6 +131,7 @@ enum ModSetStore {
         install: StardewInstall,
         fileManager: FileManager = .default
     ) throws {
+        let identifier = try validatedIdentifier(set.id)
         try createStoreDirectoryIfNeeded(install: install, fileManager: fileManager)
         let storedSet = StoredModSet(
             id: set.id,
@@ -104,7 +145,7 @@ enum ModSetStore {
         )
         try saveStoredSet(
             storedSet,
-            to: urlForSetID(set.id, install: install),
+            to: identifier.fileURL(in: install.modSetDirectoryURL),
             fileManager: fileManager
         )
     }
@@ -114,7 +155,8 @@ enum ModSetStore {
         install: StardewInstall,
         fileManager: FileManager = .default
     ) throws {
-        let url = urlForSetID(set.id, install: install)
+        let identifier = try validatedIdentifier(set.id)
+        let url = identifier.fileURL(in: install.modSetDirectoryURL)
         guard fileManager.fileExists(atPath: url.path) else {
             throw ModSetStoreError.missingSet(set.id)
         }
@@ -191,35 +233,52 @@ enum ModSetStore {
         currentMods: [ModInfo],
         install: StardewInstall,
         fileManager: FileManager
-    ) throws -> [ModSet] {
+    ) -> ModSetLoadResult {
         var sets: [ModSet] = []
+        var issues: [ModSetLoadIssue] = []
         for url in urls {
-            guard let stored = loadStoredSet(at: url) else {
+            do {
+                let fileIdentifier = try ModSetIdentifier(fileURL: url)
+                let stored = try loadStoredSet(at: url)
+                let storedIdentifier = try validatedIdentifier(stored.id)
+                guard storedIdentifier == fileIdentifier else {
+                    throw ModSetStoreError.storedSetIDMismatch(
+                        fileID: fileIdentifier.rawValue,
+                        storedID: storedIdentifier.rawValue
+                    )
+                }
+
+                let isEditable = stored.isEditable ?? defaultEditability(for: stored.id)
+                var set = ModSet(
+                    id: stored.id,
+                    name: stored.name,
+                    disabledFolderNames: normalizeFolderNames(stored.disabledFolderNames),
+                    isEditable: isEditable,
+                    parentID: stored.parentID,
+                    enabledFolderNames: normalizeFolderNames(stored.enabledFolderNames ?? [])
+                )
+                set = appProvidedSet(for: set.id, currentMods: currentMods) ?? set
+
+                if stored.isEditable == nil
+                    || stored.isEditable != set.isEditable
+                    || set.name != stored.name
+                    || set.disabledFolderNames != stored.disabledFolderNames
+                    || set.parentID != stored.parentID
+                    || set.enabledFolderNames != normalizeFolderNames(stored.enabledFolderNames ?? []) {
+                    try saveSet(set, install: install, fileManager: fileManager)
+                }
+                sets.append(set)
+            } catch {
+                issues.append(
+                    ModSetLoadIssue(
+                        fileName: url.lastPathComponent,
+                        reason: error.localizedDescription
+                    )
+                )
                 continue
             }
-
-            let isEditable = stored.isEditable ?? defaultEditability(for: stored.id)
-            var set = ModSet(
-                id: stored.id,
-                name: stored.name,
-                disabledFolderNames: normalizeFolderNames(stored.disabledFolderNames),
-                isEditable: isEditable,
-                parentID: stored.parentID,
-                enabledFolderNames: normalizeFolderNames(stored.enabledFolderNames ?? [])
-            )
-            set = appProvidedSet(for: set.id, currentMods: currentMods) ?? set
-
-            if stored.isEditable == nil
-                || stored.isEditable != set.isEditable
-                || set.name != stored.name
-                || set.disabledFolderNames != stored.disabledFolderNames
-                || set.parentID != stored.parentID
-                || set.enabledFolderNames != normalizeFolderNames(stored.enabledFolderNames ?? []) {
-                try saveSet(set, install: install, fileManager: fileManager)
-            }
-            sets.append(set)
         }
-        return sets
+        return ModSetLoadResult(sets: sets, issues: issues)
     }
 
     private static func starterSets(from mods: [ModInfo]) -> [ModSet] {
@@ -274,15 +333,9 @@ enum ModSetStore {
         }
     }
 
-    private static func loadStoredSet(at url: URL) -> StoredModSet? {
-        guard
-            let data = try? Data(contentsOf: url),
-            let storedSet = try? PropertyListDecoder().decode(StoredModSet.self, from: data)
-        else {
-            return nil
-        }
-
-        return storedSet
+    private static func loadStoredSet(at url: URL) throws -> StoredModSet {
+        let data = try Data(contentsOf: url)
+        return try PropertyListDecoder().decode(StoredModSet.self, from: data)
     }
 
     private static func saveStoredSet(
@@ -296,8 +349,12 @@ enum ModSetStore {
         try data.write(to: url, options: .atomic)
     }
 
-    private static func urlForSetID(_ setID: String, install: StardewInstall) -> URL {
-        install.modSetDirectoryURL.appendingPathComponent("\(setID).plist")
+    private static func validatedIdentifier(_ setID: String) throws -> ModSetIdentifier {
+        do {
+            return try ModSetIdentifier(setID)
+        } catch {
+            throw ModSetStoreError.invalidSetID(setID)
+        }
     }
 
     private static func defaultEditability(for setID: String) -> Bool {

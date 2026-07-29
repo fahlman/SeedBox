@@ -9,6 +9,8 @@ struct SettingsView: View {
     @State private var isCheckingForModUpdates = false
     @State private var diagnosticsSummary = CrashDiagnosticsSummary.empty
     @State private var diagnosticsStatus: StatusEvent?
+    @State private var isExportingDiagnostics = false
+    @State private var isConfirmingDiagnosticsDeletion = false
     @State private var modUpdateStatus: StatusEvent?
     @AppStorage(MenuBarCompanion.enabledDefaultsKey) private var menuBarCompanionEnabled = false
 
@@ -171,8 +173,25 @@ struct SettingsView: View {
                     Button {
                         exportDiagnostics()
                     } label: {
-                        Label(AppStrings.Settings.exportDiagnostics, systemImage: "square.and.arrow.up")
+                        if isExportingDiagnostics {
+                            Label {
+                                Text(AppStrings.Settings.exportDiagnostics)
+                            } icon: {
+                                ProgressView()
+                                    .controlSize(.small)
+                            }
+                        } else {
+                            Label(AppStrings.Settings.exportDiagnostics, systemImage: "square.and.arrow.up")
+                        }
                     }
+                    .disabled(isExportingDiagnostics)
+
+                    Button(role: .destructive) {
+                        isConfirmingDiagnosticsDeletion = true
+                    } label: {
+                        Label(AppStrings.Settings.deleteDiagnostics, systemImage: "trash")
+                    }
+                    .disabled(diagnosticsSummary.payloadCount == 0 || isExportingDiagnostics)
 
                     Spacer()
                 }
@@ -281,6 +300,22 @@ struct SettingsView: View {
                 refreshDiagnosticsSummary()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: CrashDiagnosticsCollector.didDeletePayloadsNotification)) { _ in
+            Task { @MainActor in
+                refreshDiagnosticsSummary()
+            }
+        }
+        .confirmationDialog(
+            AppStrings.Settings.deleteDiagnosticsConfirmationTitle,
+            isPresented: $isConfirmingDiagnosticsDeletion,
+            titleVisibility: .visible
+        ) {
+            Button(AppStrings.Settings.deleteDiagnostics, role: .destructive) {
+                deleteDiagnostics()
+            }
+        } message: {
+            Text(AppStrings.Settings.deleteDiagnosticsConfirmationMessage)
+        }
         .fileImporter(
             isPresented: $isChoosingModsFolder,
             allowedContentTypes: [.folder]
@@ -328,7 +363,6 @@ struct SettingsView: View {
         }
     }
 
-    @MainActor
     private func exportDiagnostics() {
         let savePanel = NSSavePanel()
         savePanel.canCreateDirectories = true
@@ -341,25 +375,51 @@ struct SettingsView: View {
             return
         }
 
-        do {
-            let summary = try CrashDiagnosticsExporter.exportArchive(
-                to: destinationURL,
-                context: .current(state: viewModel.state)
-            )
-            diagnosticsStatus = StatusEvent(
-                severity: .info,
-                message: AppStrings.Status.exportedDiagnostics(fileCount: summary.supportFileCount)
-            )
+        let context = CrashDiagnosticsExportContext.current(state: viewModel.state)
+        isExportingDiagnostics = true
+        Task {
+            do {
+                let summary = try await Task.detached(priority: .userInitiated) {
+                    try CrashDiagnosticsExporter.exportArchive(
+                        to: destinationURL,
+                        context: context
+                    )
+                }.value
+                diagnosticsStatus = StatusEvent(
+                    severity: .info,
+                    message: AppStrings.Status.exportedDiagnostics(fileCount: summary.supportFileCount)
+                )
+            } catch {
+                diagnosticsStatus = StatusEvent(
+                    severity: .error,
+                    message: AppStrings.Status.couldNotExportDiagnostics(error.localizedDescription)
+                )
+            }
+            isExportingDiagnostics = false
             refreshDiagnosticsSummary()
-        } catch {
-            diagnosticsStatus = StatusEvent(
-                severity: .error,
-                message: AppStrings.Status.couldNotExportDiagnostics(error.localizedDescription)
-            )
         }
     }
 
-    @MainActor
+    private func deleteDiagnostics() {
+        Task {
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    try CrashDiagnosticsCollector.shared.deleteAllStoredPayloads()
+                }.value
+                diagnosticsStatus = StatusEvent(
+                    severity: .info,
+                    message: AppStrings.Status.deletedDiagnostics
+                )
+            } catch {
+                diagnosticsStatus = StatusEvent(
+                    severity: .error,
+                    message: AppStrings.Status.couldNotDeleteDiagnostics(error.localizedDescription)
+                )
+            }
+            refreshDiagnosticsSummary()
+        }
+    }
+
     private func refreshDiagnosticsSummary() {
         diagnosticsSummary = CrashDiagnosticsExporter.diagnosticSummary()
     }

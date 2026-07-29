@@ -80,6 +80,54 @@ final class CrashDiagnosticsCollectorTests: SeedBoxTestCase {
         wait(for: [expectation], timeout: 1)
     }
 
+    func testPrunesPayloadsByAgeCountAndTotalSize() throws {
+        let diagnosticsDirectory = temporaryDirectory.appendingPathComponent("Diagnostics", isDirectory: true)
+        let collector = CrashDiagnosticsCollector(
+            diagnosticsDirectory: diagnosticsDirectory,
+            retentionInterval: 100,
+            maximumPayloadCount: 2,
+            maximumByteCount: 12
+        )
+        try FileManager.default.createDirectory(at: diagnosticsDirectory, withIntermediateDirectories: true)
+        let referenceDate = Date(timeIntervalSince1970: 2_000)
+
+        for (name, date) in [
+            ("Expired.json", referenceDate.addingTimeInterval(-101)),
+            ("Older.json", referenceDate.addingTimeInterval(-30)),
+            ("Newer.json", referenceDate.addingTimeInterval(-20)),
+            ("Newest.json", referenceDate.addingTimeInterval(-10))
+        ] {
+            let url = diagnosticsDirectory.appendingPathComponent(name)
+            try Data("123456".utf8).write(to: url)
+            try FileManager.default.setAttributes(
+                [.modificationDate: date],
+                ofItemAtPath: url.path
+            )
+        }
+
+        try collector.pruneStoredPayloads(referenceDate: referenceDate)
+
+        XCTAssertEqual(
+            try FileManager.default.contentsOfDirectory(atPath: diagnosticsDirectory.path).sorted(),
+            ["Newer.json", "Newest.json"]
+        )
+    }
+
+    func testDeletesAllStoredPayloadsWithoutRemovingOtherFiles() throws {
+        let diagnosticsDirectory = temporaryDirectory.appendingPathComponent("Diagnostics", isDirectory: true)
+        let collector = CrashDiagnosticsCollector(diagnosticsDirectory: diagnosticsDirectory)
+        try FileManager.default.createDirectory(at: diagnosticsDirectory, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: diagnosticsDirectory.appendingPathComponent("Payload.json"))
+        try Data("keep".utf8).write(to: diagnosticsDirectory.appendingPathComponent("README.txt"))
+
+        try collector.deleteAllStoredPayloads()
+
+        XCTAssertEqual(
+            try FileManager.default.contentsOfDirectory(atPath: diagnosticsDirectory.path),
+            ["README.txt"]
+        )
+    }
+
     func testExportsDiagnosticPayloadsAsZipArchive() throws {
         let diagnosticsDirectory = temporaryDirectory.appendingPathComponent("Diagnostics", isDirectory: true)
         let archiveURL = temporaryDirectory.appendingPathComponent("Seed Box Diagnostics.zip")
@@ -234,6 +282,42 @@ final class CrashDiagnosticsCollectorTests: SeedBoxTestCase {
         XCTAssertTrue(auditSummary.contains("[redacted path]"))
         XCTAssertTrue(auditSummary.contains("safe detail"))
         XCTAssertFalse(auditSummary.contains(temporaryDirectory.path))
+    }
+
+    func testSupportBundleRedactsEveryStringInMetricKitPayloads() throws {
+        let payloadURL = temporaryDirectory.appendingPathComponent("Payload.json")
+        let bundleDirectory = temporaryDirectory.appendingPathComponent("Bundle", isDirectory: true)
+        try Data(
+            #"""
+            {
+              "path": "/Users/ryan/Library/Containers/com.example/private.json",
+              "nested": ["Loaded file:///private/var/tmp/example.txt", "safe value"]
+            }
+            """#.utf8
+        ).write(to: payloadURL)
+
+        try CrashDiagnosticsExporter.writeSupportBundle(
+            to: bundleDirectory,
+            payloadURLs: [payloadURL],
+            context: CrashDiagnosticsExportContext(
+                appVersion: "1.2.3",
+                buildVersion: "4",
+                state: nil
+            ),
+            generatedAt: Date(timeIntervalSince1970: 1_750_000_000),
+            fileManager: .default
+        )
+
+        let sanitizedPayload = try String(
+            contentsOf: bundleDirectory
+                .appendingPathComponent("MetricKit Payloads", isDirectory: true)
+                .appendingPathComponent("Payload.json"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(sanitizedPayload.contains("[redacted path]"))
+        XCTAssertTrue(sanitizedPayload.contains("safe value"))
+        XCTAssertFalse(sanitizedPayload.contains("/Users/ryan"))
+        XCTAssertFalse(sanitizedPayload.contains("/private/var/tmp"))
     }
 
     private func makeDiagnosticsState(

@@ -149,13 +149,19 @@ enum CrashDiagnosticsExporter {
             compressionMethod: .deflate
         )
 
-        let archiveData = try Data(contentsOf: temporaryArchiveURL)
-        try archiveData.write(to: destinationURL, options: .atomic)
+        let archiveByteCount = try temporaryArchiveURL
+            .resourceValues(forKeys: [.fileSizeKey])
+            .fileSize ?? 0
+        try copyArchiveAtomically(
+            from: temporaryArchiveURL,
+            to: destinationURL,
+            fileManager: fileManager
+        )
 
         return CrashDiagnosticsExportSummary(
             payloadCount: summary.payloadCount,
             supportFileCount: summary.supportFileCount,
-            archiveByteCount: archiveData.count
+            archiveByteCount: archiveByteCount
         )
     }
 
@@ -217,7 +223,7 @@ enum CrashDiagnosticsExporter {
 
             if let report = state.lastSessionReport {
                 try writeJSON(
-                    LastSessionSummary(report: report),
+                    LastSessionSummary(report: report, knownPrivatePaths: paths),
                     named: "Last Session Summary.json",
                     in: bundleDirectory
                 )
@@ -231,9 +237,10 @@ enum CrashDiagnosticsExporter {
             try fileManager.createDirectory(at: payloadDirectory, withIntermediateDirectories: true)
 
             for payloadURL in payloadURLs {
-                try fileManager.copyItem(
-                    at: payloadURL,
-                    to: payloadDirectory.appendingPathComponent(payloadURL.lastPathComponent)
+                try writeSanitizedMetricKitPayload(
+                    from: payloadURL,
+                    to: payloadDirectory.appendingPathComponent(payloadURL.lastPathComponent),
+                    knownPrivatePaths: paths
                 )
                 supportFileCount += 1
             }
@@ -253,9 +260,9 @@ enum CrashDiagnosticsExporter {
         Generated: \(iso8601String(from: date) ?? "Unknown")
         MetricKit diagnostic payloads: \(payloadCount)
 
-        This support bundle was created only because you chose Export Diagnostics in Seed Box. It may contain app settings summaries, mod inventory summaries, recent audit summaries, last-session SMAPI log summaries, and locally stored Apple MetricKit diagnostic JSON payloads.
+        This support bundle was created only because you chose Export Diagnostics in Seed Box. It may contain app settings summaries, mod inventory summaries, recent audit summaries, last-session SMAPI log summaries, and sanitized Apple MetricKit diagnostic JSON payloads.
 
-        It does not include mod files, mod manifests, mod config files, SMAPI logs, or game saves. Seed Box redacts known local file paths from audit summaries before writing this bundle.
+        It does not include mod files, mod manifests, mod config files, SMAPI logs, or game saves. Seed Box redacts local file paths from every JSON file before writing this bundle.
         """
     }
 
@@ -308,16 +315,100 @@ enum CrashDiagnosticsExporter {
             redactedText = redactedText.replacingOccurrences(of: path, with: "[redacted path]")
         }
 
-        let trimmedText = redactedText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedText.hasPrefix("/") || trimmedText.hasPrefix("~") || trimmedText.hasPrefix("file:/") {
-            return "[redacted path]"
+        let patterns = [
+            #"file:/+(?:Users|Volumes|private|var|tmp)/[^\s"',;)]+"#,
+            #"/(?:Users|Volumes|private|var|tmp)/[^\s"',;)]+"#,
+            #"~(?:/[^\s"',;)]+)+"#
+        ]
+        for pattern in patterns {
+            guard let expression = try? NSRegularExpression(pattern: pattern) else {
+                continue
+            }
+            let range = NSRange(redactedText.startIndex..., in: redactedText)
+            redactedText = expression.stringByReplacingMatches(
+                in: redactedText,
+                range: range,
+                withTemplate: "[redacted path]"
+            )
         }
 
-        if trimmedText.contains("/Users/") {
+        let trimmedText = redactedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedText.hasPrefix("/") || trimmedText.hasPrefix("file:/") {
             return "[redacted path]"
         }
 
         return redactedText
+    }
+
+    private static func copyArchiveAtomically(
+        from sourceURL: URL,
+        to destinationURL: URL,
+        fileManager: FileManager
+    ) throws {
+        let destinationDirectory = destinationURL.deletingLastPathComponent()
+        try fileManager.createDirectory(
+            at: destinationDirectory,
+            withIntermediateDirectories: true
+        )
+        let stagedURL = destinationDirectory
+            .appendingPathComponent(".SeedBoxDiagnostics-\(UUID().uuidString)")
+            .appendingPathExtension("tmp")
+        defer {
+            try? fileManager.removeItem(at: stagedURL)
+        }
+
+        try fileManager.copyItem(at: sourceURL, to: stagedURL)
+        if fileManager.fileExists(atPath: destinationURL.path) {
+            _ = try fileManager.replaceItemAt(
+                destinationURL,
+                withItemAt: stagedURL,
+                backupItemName: nil,
+                options: []
+            )
+        } else {
+            try fileManager.moveItem(at: stagedURL, to: destinationURL)
+        }
+    }
+
+    private static func writeSanitizedMetricKitPayload(
+        from sourceURL: URL,
+        to destinationURL: URL,
+        knownPrivatePaths: [String]
+    ) throws {
+        let data = try Data(contentsOf: sourceURL)
+        let object = try JSONSerialization.jsonObject(with: data)
+        let sanitizedObject = sanitizedJSONObject(
+            object,
+            knownPrivatePaths: knownPrivatePaths
+        )
+        let sanitizedData = try JSONSerialization.data(
+            withJSONObject: sanitizedObject,
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        try sanitizedData.write(to: destinationURL, options: .atomic)
+    }
+
+    private static func sanitizedJSONObject(
+        _ value: Any,
+        knownPrivatePaths: [String]
+    ) -> Any {
+        switch value {
+        case let string as String:
+            return redacted(string, knownPrivatePaths: knownPrivatePaths)
+        case let array as [Any]:
+            return array.map {
+                sanitizedJSONObject($0, knownPrivatePaths: knownPrivatePaths)
+            }
+        case let dictionary as [String: Any]:
+            return Dictionary(uniqueKeysWithValues: dictionary.map { key, value in
+                (
+                    key,
+                    sanitizedJSONObject(value, knownPrivatePaths: knownPrivatePaths)
+                )
+            })
+        default:
+            return value
+        }
     }
 }
 
@@ -532,14 +623,19 @@ private struct LastSessionSummary: Encodable {
     var erroringModCount: Int
     var skippedMods: [SkippedModSummary]
 
-    init(report: SMAPILogReport) {
+    init(report: SMAPILogReport, knownPrivatePaths: [String]) {
         smapiVersion = report.smapiVersion
         gameVersion = report.gameVersion
         generatedAt = CrashDiagnosticsExporter.iso8601String(from: report.generatedAt)
         sessionStartedAt = CrashDiagnosticsExporter.iso8601String(from: report.sessionStartedAt)
         skippedModCount = report.skippedMods.count
         erroringModCount = report.modErrorCounts.count
-        skippedMods = report.skippedMods.map(SkippedModSummary.init)
+        skippedMods = report.skippedMods.map {
+            SkippedModSummary(
+                skippedMod: $0,
+                knownPrivatePaths: knownPrivatePaths
+            )
+        }
     }
 }
 
@@ -548,9 +644,20 @@ private struct SkippedModSummary: Encodable {
     var version: String?
     var reason: String
 
-    init(skippedMod: SMAPISkippedMod) {
-        name = skippedMod.name
-        version = skippedMod.version
-        reason = skippedMod.reason
+    init(skippedMod: SMAPISkippedMod, knownPrivatePaths: [String]) {
+        name = CrashDiagnosticsExporter.redacted(
+            skippedMod.name,
+            knownPrivatePaths: knownPrivatePaths
+        )
+        version = skippedMod.version.map {
+            CrashDiagnosticsExporter.redacted(
+                $0,
+                knownPrivatePaths: knownPrivatePaths
+            )
+        }
+        reason = CrashDiagnosticsExporter.redacted(
+            skippedMod.reason,
+            knownPrivatePaths: knownPrivatePaths
+        )
     }
 }

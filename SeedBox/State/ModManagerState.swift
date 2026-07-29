@@ -10,6 +10,12 @@ struct StatusEvent: Equatable, Sendable {
     var message: String
 }
 
+struct DataStoreIssue: Identifiable, Equatable, Sendable {
+    var id: String
+    var title: String
+    var detail: String
+}
+
 struct ModManagerFolderState: Equatable, Sendable {
     var modsDirectoryPath: String
     var status: InstallationStatus
@@ -62,6 +68,7 @@ struct ModManagerTroubleshootingState: Equatable, Sendable {
 struct ModManagerActivityState: Equatable, Sendable {
     var activityStatus: StatusEvent?
     var auditTrail: AuditTrailState
+    var dataStoreIssues: [DataStoreIssue]
 }
 
 struct ModManagerState: Equatable, Sendable {
@@ -103,6 +110,7 @@ struct ModManagerState: Equatable, Sendable {
         lastSessionReport: SMAPILogReport? = nil,
         pendingLastSessionNotice: LastSessionNotice? = nil,
         auditTrail: AuditTrailState,
+        dataStoreIssues: [DataStoreIssue] = [],
         pendingSourceCleanupOffer: SourceCleanupOffer?
     ) {
         folder = ModManagerFolderState(
@@ -146,7 +154,8 @@ struct ModManagerState: Equatable, Sendable {
         )
         activity = ModManagerActivityState(
             activityStatus: activityStatus,
-            auditTrail: auditTrail
+            auditTrail: auditTrail,
+            dataStoreIssues: dataStoreIssues
         )
     }
 
@@ -275,6 +284,11 @@ struct ModManagerState: Equatable, Sendable {
         set { activity.auditTrail = newValue }
     }
 
+    var dataStoreIssues: [DataStoreIssue] {
+        get { activity.dataStoreIssues }
+        set { activity.dataStoreIssues = newValue }
+    }
+
     var readiness: ModManagerReadiness {
         if !hasSavedFolderAccess {
             return .needsFolderAccess
@@ -383,6 +397,7 @@ struct ModManagerState: Equatable, Sendable {
             || !duplicateGroups.isEmpty
             || !smapiVersionIssues.isEmpty
             || !lastSessionIssues.isEmpty
+            || !dataStoreIssues.isEmpty
     }
 
     /// The installed SMAPI version, derived from SMAPI's bundled mods inside

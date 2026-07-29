@@ -1,12 +1,14 @@
 import Foundation
+import Synchronization
 
 // UserDefaults and the bookmark store are both thread-safe; this value is
 // handed to the service actor, which owns persistence from then on.
-struct ModManagerStateStore: @unchecked Sendable {
+final class ModManagerStateStore: @unchecked Sendable {
     private let folderAccess: SecurityScopedFolderAccess
     private let modSetDirectory: URL
     private let smartModSetStoreURL: URL
     private let preferences: ModManagerPreferences
+    private let canSaveUserSmartModSets = Mutex(true)
 
     init(
         folderAccess: SecurityScopedFolderAccess,
@@ -45,7 +47,7 @@ struct ModManagerStateStore: @unchecked Sendable {
         get {
             preferences.moveModFilesToTrashAfterAddingMods
         }
-        nonmutating set {
+        set {
             preferences.moveModFilesToTrashAfterAddingMods = newValue
         }
     }
@@ -54,7 +56,7 @@ struct ModManagerStateStore: @unchecked Sendable {
         get {
             preferences.suppressAddModsSuccessNotification
         }
-        nonmutating set {
+        set {
             preferences.suppressAddModsSuccessNotification = newValue
         }
     }
@@ -63,7 +65,7 @@ struct ModManagerStateStore: @unchecked Sendable {
         get {
             preferences.automaticallyPrunesExpiredArchives
         }
-        nonmutating set {
+        set {
             preferences.automaticallyPrunesExpiredArchives = newValue
         }
     }
@@ -72,7 +74,7 @@ struct ModManagerStateStore: @unchecked Sendable {
         get {
             preferences.archiveRetentionDays
         }
-        nonmutating set {
+        set {
             preferences.archiveRetentionDays = newValue
         }
     }
@@ -81,7 +83,7 @@ struct ModManagerStateStore: @unchecked Sendable {
         get {
             preferences.checksForModUpdates
         }
-        nonmutating set {
+        set {
             preferences.checksForModUpdates = newValue
         }
     }
@@ -90,7 +92,7 @@ struct ModManagerStateStore: @unchecked Sendable {
         get {
             preferences.announcedLogSessionDate
         }
-        nonmutating set {
+        set {
             preferences.announcedLogSessionDate = newValue
         }
     }
@@ -101,6 +103,10 @@ struct ModManagerStateStore: @unchecked Sendable {
     }
 
     private func saveUserSmartModSetsIfNeeded(_ userSmartModSets: [UserSmartModSet]) {
+        guard canSaveUserSmartModSets.withLock({ $0 }) else {
+            return
+        }
+
         let storeExists = FileManager.default.fileExists(atPath: smartModSetStoreURL.path)
         guard !userSmartModSets.isEmpty || storeExists else {
             return
@@ -122,7 +128,7 @@ struct ModManagerStateStore: @unchecked Sendable {
             modsDirectory: URL(fileURLWithPath: initialDirectoryPath, isDirectory: true),
             modSetDirectory: modSetDirectory
         )
-        let userSmartModSets = (try? UserSmartModSetStore.loadSmartModSets(from: smartModSetStoreURL)) ?? []
+        let smartModSetLoad = loadUserSmartModSets()
 
         return ModManagerState(
             modsDirectoryPath: initialDirectoryPath,
@@ -138,18 +144,67 @@ struct ModManagerStateStore: @unchecked Sendable {
             availableUpdates: [],
             hasLoadedMods: false,
             modSets: [],
-            userSmartModSets: userSmartModSets,
+            userSmartModSets: smartModSetLoad.smartModSets,
             selectedModSetID: selectedModSetID,
             appliedModSetID: nil,
-            activityStatus: nil,
+            activityStatus: smartModSetLoad.issue.map {
+                StatusEvent(severity: .error, message: $0.detail)
+            },
             bisectionSession: preferences.bisectionSession,
             auditTrail: AuditTrailState(
                 logPath: StardewInstall.auditLogURL(forModSetDirectory: modSetDirectory).path,
                 recentEntries: [],
                 lastErrorMessage: nil
             ),
+            dataStoreIssues: smartModSetLoad.issue.map { [$0] } ?? [],
             pendingSourceCleanupOffer: nil
         )
+    }
+
+    private func loadUserSmartModSets() -> (
+        smartModSets: [UserSmartModSet],
+        issue: DataStoreIssue?
+    ) {
+        do {
+            let smartModSets = try UserSmartModSetStore.loadSmartModSets(
+                from: smartModSetStoreURL
+            )
+            canSaveUserSmartModSets.withLock { $0 = true }
+            return (smartModSets, nil)
+        } catch {
+            do {
+                let recoveryURL = try UserSmartModSetStore.preserveUnreadableStore(
+                    at: smartModSetStoreURL
+                )
+                canSaveUserSmartModSets.withLock { $0 = true }
+                let detail = AppStrings.Status.savedSearchesPreserved(
+                    recoveryURL.lastPathComponent
+                )
+                AppLog.smartModSets.error("\(detail, privacy: .private)")
+                return (
+                    [],
+                    DataStoreIssue(
+                        id: "user-smart-mod-sets",
+                        title: AppStrings.Spotlight.smartModSetDescription,
+                        detail: detail
+                    )
+                )
+            } catch let recoveryError {
+                canSaveUserSmartModSets.withLock { $0 = false }
+                let detail = AppStrings.Status.couldNotPreserveSavedSearches(
+                    recoveryError.localizedDescription
+                )
+                AppLog.smartModSets.error("\(detail, privacy: .private)")
+                return (
+                    [],
+                    DataStoreIssue(
+                        id: "user-smart-mod-sets",
+                        title: AppStrings.Spotlight.smartModSetDescription,
+                        detail: detail
+                    )
+                )
+            }
+        }
     }
 
     func stateByRestoringSavedFolder(from currentState: ModManagerState) -> ModManagerState {

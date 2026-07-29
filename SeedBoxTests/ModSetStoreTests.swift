@@ -359,6 +359,59 @@ final class ModSetStoreTests: SeedBoxTestCase {
         XCTAssertEqual(statusByFolder["SaveBackup"], true)
     }
 
+    func testRejectsUnsafeSetIDWithoutWritingOutsideStore() throws {
+        let install = try makeInstall()
+        let escapedURL = install.modSetDirectoryURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("escaped.plist")
+        let set = ModSet(
+            id: "../escaped",
+            name: "Unsafe",
+            disabledFolderNames: []
+        )
+
+        XCTAssertThrowsError(try ModSetStore.saveSet(set, install: install)) { error in
+            XCTAssertEqual(error as? ModSetStoreError, .invalidSetID("../escaped"))
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: escapedURL.path))
+    }
+
+    func testReportsStoredIDMismatchWithoutDiscardingValidSets() throws {
+        let install = try makeInstall()
+        try writeStoredModSet(
+            id: "valid-set",
+            name: "Valid",
+            disabledFolderNames: [],
+            install: install
+        )
+
+        let mismatchedPayload: [String: Any] = [
+            "id": "../escaped",
+            "name": "Unsafe",
+            "disabledFolderNames": []
+        ]
+        let mismatchedData = try PropertyListSerialization.data(
+            fromPropertyList: mismatchedPayload,
+            format: .xml,
+            options: 0
+        )
+        let mismatchedURL = install.modSetDirectoryURL
+            .appendingPathComponent("mismatched.plist")
+        try mismatchedData.write(to: mismatchedURL, options: .atomic)
+
+        let result = try ModSetStore.loadSetsWithIssues(
+            install: install,
+            currentMods: []
+        )
+
+        XCTAssertEqual(result.sets.map(\.id), ["valid-set"])
+        XCTAssertEqual(result.issues.map(\.fileName), ["mismatched.plist"])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: mismatchedURL.path))
+        XCTAssertThrowsError(
+            try ModSetStore.loadSets(install: install, currentMods: [])
+        )
+    }
+
     private func writeStoredModSet(
         id: String = "saved-set",
         name: String,

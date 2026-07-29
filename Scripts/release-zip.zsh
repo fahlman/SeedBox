@@ -329,8 +329,8 @@ verify_signed_app() {
             ;;
         steam)
             assert_entitlement_absent "$entitlements_path" "com.apple.security.app-sandbox"
-            assert_entitlement_present "$entitlements_path" "com.apple.security.cs.allow-dyld-environment-variables"
-            assert_entitlement_present "$entitlements_path" "com.apple.security.cs.disable-library-validation"
+            assert_entitlement_absent "$entitlements_path" "com.apple.security.cs.allow-dyld-environment-variables"
+            assert_entitlement_absent "$entitlements_path" "com.apple.security.cs.disable-library-validation"
             ;;
     esac
     assert_entitlement_absent "$entitlements_path" "com.apple.security.get-task-allow"

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ProblemsSheet: View {
+    var dataStoreIssues: [DataStoreIssue]
     var dependencyIssues: [ModInfo]
     var invalidFolders: [InvalidModFolder]
     var duplicateGroups: [ModDuplicateGroup]
@@ -17,7 +18,8 @@ struct ProblemsSheet: View {
     var close: () -> Void
 
     private var hasProblems: Bool {
-        !dependencyIssues.isEmpty
+        !dataStoreIssues.isEmpty
+            || !dependencyIssues.isEmpty
             || !invalidFolders.isEmpty
             || !duplicateGroups.isEmpty
             || !smapiVersionIssues.isEmpty
@@ -38,6 +40,7 @@ struct ProblemsSheet: View {
                     )
                 }
 
+                savedDataSection
                 lastSessionSection
                 smapiVersionSection
                 dependencyIssuesSection
@@ -62,6 +65,23 @@ struct ProblemsSheet: View {
         }
         .padding(24)
         .frame(minWidth: 640, minHeight: 460)
+    }
+
+    @ViewBuilder
+    private var savedDataSection: some View {
+        if !dataStoreIssues.isEmpty {
+            Section(AppStrings.Problems.savedDataSection) {
+                ForEach(dataStoreIssues) { issue in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(issue.title)
+                            .fontWeight(.semibold)
+                        Text(issue.detail)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder

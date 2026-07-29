@@ -64,6 +64,7 @@ extension ModManagerView {
             )
         case .problems:
             ProblemsSheet(
+                dataStoreIssues: presentationState.state.dataStoreIssues,
                 dependencyIssues: presentationState.problemSummary.dependencyIssues,
                 invalidFolders: presentationState.problemSummary.invalidFolders,
                 duplicateGroups: presentationState.problemSummary.duplicateGroups,

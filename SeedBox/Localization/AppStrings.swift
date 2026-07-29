@@ -212,6 +212,9 @@ enum AppStrings {
         static let diagnosticsFooter = String(localized: "Export a support bundle only when you choose to share diagnostics. The bundle includes safe app summaries and any locally stored Apple crash diagnostics.")
         static let exportDiagnostics = String(localized: "Export Diagnostics…")
         static let revealDiagnostics = String(localized: "Reveal Diagnostics")
+        static let deleteDiagnostics = String(localized: "Delete Diagnostics")
+        static let deleteDiagnosticsConfirmationTitle = String(localized: "Delete Stored Diagnostics?")
+        static let deleteDiagnosticsConfirmationMessage = String(localized: "This permanently removes the Apple crash diagnostics stored by Seed Box.")
         static let modUpdatesSection = String(localized: "Mod Updates")
         static let checkForModUpdatesToggle = String(localized: "Check for mod updates over the network")
         static let modUpdatesPrivacyFooter = String(localized: "Checks send each mod's unique ID, version, and update keys to smapi.io.")
@@ -456,6 +459,14 @@ enum AppStrings {
             String(localized: "Could not read mod sets: \(errorDescription)")
         }
 
+        static func savedSearchesPreserved(_ fileName: String) -> String {
+            String(localized: "Saved searches could not be loaded. The original file was preserved as \(fileName).")
+        }
+
+        static func couldNotPreserveSavedSearches(_ errorDescription: String) -> String {
+            String(localized: "Saved searches could not be loaded, and the original file could not be preserved: \(errorDescription)")
+        }
+
         static func couldNotReadArchivedMods(_ errorDescription: String) -> String {
             String(localized: "Could not read archived mods: \(errorDescription)")
         }
@@ -528,6 +539,12 @@ enum AppStrings {
 
         static func couldNotExportDiagnostics(_ errorDescription: String) -> String {
             String(localized: "Could not export diagnostics: \(errorDescription)")
+        }
+
+        static let deletedDiagnostics = String(localized: "Deleted stored diagnostics.")
+
+        static func couldNotDeleteDiagnostics(_ errorDescription: String) -> String {
+            String(localized: "Could not delete diagnostics: \(errorDescription)")
         }
 
         static func prunedExpiredArchives(count: Int) -> String {
@@ -884,6 +901,7 @@ enum AppStrings {
     }
 
     enum Problems {
+        static let savedDataSection = String(localized: "Saved Data")
         static let dependenciesSection = String(localized: "Dependencies")
         static let duplicatesSection = String(localized: "Duplicates")
         static let invalidFoldersSection = String(localized: "Invalid Folders")
