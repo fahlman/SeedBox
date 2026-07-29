@@ -233,8 +233,12 @@ codesign_entitlements() {
 assert_entitlement_present() {
     local entitlements_path="$1"
     local entitlement="$2"
+    local entitlement_value
 
-    if ! /usr/bin/grep -q "$entitlement" "$entitlements_path"; then
+    if ! entitlement_value="$(/usr/libexec/PlistBuddy \
+        -c "Print :$entitlement" \
+        "$entitlements_path" 2>/dev/null)" \
+        || [[ "$entitlement_value" != "true" ]]; then
         echo "ERROR: Missing expected entitlement: $entitlement"
         echo "$entitlements_path"
         exit 1
@@ -245,7 +249,9 @@ assert_entitlement_absent() {
     local entitlements_path="$1"
     local entitlement="$2"
 
-    if /usr/bin/grep -q "$entitlement" "$entitlements_path"; then
+    if /usr/libexec/PlistBuddy \
+        -c "Print :$entitlement" \
+        "$entitlements_path" >/dev/null 2>&1; then
         echo "ERROR: Found unwanted entitlement: $entitlement"
         echo "$entitlements_path"
         exit 1
@@ -300,6 +306,11 @@ verify_signed_app() {
 
     if ! /usr/bin/grep -q "TeamIdentifier=$TEAM_ID" "$signature_path"; then
         echo "ERROR: Exported app is not signed by the expected team: $TEAM_ID"
+        echo "$signature_path"
+        exit 1
+    fi
+    if ! /usr/bin/grep -Eq 'flags=.*\(.*runtime.*\)' "$signature_path"; then
+        echo "ERROR: Exported app does not have the hardened runtime enabled."
         echo "$signature_path"
         exit 1
     fi
@@ -415,6 +426,7 @@ require_command /usr/bin/mktemp
 require_command /usr/bin/xattr
 require_command /usr/bin/xcodebuild
 require_command /usr/bin/xcrun
+require_command /usr/libexec/PlistBuddy
 require_command /usr/sbin/spctl
 
 if [[ "$SKIP_NOTARIZATION" == false ]]; then
@@ -424,7 +436,10 @@ if [[ "$SKIP_NOTARIZATION" == false ]]; then
         echo "Use --skip-notarization for a Developer ID export check without Apple notarization."
         exit 1
     fi
-    require_safe_file_component "Notary profile name" "$NOTARY_PROFILE"
+    if [[ "$NOTARY_PROFILE" == *$'\n'* || "$NOTARY_PROFILE" == *$'\r'* ]]; then
+        echo "ERROR: Notary profile name must be a single line."
+        exit 1
+    fi
 fi
 
 create_release_workspace
