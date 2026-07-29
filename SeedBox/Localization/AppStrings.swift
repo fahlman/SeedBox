@@ -537,8 +537,16 @@ enum AppStrings {
             String(localized: "Exported diagnostics support bundle with \(fileCount) files.")
         }
 
+        static func exportedModSet(_ setName: String) -> String {
+            String(localized: "Exported mod set \(setName).")
+        }
+
         static func couldNotExportDiagnostics(_ errorDescription: String) -> String {
             String(localized: "Could not export diagnostics: \(errorDescription)")
+        }
+
+        static func couldNotExportModSet(_ errorDescription: String) -> String {
+            String(localized: "Could not export mod set: \(errorDescription)")
         }
 
         static let deletedDiagnostics = String(localized: "Deleted stored diagnostics.")

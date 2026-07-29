@@ -113,8 +113,8 @@ final class ModManagerViewModel {
         commit(await service.createModFolder())
     }
 
-    func prepareImportPreview(from selectedURLs: [URL]) -> ModImportPreviewResult {
-        let result = importPreviewCoordinator.prepareImportPreview(
+    func prepareImportPreview(from selectedURLs: [URL]) async -> ModImportPreviewResult {
+        let result = await importPreviewCoordinator.prepareImportPreview(
             from: selectedURLs,
             install: install,
             readiness: state.readiness
@@ -136,7 +136,10 @@ final class ModManagerViewModel {
         commit(await service.addMods(from: selectedURLs, replacementPolicy: replacementPolicy))
     }
 
-    func addPreviewedMods(_ preview: ModImportPreview) async {
+    func addPreviewedMods(_ session: ModImportPreviewSession) async {
+        guard let preview = session.takeForInstallation() else {
+            return
+        }
         commit(await service.addPreviewedMods(preview))
     }
 
@@ -283,6 +286,42 @@ final class ModManagerViewModel {
             mods: state.mods,
             in: state.modSets
         )
+    }
+
+    func exportSelectedModSet(to url: URL) async {
+        guard let selectedSet = state.modSetSelection.selectedSet else {
+            return
+        }
+
+        let mods = state.mods
+        let modSets = state.modSets
+        let token = SecurityScopedAccessToken(url: url)
+        defer {
+            token.stop()
+        }
+
+        do {
+            try await Task.detached(priority: .userInitiated) {
+                try ModSetTransfer.write(
+                    selectedSet,
+                    mods: mods,
+                    in: modSets,
+                    to: url
+                )
+            }.value
+            commit(
+                await service.recordActivity(
+                    AppStrings.Status.exportedModSet(selectedSet.name)
+                )
+            )
+        } catch {
+            commit(
+                await service.recordActivity(
+                    AppStrings.Status.couldNotExportModSet(error.localizedDescription),
+                    severity: .error
+                )
+            )
+        }
     }
 
     /// A shareable item for the selected Mod Set, or nil when none is selected,

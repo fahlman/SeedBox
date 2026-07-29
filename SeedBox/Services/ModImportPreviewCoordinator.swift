@@ -1,7 +1,7 @@
 import Foundation
 
 enum ModImportPreviewResult {
-    case success(ModImportPreview)
+    case success(ModImportPreviewSession)
     case failure(WorkspaceActionOutcome)
 }
 
@@ -19,7 +19,7 @@ final class ModImportPreviewCoordinator {
         from selectedURLs: [URL],
         install: StardewInstall,
         readiness: ModManagerReadiness
-    ) -> ModImportPreviewResult {
+    ) async -> ModImportPreviewResult {
         if let blockedMessage = readiness.managementBlockedMessage {
             return .failure(.info(blockedMessage))
         }
@@ -28,20 +28,22 @@ final class ModImportPreviewCoordinator {
             return .failure(.info(AppStrings.Status.chooseModFoldersOrZipArchives))
         }
 
-        let sourceTokens = selectedURLs.map(SecurityScopedAccessToken.init(url:))
-        defer {
-            sourceTokens.forEach { $0.stop() }
-        }
-
         do {
-            let preview = try folderAccess.withAccess {
-                try ModLibrary.previewImport(
-                    from: selectedURLs,
-                    into: install
-                )
-            }
+            let preview = try await Task.detached(priority: .userInitiated) { [folderAccess] in
+                let sourceTokens = selectedURLs.map(SecurityScopedAccessToken.init(url:))
+                defer {
+                    sourceTokens.forEach { $0.stop() }
+                }
+
+                return try folderAccess.withAccess {
+                    try ModLibrary.previewImport(
+                        from: selectedURLs,
+                        into: install
+                    )
+                }
+            }.value
             failureReporter.noteSuccess()
-            return .success(preview)
+            return .success(ModImportPreviewSession(preview: preview))
         } catch let error as SecurityScopedFolderAccessError {
             return .failure(.folderAccessLost(failureReporter.reportLostAccess(error)))
         } catch {

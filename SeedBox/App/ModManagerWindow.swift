@@ -68,10 +68,12 @@ struct ModManagerWindow: View {
         }
         Task {
             let didAccess = url.startAccessingSecurityScopedResource()
-            await viewModel.importModSet(fromFileAt: url)
-            if didAccess {
-                url.stopAccessingSecurityScopedResource()
+            defer {
+                if didAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
             }
+            await viewModel.importModSet(fromFileAt: url)
         }
     }
 

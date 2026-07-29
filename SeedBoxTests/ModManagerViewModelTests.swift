@@ -257,7 +257,7 @@ final class ModManagerViewModelTests: SeedBoxTestCase {
 
         let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
 
-        switch viewModel.prepareImportPreview(from: [invalidZipURL]) {
+        switch await viewModel.prepareImportPreview(from: [invalidZipURL]) {
         case .success:
             XCTFail("Invalid mod archives should not produce an import preview.")
         case .failure(.recorded(let event)):

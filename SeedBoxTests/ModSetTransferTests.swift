@@ -86,4 +86,19 @@ final class ModSetTransferTests: SeedBoxTestCase {
         XCTAssertEqual(newSet.disabledFolderNames, ["ContentPatcher"])
         XCTAssertEqual(viewModel.state.selectedModSetID, newSet.id)
     }
+
+    @MainActor
+    func testViewModelExportsSelectedModSetToFile() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        await viewModel.createModSet(named: "Travelers")
+        let url = temporaryDirectory.appendingPathComponent("Travelers.seedboxset")
+
+        await viewModel.exportSelectedModSet(to: url)
+
+        let document = try SeedBoxSetCodec.decode(Data(contentsOf: url))
+        XCTAssertEqual(document.modSet.name, "Travelers")
+        XCTAssertEqual(viewModel.state.activityMessage, "Exported mod set Travelers.")
+    }
 }

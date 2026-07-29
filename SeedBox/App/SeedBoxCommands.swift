@@ -121,33 +121,30 @@ struct SeedBoxCommands: Commands {
 
         Task {
             let didAccess = url.startAccessingSecurityScopedResource()
-            await ModManagerViewModel.shared.importModSet(fromFileAt: url)
-            if didAccess {
-                url.stopAccessingSecurityScopedResource()
+            defer {
+                if didAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
             }
+            await ModManagerViewModel.shared.importModSet(fromFileAt: url)
         }
     }
 
     private func exportSelectedModSetToPanel() {
         let viewModel = ModManagerViewModel.shared
-        guard
-            let selectedSet = viewModel.state.modSetSelection.selectedSet,
-            let data = viewModel.exportDataForSelectedModSet()
-        else {
+        guard let exportable = viewModel.exportableSelectedModSet() else {
             return
         }
 
         let panel = NSSavePanel()
         panel.allowedContentTypes = [SeedBoxSetDocument.contentType]
-        panel.nameFieldStringValue = "\(selectedSet.name).\(SeedBoxSetDocument.fileExtension)"
+        panel.nameFieldStringValue = exportable.suggestedFileName
         guard panel.runModal() == .OK, let url = panel.url else {
             return
         }
 
-        let didAccess = url.startAccessingSecurityScopedResource()
-        try? data.write(to: url, options: .atomic)
-        if didAccess {
-            url.stopAccessingSecurityScopedResource()
+        Task {
+            await viewModel.exportSelectedModSet(to: url)
         }
     }
 

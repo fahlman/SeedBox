@@ -67,6 +67,9 @@ extension ModManagerView {
     }
 
     func addMods() {
+        guard presentation.importPreviewRequestID == nil else {
+            return
+        }
         presentation.isAddingMods = true
     }
 
@@ -239,11 +242,28 @@ extension ModManagerView {
     }
 
     func previewMods(from urls: [URL]) {
-        switch viewModel.prepareImportPreview(from: urls) {
-        case .success(let preview):
-            presentation.sheet = .importPreview(preview)
-        case .failure(let outcome):
-            presentImportPreviewFailure(outcome)
+        guard presentation.importPreviewRequestID == nil else {
+            return
+        }
+
+        let requestID = UUID()
+        presentation.importPreviewRequestID = requestID
+        Task {
+            let result = await viewModel.prepareImportPreview(from: urls)
+            guard presentation.importPreviewRequestID == requestID else {
+                if case .success(let session) = result {
+                    session.discardInBackground()
+                }
+                return
+            }
+
+            presentation.importPreviewRequestID = nil
+            switch result {
+            case .success(let session):
+                presentation.sheet = .importPreview(session)
+            case .failure(let outcome):
+                presentImportPreviewFailure(outcome)
+            }
         }
     }
 
@@ -271,15 +291,17 @@ extension ModManagerView {
         }
     }
 
-    func installPreviewedMods(_ preview: ModImportPreview) {
+    func installPreviewedMods(_ session: ModImportPreviewSession) {
         presentation.dismissSheet()
         Task {
-            await viewModel.addPreviewedMods(preview)
+            await viewModel.addPreviewedMods(session)
         }
     }
 
     func installDroppedMods(from urls: [URL]) -> Bool {
-        guard presentationState.canManageMods else {
+        guard presentationState.canManageMods,
+              presentation.importPreviewRequestID == nil
+        else {
             return false
         }
 

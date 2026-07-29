@@ -22,15 +22,15 @@ extension ModManagerView {
                     }
                 }
             )
-        case .importPreview(let preview):
+        case .importPreview(let session):
             ModImportPreviewSheet(
-                preview: preview,
+                preview: session.preview,
                 cancel: {
-                    ModLibrary.discardImportPreview(preview)
+                    session.discardInBackground()
                     presentation.dismissSheet()
                 },
                 install: {
-                    installPreviewedMods(preview)
+                    installPreviewedMods(session)
                 }
             )
         case .sourceCleanup(let offer):
@@ -136,10 +136,16 @@ extension ModManagerView {
                 presentation.sheet
             },
             set: { sheet in
-                if sheet == nil,
-                   case .sourceCleanup = presentation.sheet {
-                    Task {
-                        await viewModel.dismissSourceCleanupOffer()
+                if sheet == nil {
+                    switch presentation.sheet {
+                    case .importPreview(let session):
+                        session.discardInBackground()
+                    case .sourceCleanup:
+                        Task {
+                            await viewModel.dismissSourceCleanupOffer()
+                        }
+                    default:
+                        break
                     }
                 }
                 presentation.sheet = sheet

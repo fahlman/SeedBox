@@ -9,6 +9,7 @@ struct ModManagerViewPresentation {
     var remembersSourceCleanupChoice = false
     var isShowingModInspector = false
     var hasHandledLaunchModUpdateCheck = false
+    var importPreviewRequestID: UUID?
 
     mutating func dismissAlert() {
         alert = nil
@@ -25,7 +26,7 @@ struct ModManagerViewPresentation {
 
 enum ModManagerSheet: Identifiable {
     case modSetEditor(ModSetEditorMode)
-    case importPreview(ModImportPreview)
+    case importPreview(ModImportPreviewSession)
     case sourceCleanup(SourceCleanupOffer)
     case problems
     case activity
