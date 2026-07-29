@@ -185,27 +185,27 @@ final class ModManagerViewModel {
     }
 
     func setMod(_ mod: ModInfo, enabled: Bool) async {
-        commit(await service.setMod(mod, enabled: enabled))
+        commit(await service.setMod(id: mod.id, enabled: enabled))
     }
 
     func setMods(_ mods: [ModInfo], enabled: Bool) async {
-        commit(await service.setMods(mods, enabled: enabled))
+        commit(await service.setMods(ids: mods.map(\.id), enabled: enabled))
     }
 
     func deleteMod(_ mod: ModInfo) async {
-        commit(await service.deleteMod(mod))
+        commit(await service.deleteMod(id: mod.id))
     }
 
     func restoreArchivedMods(_ archivedMods: [ArchivedModInfo]) async {
-        commit(await service.restoreArchivedMods(archivedMods))
+        commit(await service.restoreArchivedMods(ids: archivedMods.map(\.id)))
     }
 
     func deleteArchivedMods(_ archivedMods: [ArchivedModInfo]) async {
-        commit(await service.deleteArchivedMods(archivedMods))
+        commit(await service.deleteArchivedMods(ids: archivedMods.map(\.id)))
     }
 
     func restorePreviousVersion(of mod: ModInfo) async {
-        commit(await service.restorePreviousVersion(of: mod))
+        commit(await service.restorePreviousVersion(ofModWithID: mod.id))
     }
 
     func pruneExpiredArchives() async {
@@ -261,7 +261,7 @@ final class ModManagerViewModel {
     }
 
     func deleteModSet(_ set: ModSet) async {
-        commit(await service.deleteModSet(set))
+        commit(await service.deleteModSet(id: set.id))
     }
 
     func restoreModSet(_ set: ModSet) async {

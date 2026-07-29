@@ -169,7 +169,8 @@ enum ModSetStore {
         _ set: ModSet,
         in allSets: [ModSet] = [],
         install: StardewInstall,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        moveItem: ((URL, URL) throws -> Void)? = nil
     ) throws -> Int {
         let mods = try ModLibrary.scan(install: install, fileManager: fileManager)
         // Resolve the full inheritance chain before touching files so the Mods
@@ -177,18 +178,14 @@ enum ModSetStore {
         // choices. Passing the set in isolation falls back to its own choices.
         let resolvedSet = ModSetResolver.resolve(set, in: allSets)
 
-        var changedCount = 0
-        for mod in mods {
-            let shouldBeEnabled = resolvedSet.isEnabled(mod)
-            guard mod.isEnabled != shouldBeEnabled else {
-                continue
-            }
-
-            _ = try ModLibrary.setEnabled(mod, enabled: shouldBeEnabled, fileManager: fileManager)
-            changedCount += 1
-        }
-
-        return changedCount
+        let changes = try ModLibrary.applyEnabledStates(
+            to: mods,
+            journalDirectoryURL: install.modDirectoryURL,
+            fileManager: fileManager,
+            moveItem: moveItem,
+            shouldEnable: resolvedSet.isEnabled
+        )
+        return changes.count
     }
 
     static func snapshotSet(

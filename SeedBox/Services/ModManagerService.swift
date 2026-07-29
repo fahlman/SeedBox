@@ -270,6 +270,9 @@ actor ModManagerService {
         guard guardCanManageMods(in: &nextState) else {
             return nextState
         }
+        guard mod.isEnabled != enabled else {
+            return nextState
+        }
 
         do {
             let destinationURL = try performWithFolderAccess(state: &nextState) {
@@ -297,6 +300,7 @@ actor ModManagerService {
         } catch is SecurityScopedFolderAccessError {
             return nextState
         } catch {
+            nextState = refreshedState(from: nextState)
             record(AppStrings.Status.couldNotUpdateMod(mod.displayName, errorDescription: error.localizedDescription), severity: .error, in: &nextState)
             return nextState
         }
@@ -324,7 +328,7 @@ actor ModManagerService {
         var failedMods: [(mod: ModInfo, error: any Error)] = []
         do {
             try performWithFolderAccess(state: &nextState) {
-                for mod in mods {
+                for mod in mods where mod.isEnabled != enabled {
                     do {
                         changedMods.append((mod, try ModLibrary.setEnabled(mod, enabled: enabled)))
                     } catch {
@@ -336,6 +340,7 @@ actor ModManagerService {
             // The folder-access coordinator already recorded the problem.
             return nextState
         } catch {
+            nextState = refreshedState(from: nextState)
             record(
                 AppStrings.Status.couldNotUpdateMod(
                     mods[0].displayName,
@@ -347,6 +352,7 @@ actor ModManagerService {
             return nextState
         }
 
+        nextState = refreshedState(from: nextState)
         guard !changedMods.isEmpty else {
             if let firstFailure = failedMods.first {
                 record(AppStrings.Status.couldNotUpdateMod(
@@ -367,7 +373,6 @@ actor ModManagerService {
             )
         }
         record(changeMessage, in: &nextState)
-        nextState = refreshedState(from: nextState)
         var savedState = saveCurrentStateToSelectedModSet(
             in: nextState,
             recordingSuccess: AppStrings.Status.updatedModSet(
@@ -422,6 +427,7 @@ actor ModManagerService {
         } catch is SecurityScopedFolderAccessError {
             return nextState
         } catch {
+            nextState = refreshedState(from: nextState)
             record(AppStrings.Status.couldNotDeleteMod(mod.displayName, errorDescription: error.localizedDescription), severity: .error, in: &nextState)
             return nextState
         }
@@ -444,12 +450,10 @@ actor ModManagerService {
         do {
             let currentInstall = install(for: nextState)
             let archivedURLs = try performWithFolderAccess(state: &nextState) {
-                try modsToArchive.map { mod in
-                    try ModLibrary.archive(
-                        mod,
-                        in: currentInstall.archivedModsDirectoryURL
-                    )
-                }
+                try ModLibrary.archive(
+                    modsToArchive,
+                    in: currentInstall.archivedModsDirectoryURL
+                )
             }
             let changeMessage = AppStrings.Status.keptAndArchivedDuplicates(
                 keptName: keptMod.displayName,
@@ -479,6 +483,7 @@ actor ModManagerService {
         } catch is SecurityScopedFolderAccessError {
             return nextState
         } catch {
+            nextState = refreshedState(from: nextState)
             record(
                 AppStrings.Status.couldNotResolveDuplicates(error.localizedDescription),
                 severity: .error,
@@ -564,6 +569,7 @@ actor ModManagerService {
         } catch is SecurityScopedFolderAccessError {
             return nextState
         } catch {
+            nextState = refreshedState(from: nextState)
             record(AppStrings.Status.couldNotRestoreArchivedMods(error.localizedDescription), severity: .error, in: &nextState)
             return nextState
         }
@@ -596,6 +602,7 @@ actor ModManagerService {
             )
             return nextState
         } catch {
+            nextState = refreshedState(from: nextState)
             record(
                 AppStrings.Status.couldNotDeleteArchivedMods(error.localizedDescription),
                 severity: .error,
@@ -622,6 +629,7 @@ actor ModManagerService {
             )
             return refreshedState
         } catch {
+            nextState = refreshedState(from: nextState)
             record(AppStrings.Status.couldNotPruneArchivedMods(error.localizedDescription), severity: .error, in: &nextState)
             return nextState
         }

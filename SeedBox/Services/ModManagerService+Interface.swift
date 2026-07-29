@@ -128,36 +128,78 @@ extension ModManagerService {
         )
     }
 
-    func setMod(_ mod: ModInfo, enabled: Bool) -> ModManagerState {
-        commit(setMod(mod, enabled: enabled, in: state))
+    func setMod(id: ModInfo.ID, enabled: Bool) -> ModManagerState {
+        guard let mod = state.mods.first(where: { $0.id == id }) else {
+            return recordActivity(
+                CocoaError(.fileNoSuchFile).localizedDescription,
+                severity: .error
+            )
+        }
+        return commit(setMod(mod, enabled: enabled, in: state))
     }
 
-    func setMods(_ mods: [ModInfo], enabled: Bool) -> ModManagerState {
-        commit(setMods(mods, enabled: enabled, in: state))
+    func setMods(ids: [ModInfo.ID], enabled: Bool) -> ModManagerState {
+        let requestedIDs = Set(ids)
+        let mods = state.mods.filter { requestedIDs.contains($0.id) }
+        guard mods.count == requestedIDs.count else {
+            return recordActivity(
+                CocoaError(.fileNoSuchFile).localizedDescription,
+                severity: .error
+            )
+        }
+        return commit(setMods(mods, enabled: enabled, in: state))
     }
 
-    func deleteMod(_ mod: ModInfo) -> ModManagerState {
-        commit(deleteMod(mod, in: state))
+    func deleteMod(id: ModInfo.ID) -> ModManagerState {
+        guard let mod = state.mods.first(where: { $0.id == id }) else {
+            return recordActivity(
+                CocoaError(.fileNoSuchFile).localizedDescription,
+                severity: .error
+            )
+        }
+        return commit(deleteMod(mod, in: state))
     }
 
-    func restoreArchivedMods(_ archivedMods: [ArchivedModInfo]) -> ModManagerState {
-        commit(restoreArchivedMods(archivedMods, in: state))
+    func restoreArchivedMods(ids: [ArchivedModInfo.ID]) -> ModManagerState {
+        let requestedIDs = Set(ids)
+        let archivedMods = state.archivedMods.filter { requestedIDs.contains($0.id) }
+        guard archivedMods.count == requestedIDs.count else {
+            return recordActivity(
+                CocoaError(.fileNoSuchFile).localizedDescription,
+                severity: .error
+            )
+        }
+        return commit(restoreArchivedMods(archivedMods, in: state))
     }
 
-    func deleteArchivedMods(_ archivedMods: [ArchivedModInfo]) -> ModManagerState {
-        commit(deleteArchivedMods(archivedMods, in: state))
+    func deleteArchivedMods(ids: [ArchivedModInfo.ID]) -> ModManagerState {
+        let requestedIDs = Set(ids)
+        let archivedMods = state.archivedMods.filter { requestedIDs.contains($0.id) }
+        guard archivedMods.count == requestedIDs.count else {
+            return recordActivity(
+                CocoaError(.fileNoSuchFile).localizedDescription,
+                severity: .error
+            )
+        }
+        return commit(deleteArchivedMods(archivedMods, in: state))
     }
 
     func resolveDuplicateGroup(id: String) -> ModManagerState {
         commit(resolveDuplicateGroup(id: id, in: state))
     }
 
-    func restorePreviousVersion(of mod: ModInfo) -> ModManagerState {
+    func restorePreviousVersion(ofModWithID id: ModInfo.ID) -> ModManagerState {
+        guard let mod = state.mods.first(where: { $0.id == id }) else {
+            return recordActivity(
+                CocoaError(.fileNoSuchFile).localizedDescription,
+                severity: .error
+            )
+        }
         guard let archivedMod = ModArchive.previousVersion(for: mod, in: state.archivedMods) else {
             return recordActivity(AppStrings.Status.noPreviousVersionAvailable(mod.displayName))
         }
 
-        return restoreArchivedMods([archivedMod])
+        return restoreArchivedMods(ids: [archivedMod.id])
     }
 
     func pruneExpiredArchives() -> ModManagerState {
@@ -194,8 +236,14 @@ extension ModManagerService {
         return commit(nextState)
     }
 
-    func deleteModSet(_ set: ModSet) -> ModManagerState {
-        commit(deleteModSet(set, in: state))
+    func deleteModSet(id: ModSet.ID) -> ModManagerState {
+        guard let set = state.modSets.first(where: { $0.id == id }) else {
+            return recordActivity(
+                CocoaError(.fileNoSuchFile).localizedDescription,
+                severity: .error
+            )
+        }
+        return commit(deleteModSet(set, in: state))
     }
 
     func restoreModSet(_ set: ModSet) -> ModManagerState {

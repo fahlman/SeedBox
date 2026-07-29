@@ -3,6 +3,28 @@ import XCTest
 
 @MainActor
 final class ModManagerViewModelTests: SeedBoxTestCase {
+    func testModCommandResolvesCurrentFolderFromStableID() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        try makeInstalledMod(name: "Example", in: install)
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        await viewModel.selectModSet(id: ModSetStore.allSetID)
+        await viewModel.createModSet(named: "Personal")
+        let originalModel = try XCTUnwrap(viewModel.state.mods.first)
+
+        await viewModel.setMod(originalModel, enabled: false)
+        XCTAssertFalse(try XCTUnwrap(viewModel.state.mods.first).isEnabled)
+
+        // The model still points to the old folder name. The service must use
+        // only its stable ID and resolve the current model from actor state.
+        await viewModel.setMod(originalModel, enabled: true)
+
+        XCTAssertTrue(try XCTUnwrap(viewModel.state.mods.first).isEnabled)
+        XCTAssertTrue(FileManager.default.directoryExists(
+            at: install.modDirectoryURL.appendingPathComponent("Example")
+        ))
+    }
+
     func testSelectingModSetAppliesStoredModStates() async throws {
         let install = try makeInstall()
         let defaults = try makeIsolatedUserDefaults()

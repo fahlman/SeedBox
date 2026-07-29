@@ -45,6 +45,15 @@ private final class CachedArchiveSummary {
     }
 }
 
+struct ModArchiveMovePlan {
+    var containerURL: URL
+    var operations: [FileMoveOperation]
+
+    var destinationURLs: [URL] {
+        operations.map(\.destinationURL)
+    }
+}
+
 enum ModArchive {
     static let retentionInterval: TimeInterval = 30 * 24 * 60 * 60
     static let containerInfoFileName = "Archive Info.plist"
@@ -65,6 +74,64 @@ enum ModArchive {
         date: Date = Date(),
         fileManager: FileManager = .default
     ) throws -> URL {
+        guard let archivedURL = try archive(
+            [sourceURL],
+            in: archiveDirectory,
+            reason: reason,
+            date: date,
+            fileManager: fileManager
+        ).first else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        return archivedURL
+    }
+
+    static func archive(
+        _ sourceURLs: [URL],
+        in archiveDirectory: URL,
+        reason: ModArchiveReason,
+        date: Date = Date(),
+        fileManager: FileManager = .default
+    ) throws -> [URL] {
+        guard !sourceURLs.isEmpty else {
+            return []
+        }
+
+        let plan = try prepareArchiveMoves(
+            for: sourceURLs,
+            in: archiveDirectory,
+            reason: reason,
+            date: date,
+            fileManager: fileManager
+        )
+        do {
+            try FileMoveTransaction.perform(
+                plan.operations,
+                journalDirectoryURL: archiveDirectory,
+                fileManager: fileManager
+            )
+        } catch {
+            removeContainerIfEmpty(plan.containerURL, fileManager: fileManager)
+            throw error
+        }
+        return plan.destinationURLs
+    }
+
+    static func prepareArchiveMoves(
+        for sourceURLs: [URL],
+        in archiveDirectory: URL,
+        reason: ModArchiveReason,
+        date: Date = Date(),
+        fileManager: FileManager = .default
+    ) throws -> ModArchiveMovePlan {
+        guard !sourceURLs.isEmpty else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+
+        try FileMoveTransaction.recoverIfNeeded(
+            in: archiveDirectory,
+            fileManager: fileManager
+        )
         try fileManager.createDirectory(
             at: archiveDirectory,
             withIntermediateDirectories: true
@@ -82,13 +149,23 @@ enum ModArchive {
             fileManager: fileManager
         )
 
-        let destinationURL = uniqueDestinationURL(
-            in: containerURL,
-            named: sourceURL.lastPathComponent,
-            fileManager: fileManager
+        var reservedPaths: Set<String> = []
+        let operations = sourceURLs.map { sourceURL in
+            let destinationURL = uniqueDestinationURL(
+                in: containerURL,
+                named: sourceURL.lastPathComponent,
+                reservedPaths: &reservedPaths,
+                fileManager: fileManager
+            )
+            return FileMoveOperation(
+                sourceURL: sourceURL,
+                destinationURL: destinationURL
+            )
+        }
+        return ModArchiveMovePlan(
+            containerURL: containerURL,
+            operations: operations
         )
-        try fileManager.moveItem(at: sourceURL, to: destinationURL)
-        return destinationURL
     }
 
     static func pruneExpiredArchives(
@@ -99,6 +176,10 @@ enum ModArchive {
         guard fileManager.directoryExists(at: archiveDirectory) else {
             return 0
         }
+        try FileMoveTransaction.recoverIfNeeded(
+            in: archiveDirectory,
+            fileManager: fileManager
+        )
 
         let archivedContainers = try fileManager.contentsOfDirectory(
             at: archiveDirectory,
@@ -128,6 +209,10 @@ enum ModArchive {
         guard fileManager.directoryExists(at: archiveDirectory) else {
             return []
         }
+        try FileMoveTransaction.recoverIfNeeded(
+            in: archiveDirectory,
+            fileManager: fileManager
+        )
 
         let containers = try fileManager.contentsOfDirectory(
             at: archiveDirectory,
@@ -181,6 +266,10 @@ enum ModArchive {
         guard fileManager.directoryExists(at: archiveDirectory) else {
             return ModArchiveSummary()
         }
+        try FileMoveTransaction.recoverIfNeeded(
+            in: archiveDirectory,
+            fileManager: fileManager
+        )
 
         // The deep byte-count walk runs on every state refresh, so it's
         // skipped whenever the shallow container signature is unchanged.
@@ -346,10 +435,12 @@ enum ModArchive {
     private static func uniqueDestinationURL(
         in directoryURL: URL,
         named preferredName: String,
+        reservedPaths: inout Set<String>,
         fileManager: FileManager
     ) -> URL {
         let baseURL = directoryURL.appendingPathComponent(preferredName, isDirectory: true)
-        guard fileManager.fileExists(atPath: baseURL.path) else {
+        if !fileManager.fileExists(atPath: baseURL.path),
+           reservedPaths.insert(baseURL.path).inserted {
             return baseURL
         }
 
@@ -358,12 +449,34 @@ enum ModArchive {
                 "\(preferredName) \(index)",
                 isDirectory: true
             )
-            if !fileManager.fileExists(atPath: candidateURL.path) {
+            if !fileManager.fileExists(atPath: candidateURL.path),
+               reservedPaths.insert(candidateURL.path).inserted {
                 return candidateURL
             }
         }
 
-        return directoryURL.appendingPathComponent("\(preferredName) \(UUID().uuidString)", isDirectory: true)
+        let fallbackURL = directoryURL.appendingPathComponent(
+            "\(preferredName) \(UUID().uuidString)",
+            isDirectory: true
+        )
+        reservedPaths.insert(fallbackURL.path)
+        return fallbackURL
+    }
+
+    static func removeContainerIfEmpty(
+        _ containerURL: URL,
+        fileManager: FileManager
+    ) {
+        guard let children = try? fileManager.contentsOfDirectory(
+            at: containerURL,
+            includingPropertiesForKeys: nil
+        ),
+        !children.contains(where: { fileManager.directoryExists(at: $0) })
+        else {
+            return
+        }
+
+        try? fileManager.removeItem(at: containerURL)
     }
 
     private static func byteCount(
