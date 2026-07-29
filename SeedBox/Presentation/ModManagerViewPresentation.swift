@@ -5,6 +5,9 @@ struct ModManagerViewPresentation {
     var alert: ModManagerAlert?
     var isAddingMods = false
     var isChoosingModsFolder = false
+    var isImportingModSet = false
+    var isExportingModSet = false
+    var exportedModSet: ExportableModSet?
     var isDropTargeted = false
     var remembersSourceCleanupChoice = false
     var isShowingModInspector = false

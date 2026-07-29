@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     var viewModel: ModManagerViewModel
+    @Bindable var menuBarCompanion: MenuBarCompanionState
     @State private var isChoosingModsFolder = false
     @State private var isChoosingLogFolder = false
     @State private var isCheckingForModUpdates = false
@@ -12,8 +13,6 @@ struct SettingsView: View {
     @State private var isExportingDiagnostics = false
     @State private var isConfirmingDiagnosticsDeletion = false
     @State private var modUpdateStatus: StatusEvent?
-    @AppStorage(MenuBarCompanion.enabledDefaultsKey) private var menuBarCompanionEnabled = false
-
     private var presentationState: ModManagerSettingsPresentationState {
         ModManagerSettingsPresentationState(viewModel: viewModel)
     }
@@ -74,7 +73,7 @@ struct SettingsView: View {
             }
 
             Section(AppStrings.Settings.menuBarSection) {
-                Toggle(AppStrings.MenuBar.showItem, isOn: $menuBarCompanionEnabled)
+                Toggle(AppStrings.MenuBar.showItem, isOn: $menuBarCompanion.isEnabled)
 
                 Text(AppStrings.Settings.menuBarFooter)
                     .font(.caption)

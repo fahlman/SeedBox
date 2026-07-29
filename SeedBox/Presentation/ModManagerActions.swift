@@ -1,6 +1,8 @@
 struct ModManagerActions {
     var chooseModsFolder: () -> Void
     var addMods: () -> Void
+    var importModSet: () -> Void
+    var exportModSet: () -> Void
     var refresh: () -> Void
     var showProblems: () -> Void
     var showActivity: () -> Void

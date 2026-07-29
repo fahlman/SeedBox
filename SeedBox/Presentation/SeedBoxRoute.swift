@@ -81,7 +81,11 @@ struct SeedBoxRouteDispatcher {
             let currentSelection = ModLibrarySelection(
                 id: ModLibrarySelection.resolvedID(selectedLibraryItemID, in: state)
             )
-            if !currentSelection.includes(mod, in: state) {
+            let context = ModFilterContext(
+                state: state,
+                dependencyGraph: ModDependencyGraph(mods: state.mods)
+            )
+            if !currentSelection.includes(mod, context: context) {
                 selectedLibraryItemID = ModLibrarySelection.smartID(.allMods)
             }
 

@@ -269,6 +269,44 @@ extension ModManagerService {
         return ModManagerServiceResult(state: nextState, value: restoredFolderNames)
     }
 
+    func restoreMostRecentDeletedModResult(
+        folderName: String
+    ) -> ModManagerServiceResult<Bool> {
+        let token = folderName.normalizedFolderToken
+        guard let archive = state.archivedMods
+            .filter({
+                $0.reason == .deleted
+                    && $0.enabledFolderName.normalizedFolderToken == token
+            })
+            .max(by: {
+                ($0.archivedDate ?? .distantPast)
+                    < ($1.archivedDate ?? .distantPast)
+            })
+        else {
+            return ModManagerServiceResult(state: state, value: false)
+        }
+
+        let result = restoreArchivedModsResult(ids: [archive.id])
+        return ModManagerServiceResult(
+            state: result.state,
+            value: result.value.contains {
+                $0.normalizedFolderToken == token
+            }
+        )
+    }
+
+    func deleteInstalledModResult(
+        folderName: String
+    ) -> ModManagerServiceResult<Bool> {
+        let token = folderName.normalizedFolderToken
+        guard let mod = state.mods.first(where: {
+            $0.enabledFolderName.normalizedFolderToken == token
+        }) else {
+            return ModManagerServiceResult(state: state, value: false)
+        }
+        return deleteModResult(id: mod.id)
+    }
+
     func deleteArchivedMods(ids: [ArchivedModInfo.ID]) -> ModManagerState {
         let requestedIDs = Set(ids)
         let archivedMods = state.archivedMods.filter { requestedIDs.contains($0.id) }
@@ -345,14 +383,13 @@ extension ModManagerService {
         to requestedName: String,
         expectedName: String? = nil
     ) -> ModManagerServiceResult<Bool> {
-        guard state.selectedModSetID == id,
-              let before = state.modSets.first(where: { $0.id == id }),
+        guard let before = state.modSets.first(where: { $0.id == id }),
               expectedName == nil || before.name == expectedName
         else {
             return ModManagerServiceResult(state: state, value: false)
         }
 
-        let nextState = renameSelectedModSet(to: requestedName)
+        let nextState = commit(renameModSet(id: id, to: requestedName, in: state))
         let didChange = before.name != requestedName
             && nextState.modSets.first(where: { $0.id == id })?.name == requestedName
         return ModManagerServiceResult(state: nextState, value: didChange)

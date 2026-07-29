@@ -8,6 +8,8 @@ enum ModManagerCommand {
     case deleteModSet
     case deleteSelectedMod
     case duplicateModSet
+    case exportModSet
+    case importModSet
     case pruneExpiredArchives
     case refreshModsFolder
     case renameModSet
@@ -46,6 +48,10 @@ enum ModManagerCommand {
             "trash"
         case .duplicateModSet:
             "doc.on.doc"
+        case .exportModSet:
+            "square.and.arrow.up"
+        case .importModSet:
+            "square.and.arrow.down"
         case .pruneExpiredArchives:
             "archivebox"
         case .refreshModsFolder:
@@ -105,7 +111,7 @@ enum ModManagerCommand {
             Shortcut("0", modifiers: [.command, .shift])
         case .showRestoreHistory:
             Shortcut("r", modifiers: [.command, .shift])
-        case .revealArchivedModsFolder, .revealModsFolder:
+        case .exportModSet, .importModSet, .revealArchivedModsFolder, .revealModsFolder:
             nil
         }
     }
@@ -135,6 +141,10 @@ enum ModManagerCommand {
             AppStrings.Commands.deleteSelectedMod
         case .duplicateModSet:
             AppStrings.Commands.duplicateModSet
+        case .exportModSet:
+            AppStrings.Commands.exportModSet
+        case .importModSet:
+            AppStrings.Commands.importModSet
         case .pruneExpiredArchives:
             AppStrings.Commands.pruneExpiredArchives
         case .refreshModsFolder:
@@ -166,7 +176,7 @@ enum ModManagerCommand {
 
     func isEnabled(in state: ModManagerPresentationState) -> Bool {
         switch self {
-        case .addMods, .createModSet, .refreshModsFolder:
+        case .addMods, .createModSet, .importModSet, .refreshModsFolder:
             state.canManageMods
         case .chooseModsFolder:
             true
@@ -177,6 +187,8 @@ enum ModManagerCommand {
         case .deleteSelectedMod:
             state.canDeleteSelectedMod
         case .duplicateModSet:
+            state.canManageMods && state.selectedSet != nil
+        case .exportModSet:
             state.canManageMods && state.selectedSet != nil
         case .pruneExpiredArchives:
             state.canPruneExpiredArchives
@@ -225,6 +237,10 @@ enum ModManagerCommand {
             actions.deleteSelectedMod()
         case .duplicateModSet:
             actions.duplicateSelectedModSet()
+        case .exportModSet:
+            actions.exportModSet()
+        case .importModSet:
+            actions.importModSet()
         case .pruneExpiredArchives:
             actions.pruneExpiredArchives()
         case .refreshModsFolder:

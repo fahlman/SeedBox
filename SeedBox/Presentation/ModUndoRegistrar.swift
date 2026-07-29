@@ -20,10 +20,10 @@ enum ModUndoRegistrar {
     ) {
         undoManager.registerUndo(withTarget: viewModel) { viewModel in
             MainActor.assumeIsolated {
-                guard
-                    let current = viewModel.state.mods.first(where: { $0.id == modID }),
-                    current.isEnabled == appliedValue
-                else {
+                let stillMatches = viewModel.state.mods.first(where: {
+                    $0.id == modID
+                })?.isEnabled == appliedValue
+                guard viewModel.hasPendingUndoOperation || stillMatches else {
                     // The mod changed since the action; skip rather than
                     // overwrite the newer state. No redo is registered.
                     return
@@ -39,9 +39,7 @@ enum ModUndoRegistrar {
                     appliedValue: previousEnabled
                 )
 
-                // Recheck on the service actor too. The main-actor guard above
-                // can become stale while this asynchronous operation is queued.
-                Task.detached {
+                viewModel.enqueueUndoOperation {
                     await viewModel.setMod(
                         id: modID,
                         enabled: previousEnabled,
@@ -72,10 +70,11 @@ enum ModUndoRegistrar {
 
         undoManager.registerUndo(withTarget: viewModel) { viewModel in
             MainActor.assumeIsolated {
-                guard changes.allSatisfy({ change in
+                let stillMatches = changes.allSatisfy { change in
                     viewModel.state.mods.first(where: { $0.id == change.modID })?
                         .isEnabled == change.appliedEnabled
-                }) else {
+                }
+                guard viewModel.hasPendingUndoOperation || stillMatches else {
                     return
                 }
 
@@ -96,12 +95,13 @@ enum ModUndoRegistrar {
                         ($0.modID, $0.appliedEnabled)
                     }
                 )
-                Task.detached {
-                    await viewModel.setMods(
+                viewModel.enqueueUndoOperation {
+                    let appliedChanges = await viewModel.setMods(
                         ids: changes.map(\.modID),
                         enabled: firstChange.previousEnabled,
                         ifCurrently: expectedStates
                     )
+                    return appliedChanges.count == changes.count
                 }
             }
         }
@@ -130,7 +130,9 @@ enum ModUndoRegistrar {
     ) {
         undoManager.registerUndo(withTarget: viewModel) { viewModel in
             MainActor.assumeIsolated {
-                guard viewModel.state.selectedModSetID == appliedSetID else {
+                guard viewModel.hasPendingUndoOperation
+                    || viewModel.state.selectedModSetID == appliedSetID
+                else {
                     return
                 }
 
@@ -141,7 +143,7 @@ enum ModUndoRegistrar {
                     appliedSetID: previousSetID
                 )
 
-                Task.detached {
+                viewModel.enqueueUndoOperation {
                     await viewModel.selectModSet(
                         id: previousSetID,
                         ifCurrentlySelected: appliedSetID
@@ -153,9 +155,9 @@ enum ModUndoRegistrar {
         undoManager.setActionName(AppStrings.Undo.applyModSet)
     }
 
-    /// Registers undo for renaming a Mod Set. Undo renames it back, but only
-    /// while that set is still the selected one and still carries the new name,
-    /// so a later rename or selection change is not clobbered.
+    /// Registers undo for renaming a Mod Set. Undo resolves the set by its
+    /// stable identifier and only renames it while it still carries the name
+    /// produced by the original action.
     static func registerModSetRename(
         in undoManager: UndoManager,
         viewModel: ModManagerViewModel,
@@ -165,11 +167,10 @@ enum ModUndoRegistrar {
     ) {
         undoManager.registerUndo(withTarget: viewModel) { viewModel in
             MainActor.assumeIsolated {
-                guard
-                    let selected = viewModel.state.modSetSelection.selectedSet,
-                    selected.id == setID,
-                    selected.name == newName
-                else {
+                let stillMatches = viewModel.state.modSets.first(where: {
+                    $0.id == setID
+                })?.name == newName
+                guard viewModel.hasPendingUndoOperation || stillMatches else {
                     return
                 }
 
@@ -181,7 +182,7 @@ enum ModUndoRegistrar {
                     newName: previousName
                 )
 
-                Task.detached {
+                viewModel.enqueueUndoOperation {
                     await viewModel.renameModSet(
                         id: setID,
                         to: previousName,
@@ -220,7 +221,9 @@ enum ModUndoRegistrar {
     ) {
         undoManager.registerUndo(withTarget: viewModel) { viewModel in
             MainActor.assumeIsolated {
-                guard let archive = mostRecentDeletedArchive(for: folderName, in: viewModel.state) else {
+                guard viewModel.hasPendingUndoOperation
+                    || canUndoDeletion(of: folderName, in: viewModel.state)
+                else {
                     return
                 }
                 registerModRestoration(
@@ -229,7 +232,11 @@ enum ModUndoRegistrar {
                     folderName: folderName,
                     actionName: actionName
                 )
-                Task.detached { await viewModel.restoreArchivedMods([archive]) }
+                viewModel.enqueueUndoOperation {
+                    await viewModel.restoreMostRecentDeletedMod(
+                        folderName: folderName
+                    )
+                }
             }
         }
         undoManager.setActionName(actionName)
@@ -246,10 +253,9 @@ enum ModUndoRegistrar {
     ) {
         undoManager.registerUndo(withTarget: viewModel) { viewModel in
             MainActor.assumeIsolated {
-                let token = folderName.normalizedFolderToken
-                guard let mod = viewModel.state.mods.first(where: {
-                    $0.enabledFolderName.normalizedFolderToken == token
-                }) else {
+                guard viewModel.hasPendingUndoOperation
+                    || canUndoRestoration(of: folderName, in: viewModel.state)
+                else {
                     return
                 }
                 registerModDeletion(
@@ -258,7 +264,9 @@ enum ModUndoRegistrar {
                     folderName: folderName,
                     actionName: actionName
                 )
-                Task.detached { await viewModel.deleteMod(mod) }
+                viewModel.enqueueUndoOperation {
+                    await viewModel.deleteInstalledMod(folderName: folderName)
+                }
             }
         }
         undoManager.setActionName(actionName)
@@ -290,7 +298,7 @@ enum ModUndoRegistrar {
         undoManager.registerUndo(withTarget: viewModel) { viewModel in
             MainActor.assumeIsolated {
                 let exists = viewModel.state.modSets.contains { $0.id == set.id }
-                guard exists == !deleted else {
+                guard viewModel.hasPendingUndoOperation || exists == !deleted else {
                     return
                 }
 
@@ -303,9 +311,13 @@ enum ModUndoRegistrar {
                 )
 
                 if deleted {
-                    Task.detached { await viewModel.restoreModSet(set) }
+                    viewModel.enqueueUndoOperation {
+                        await viewModel.restoreModSet(set)
+                    }
                 } else {
-                    Task.detached { await viewModel.deleteModSet(set) }
+                    viewModel.enqueueUndoOperation {
+                        await viewModel.deleteModSet(set)
+                    }
                 }
             }
         }

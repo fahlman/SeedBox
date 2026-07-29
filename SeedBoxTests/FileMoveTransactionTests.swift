@@ -117,7 +117,10 @@ final class FileMoveTransactionTests: SeedBoxTestCase {
         )
         let archivedMod = try XCTUnwrap(
             ModArchive.archivedMods(in: install.archivedModsDirectoryURL)
-                .first { $0.url == archivedOldURL }
+                .first {
+                    $0.url.resolvingSymlinksInPath().path
+                        == archivedOldURL.resolvingSymlinksInPath().path
+                }
         )
         var moveCount = 0
 

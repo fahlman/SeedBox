@@ -71,6 +71,34 @@ final class ModUndoRegistrarTests: SeedBoxTestCase {
         try await waitUntil { viewModel.state.mods.allSatisfy { !$0.isEnabled } }
     }
 
+    func testImmediateRedoWaitsForUndoToFinish() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        try makeInstalledMod(name: "Automate", in: install, folderName: "Automate")
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        let mod = try XCTUnwrap(viewModel.state.mods.first)
+
+        await viewModel.setMod(mod, enabled: false)
+        undoManager.beginUndoGrouping()
+        ModUndoRegistrar.registerModToggle(
+            in: undoManager,
+            viewModel: viewModel,
+            modID: mod.id,
+            restoringTo: true,
+            appliedValue: false
+        )
+        undoManager.endUndoGrouping()
+
+        undoManager.undo()
+        undoManager.redo()
+        await viewModel.waitUntilUndoOperationsComplete()
+
+        XCTAssertEqual(installedState(of: "Automate", in: viewModel), false)
+        XCTAssertTrue(undoManager.canUndo)
+    }
+
     func testUndoIsSkippedWhenModChangedSinceTheAction() async throws {
         let install = try makeInstall()
         let defaults = try makeIsolatedUserDefaults()
@@ -167,12 +195,20 @@ final class ModUndoRegistrarTests: SeedBoxTestCase {
         )
         undoManager.endUndoGrouping()
 
+        await viewModel.selectModSet(id: ModSetStore.allSetID)
+
         undoManager.undo()
-        try await waitUntil { viewModel.state.modSetSelection.selectedSet?.name == "Favorites" }
+        try await waitUntil {
+            viewModel.state.modSets.first(where: { $0.id == setID })?.name == "Favorites"
+        }
+        XCTAssertEqual(viewModel.state.selectedModSetID, ModSetStore.allSetID)
         XCTAssertTrue(undoManager.canRedo)
 
         undoManager.redo()
-        try await waitUntil { viewModel.state.modSetSelection.selectedSet?.name == "Keepers" }
+        try await waitUntil {
+            viewModel.state.modSets.first(where: { $0.id == setID })?.name == "Keepers"
+        }
+        XCTAssertEqual(viewModel.state.selectedModSetID, ModSetStore.allSetID)
     }
 
     func testUndoDeleteModSetRestoresItByDefinition() async throws {
@@ -299,6 +335,40 @@ final class ModUndoRegistrarTests: SeedBoxTestCase {
         // Redo deletes it again.
         undoManager.redo()
         try await waitUntil { !viewModel.state.mods.contains { $0.displayName == "Content Patcher" } }
+    }
+
+    func testImmediateRedoWaitsForDeletedModRestoreToFinish() async throws {
+        let install = try makeInstall()
+        let defaults = try makeIsolatedUserDefaults()
+        try makeInstalledMod(
+            name: "Content Patcher",
+            in: install,
+            folderName: "ContentPatcher"
+        )
+        let viewModel = await makeReadyViewModel(for: install, defaults: defaults)
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        let mod = try XCTUnwrap(viewModel.state.mods.first)
+
+        await viewModel.deleteMod(mod)
+        undoManager.beginUndoGrouping()
+        ModUndoRegistrar.registerModDeletion(
+            in: undoManager,
+            viewModel: viewModel,
+            folderName: "ContentPatcher"
+        )
+        undoManager.endUndoGrouping()
+
+        undoManager.undo()
+        undoManager.redo()
+        await viewModel.waitUntilUndoOperationsComplete()
+
+        XCTAssertFalse(
+            viewModel.state.mods.contains {
+                $0.displayName == "Content Patcher"
+            }
+        )
+        XCTAssertTrue(undoManager.canUndo)
     }
 
     func testUndoRestoreArchivedModReArchivesIt() async throws {

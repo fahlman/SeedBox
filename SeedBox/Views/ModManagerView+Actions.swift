@@ -23,6 +23,8 @@ extension ModManagerView {
         ModManagerActions(
             chooseModsFolder: chooseModsFolder,
             addMods: addMods,
+            importModSet: importModSet,
+            exportModSet: exportModSet,
             refresh: {
                 Task {
                     await viewModel.refresh()
@@ -71,6 +73,18 @@ extension ModManagerView {
             return
         }
         presentation.isAddingMods = true
+    }
+
+    func importModSet() {
+        presentation.isImportingModSet = true
+    }
+
+    func exportModSet() {
+        guard let exportable = viewModel.exportableSelectedModSet() else {
+            return
+        }
+        presentation.exportedModSet = exportable
+        presentation.isExportingModSet = true
     }
 
     func createModFolder() {

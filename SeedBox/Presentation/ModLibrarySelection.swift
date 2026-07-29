@@ -71,20 +71,6 @@ enum SmartModSet: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    func count(in state: ModManagerState) -> Int {
-        ModFilterEngine.count(for: self, in: state)
-    }
-
-    func includes(_ mod: ModInfo, in state: ModManagerState) -> Bool {
-        ModFilterEngine.includes(
-            mod,
-            in: self,
-            context: ModFilterContext(
-                state: state,
-                dependencyGraph: ModDependencyGraph(mods: state.mods)
-            )
-        )
-    }
 }
 
 struct ModLibraryItem: Identifiable, Equatable, Sendable {
@@ -234,14 +220,15 @@ enum ModLibrarySelection: Hashable, Sendable {
         }
     }
 
-    func item(in state: ModManagerState) -> ModLibraryItem? {
+    func item(in context: ModFilterContext) -> ModLibraryItem? {
+        let state = context.state
         switch self {
         case .builtInSmart(let smartSet):
             return ModLibraryItem(
                 selection: self,
                 title: smartSet.title,
                 systemImage: smartSet.systemImage,
-                count: ModFilterEngine.count(for: smartSet, in: state),
+                count: ModFilterEngine.count(for: smartSet, context: context),
                 kind: .builtInSmartModSet,
                 isUserEditable: false
             )
@@ -253,7 +240,7 @@ enum ModLibrarySelection: Hashable, Sendable {
                 selection: self,
                 title: smartModSet.name,
                 systemImage: smartModSet.systemImageName,
-                count: ModFilterEngine.count(for: smartModSet, in: state),
+                count: ModFilterEngine.count(for: smartModSet, context: context),
                 kind: .userSmartModSet,
                 isUserEditable: true
             )
@@ -276,36 +263,29 @@ enum ModLibrarySelection: Hashable, Sendable {
         }
     }
 
-    func includes(_ mod: ModInfo, in state: ModManagerState) -> Bool {
-        ModFilterEngine.includes(
-            mod,
-            in: self,
-            context: ModFilterContext(
-                state: state,
-                dependencyGraph: ModDependencyGraph(mods: state.mods)
-            )
-        )
+    func includes(_ mod: ModInfo, context: ModFilterContext) -> Bool {
+        ModFilterEngine.includes(mod, in: self, context: context)
     }
 
     static func recentlyDeletedArchivedMods(in state: ModManagerState) -> [ArchivedModInfo] {
         ModFilterEngine.recentlyDeletedArchivedMods(in: state)
     }
 
-    static func builtInSmartItems(in state: ModManagerState) -> [ModLibraryItem] {
+    static func builtInSmartItems(in context: ModFilterContext) -> [ModLibraryItem] {
         SmartModSet.allCases.compactMap { smartSet in
-            ModLibrarySelection.builtInSmart(smartSet).item(in: state)
+            ModLibrarySelection.builtInSmart(smartSet).item(in: context)
         }
     }
 
-    static func userSmartItems(in state: ModManagerState) -> [ModLibraryItem] {
-        state.userSmartModSets.compactMap { smartModSet in
-            ModLibrarySelection.userSmart(smartModSet.id).item(in: state)
+    static func userSmartItems(in context: ModFilterContext) -> [ModLibraryItem] {
+        context.state.userSmartModSets.compactMap { smartModSet in
+            ModLibrarySelection.userSmart(smartModSet.id).item(in: context)
         }
     }
 
-    static func modSetItems(in state: ModManagerState) -> [ModLibraryItem] {
-        state.modSets.compactMap { modSet in
-            ModLibrarySelection.modSet(modSet.id).item(in: state)
+    static func modSetItems(in context: ModFilterContext) -> [ModLibraryItem] {
+        context.state.modSets.compactMap { modSet in
+            ModLibrarySelection.modSet(modSet.id).item(in: context)
         }
     }
 

@@ -13,6 +13,7 @@ final class ModManagerViewModel {
     @ObservationIgnored private let importPreviewCoordinator: ModImportPreviewCoordinator
     @ObservationIgnored private let modSetDirectory: URL
     @ObservationIgnored private let service: ModManagerService
+    @ObservationIgnored private let undoOperationQueue = ModUndoOperationQueue()
     @ObservationIgnored private let workspacePresenter: ModManagerWorkspacePresenter
     @ObservationIgnored private var folderObservation: ModManagerFolderObservation?
 
@@ -241,6 +242,24 @@ final class ModManagerViewModel {
         return result.value
     }
 
+    @discardableResult
+    func restoreMostRecentDeletedMod(folderName: String) async -> Bool {
+        let result = await service.restoreMostRecentDeletedModResult(
+            folderName: folderName
+        )
+        commit(result.state)
+        return result.value
+    }
+
+    @discardableResult
+    func deleteInstalledMod(folderName: String) async -> Bool {
+        let result = await service.deleteInstalledModResult(
+            folderName: folderName
+        )
+        commit(result.state)
+        return result.value
+    }
+
     func deleteArchivedMods(_ archivedMods: [ArchivedModInfo]) async {
         commit(await service.deleteArchivedMods(ids: archivedMods.map(\.id)))
     }
@@ -364,56 +383,49 @@ final class ModManagerViewModel {
     }
 
     func importModSet(fromFileAt url: URL) async {
-        commit(await service.importModSet(fromFileAt: url))
-    }
-
-    /// The export bytes for the selected Mod Set, or nil when no editable set is
-    /// selected. The view writes these to a user-chosen `.seedboxset` file.
-    func exportDataForSelectedModSet() -> Data? {
-        guard let selectedSet = state.modSetSelection.selectedSet else {
-            return nil
-        }
-        return try? ModSetTransfer.exportData(
-            for: selectedSet,
-            mods: state.mods,
-            in: state.modSets
-        )
-    }
-
-    func exportSelectedModSet(to url: URL) async {
-        guard let selectedSet = state.modSetSelection.selectedSet else {
-            return
-        }
-
-        let mods = state.mods
-        let modSets = state.modSets
         let token = SecurityScopedAccessToken(url: url)
         defer {
             token.stop()
         }
+        commit(await service.importModSet(fromFileAt: url))
+    }
 
-        do {
-            try await Task.detached(priority: .userInitiated) {
-                try ModSetTransfer.write(
-                    selectedSet,
-                    mods: mods,
-                    in: modSets,
-                    to: url
-                )
-            }.value
-            commit(
-                await service.recordActivity(
-                    AppStrings.Status.exportedModSet(selectedSet.name)
-                )
+    func recordModSetImportSelectionError(_ error: Error) {
+        record(
+            AppStrings.Status.couldNotImportModSet(error.localizedDescription),
+            severity: .error
+        )
+    }
+
+    func recordModSetExported(named setName: String) async {
+        commit(
+            await service.recordActivity(
+                AppStrings.Status.exportedModSet(setName)
             )
-        } catch {
-            commit(
-                await service.recordActivity(
-                    AppStrings.Status.couldNotExportModSet(error.localizedDescription),
-                    severity: .error
-                )
+        )
+    }
+
+    func recordModSetExportError(_ error: Error) async {
+        commit(
+            await service.recordActivity(
+                AppStrings.Status.couldNotExportModSet(error.localizedDescription),
+                severity: .error
             )
-        }
+        )
+    }
+
+    var hasPendingUndoOperation: Bool {
+        !undoOperationQueue.isIdle
+    }
+
+    func enqueueUndoOperation(
+        _ operation: @escaping @MainActor () async -> Bool
+    ) {
+        undoOperationQueue.enqueue(operation)
+    }
+
+    func waitUntilUndoOperationsComplete() async {
+        await undoOperationQueue.waitUntilIdle()
     }
 
     /// A shareable item for the selected Mod Set, or nil when none is selected,
