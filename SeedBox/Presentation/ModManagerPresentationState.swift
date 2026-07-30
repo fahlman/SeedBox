@@ -193,7 +193,17 @@ struct ModManagerPresentationState {
     }
 
     var canPruneExpiredArchives: Bool {
-        state.archiveSummary.archivedModCount > 0
+        canPruneExpiredArchives(asOf: Date())
+    }
+
+    func canPruneExpiredArchives(asOf date: Date) -> Bool {
+        guard state.archiveSummary.archivedModCount > 0,
+              let oldestArchiveDate = state.archiveSummary.oldestArchiveDate
+        else {
+            return false
+        }
+
+        return state.archiveSettings.archiveIsExpired(oldestArchiveDate, asOf: date)
     }
 
     var canShowRestoreHistory: Bool {

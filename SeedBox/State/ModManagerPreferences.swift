@@ -190,4 +190,12 @@ struct ArchiveSettings: Equatable, Sendable {
     var retentionInterval: TimeInterval {
         TimeInterval(normalizedRetentionDays) * 24 * 60 * 60
     }
+
+    func expirationCutoffDate(asOf date: Date = Date()) -> Date {
+        date.addingTimeInterval(-retentionInterval)
+    }
+
+    func archiveIsExpired(_ archivedDate: Date, asOf date: Date = Date()) -> Bool {
+        archivedDate < expirationCutoffDate(asOf: date)
+    }
 }

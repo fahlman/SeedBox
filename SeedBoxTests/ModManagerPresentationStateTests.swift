@@ -511,6 +511,40 @@ final class ModManagerPresentationStateTests: SeedBoxTestCase {
         XCTAssertFalse(ModManagerCommand.deleteSelectedMod.isEnabled(in: presentationState))
     }
 
+    func testPruneExpiredArchivesRequiresAnArchiveOlderThanRetentionPeriod() throws {
+        let install = try makeInstall()
+        var state = makeState(install: install, mods: [])
+        let referenceDate = Date(timeIntervalSince1970: 2_000_000_000)
+        let retentionInterval = state.archiveSettings.retentionInterval
+
+        func canPrune(_ state: ModManagerState) -> Bool {
+            ModManagerPresentationState(
+                state: state,
+                searchText: "",
+                selectedModIDs: []
+            )
+            .canPruneExpiredArchives(asOf: referenceDate)
+        }
+
+        XCTAssertFalse(canPrune(state))
+
+        state.archiveSummary = ModArchiveSummary(
+            archivedModCount: 1,
+            oldestArchiveDate: referenceDate.addingTimeInterval(-retentionInterval + 1)
+        )
+        XCTAssertFalse(canPrune(state))
+
+        state.archiveSummary.oldestArchiveDate = referenceDate.addingTimeInterval(
+            -retentionInterval
+        )
+        XCTAssertFalse(canPrune(state))
+
+        state.archiveSummary.oldestArchiveDate = referenceDate.addingTimeInterval(
+            -retentionInterval - 1
+        )
+        XCTAssertTrue(canPrune(state))
+    }
+
     func testSelectedSetInheritanceContextClassifiesInheritedAndOverriddenMods() throws {
         let install = try makeInstall()
         try makeInstalledMod(name: "Alpha", in: install, folderName: "Alpha")

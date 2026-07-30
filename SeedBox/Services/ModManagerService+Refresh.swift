@@ -150,7 +150,7 @@ extension ModManagerService {
         let currentInstall = install(for: state)
         return try ModArchive.pruneExpiredArchives(
             in: currentInstall,
-            olderThan: Date().addingTimeInterval(-state.archiveSettings.retentionInterval)
+            olderThan: state.archiveSettings.expirationCutoffDate()
         )
     }
 }
