@@ -6,6 +6,7 @@ struct StardewInstall: Equatable, Sendable {
     static let archivedModsFolderName = "Archived Mods"
     static let auditLogFileName = "Audit Log.plist"
     static let smartModSetFileName = "Smart Mod Sets.plist"
+    static let fileTransactionFolderName = "File Transactions"
     static let applicationSupportFolderName = "Seed Box"
 
     var modsDirectory: URL
@@ -147,6 +148,25 @@ struct StardewInstall: Equatable, Sendable {
             .standardizedFileURL
             .deletingLastPathComponent()
             .appendingPathComponent(Self.archivedModsFolderName, isDirectory: true)
+    }
+
+    var fileTransactionDirectoryURL: URL {
+        modSetDirectory
+            .standardizedFileURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(Self.fileTransactionFolderName, isDirectory: true)
+    }
+
+    func fileMoveTransactionContext(
+        archiveDirectory: URL? = nil
+    ) -> FileMoveTransactionContext {
+        FileMoveTransactionContext(
+            journalDirectoryURL: fileTransactionDirectoryURL,
+            allowedRootURLs: [
+                modDirectoryURL,
+                archiveDirectory ?? archivedModsDirectoryURL
+            ]
+        )
     }
 
     func status(fileManager: FileManager = .default) -> InstallationStatus {

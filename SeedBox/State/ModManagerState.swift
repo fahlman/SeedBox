@@ -261,23 +261,27 @@ struct ModManagerState: Equatable, Sendable {
 
 struct SourceCleanupOffer: Identifiable, Equatable, Sendable {
     var id: UUID
-    var sourceURLs: [URL]
+    var candidates: [SourceCleanupCandidate]
     var importSummary: String
     var cleanupSummary: String?
     var isNotificationOnly: Bool
 
     init(
         id: UUID = UUID(),
-        sourceURLs: [URL],
+        candidates: [SourceCleanupCandidate],
         importSummary: String,
         cleanupSummary: String? = nil,
         isNotificationOnly: Bool = false
     ) {
         self.id = id
-        self.sourceURLs = sourceURLs
+        self.candidates = candidates
         self.importSummary = importSummary
         self.cleanupSummary = cleanupSummary
         self.isNotificationOnly = isNotificationOnly
+    }
+
+    var sourceURLs: [URL] {
+        candidates.map(\.url)
     }
 
     var sourceCount: Int {

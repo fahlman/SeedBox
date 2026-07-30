@@ -57,6 +57,7 @@ struct ModArchiveMovePlan {
 enum ModArchive {
     static let retentionInterval: TimeInterval = 30 * 24 * 60 * 60
     static let containerInfoFileName = "Archive Info.plist"
+    private static let maximumContainerInfoByteCount = 64 * 1_024
 
     // NSCache is documented thread-safe. Archiving, restoring, and pruning
     // all change a container's modification date or the container list, which
@@ -69,14 +70,16 @@ enum ModArchive {
 
     static func archive(
         _ sourceURL: URL,
-        in archiveDirectory: URL,
+        into install: StardewInstall,
+        archiveDirectory: URL? = nil,
         reason: ModArchiveReason,
         date: Date = Date(),
         fileManager: FileManager = .default
     ) throws -> URL {
         guard let archivedURL = try archive(
             [sourceURL],
-            in: archiveDirectory,
+            into: install,
+            archiveDirectory: archiveDirectory,
             reason: reason,
             date: date,
             fileManager: fileManager
@@ -88,7 +91,8 @@ enum ModArchive {
 
     static func archive(
         _ sourceURLs: [URL],
-        in archiveDirectory: URL,
+        into install: StardewInstall,
+        archiveDirectory: URL? = nil,
         reason: ModArchiveReason,
         date: Date = Date(),
         fileManager: FileManager = .default
@@ -97,9 +101,17 @@ enum ModArchive {
             return []
         }
 
+        let resolvedArchiveDirectory = archiveDirectory ?? install.archivedModsDirectoryURL
+        let transactionContext = install.fileMoveTransactionContext(
+            archiveDirectory: resolvedArchiveDirectory
+        )
+        try FileMoveTransaction.recoverIfNeeded(
+            context: transactionContext,
+            fileManager: fileManager
+        )
         let plan = try prepareArchiveMoves(
             for: sourceURLs,
-            in: archiveDirectory,
+            in: resolvedArchiveDirectory,
             reason: reason,
             date: date,
             fileManager: fileManager
@@ -107,7 +119,7 @@ enum ModArchive {
         do {
             try FileMoveTransaction.perform(
                 plan.operations,
-                journalDirectoryURL: archiveDirectory,
+                context: transactionContext,
                 fileManager: fileManager
             )
         } catch {
@@ -128,24 +140,11 @@ enum ModArchive {
             throw CocoaError(.fileWriteUnknown)
         }
 
-        try FileMoveTransaction.recoverIfNeeded(
+        try prepareArchiveDirectory(archiveDirectory, fileManager: fileManager)
+        let containerURL = try createArchiveContainer(
             in: archiveDirectory,
-            fileManager: fileManager
-        )
-        try fileManager.createDirectory(
-            at: archiveDirectory,
-            withIntermediateDirectories: true
-        )
-
-        let containerURL = archiveDirectory
-            .appendingPathComponent(containerName(reason: reason, date: date), isDirectory: true)
-        try fileManager.createDirectory(
-            at: containerURL,
-            withIntermediateDirectories: true
-        )
-        writeContainerInfoIfMissing(
-            ArchiveContainerInfo(date: date, reason: reason.rawValue),
-            in: containerURL,
+            reason: reason,
+            date: date,
             fileManager: fileManager
         )
 
@@ -169,26 +168,34 @@ enum ModArchive {
     }
 
     static func pruneExpiredArchives(
-        in archiveDirectory: URL,
+        in install: StardewInstall,
+        archiveDirectory: URL? = nil,
         olderThan cutoffDate: Date = Date().addingTimeInterval(-retentionInterval),
         fileManager: FileManager = .default
     ) throws -> Int {
-        guard fileManager.directoryExists(at: archiveDirectory) else {
+        let archiveDirectory = archiveDirectory ?? install.archivedModsDirectoryURL
+        guard isNonSymbolicDirectory(archiveDirectory) else {
             return 0
         }
         try FileMoveTransaction.recoverIfNeeded(
-            in: archiveDirectory,
+            context: install.fileMoveTransactionContext(archiveDirectory: archiveDirectory),
             fileManager: fileManager
         )
 
         let archivedContainers = try fileManager.contentsOfDirectory(
             at: archiveDirectory,
-            includingPropertiesForKeys: [.creationDateKey, .contentModificationDateKey],
+            includingPropertiesForKeys: [
+                .creationDateKey,
+                .contentModificationDateKey,
+                .isDirectoryKey,
+                .isSymbolicLinkKey
+            ],
             options: [.skipsHiddenFiles]
         )
 
         var prunedCount = 0
-        for containerURL in archivedContainers where fileManager.directoryExists(at: containerURL) {
+        for containerURL in archivedContainers
+        where isNonSymbolicDirectory(containerURL) {
             let values = try containerURL.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
             let archiveDate = archiveDate(for: containerURL) ?? values.creationDate ?? values.contentModificationDate
             guard let archiveDate, archiveDate < cutoffDate else {
@@ -206,30 +213,33 @@ enum ModArchive {
         in archiveDirectory: URL,
         fileManager: FileManager = .default
     ) throws -> [ArchivedModInfo] {
-        guard fileManager.directoryExists(at: archiveDirectory) else {
+        guard isNonSymbolicDirectory(archiveDirectory) else {
             return []
         }
-        try FileMoveTransaction.recoverIfNeeded(
-            in: archiveDirectory,
-            fileManager: fileManager
-        )
-
         let containers = try fileManager.contentsOfDirectory(
             at: archiveDirectory,
-            includingPropertiesForKeys: [.creationDateKey, .contentModificationDateKey],
+            includingPropertiesForKeys: [
+                .creationDateKey,
+                .contentModificationDateKey,
+                .isDirectoryKey,
+                .isSymbolicLinkKey
+            ],
             options: [.skipsHiddenFiles]
         )
-        .filter { fileManager.directoryExists(at: $0) }
+        .filter(isNonSymbolicDirectory)
 
         let archivedMods = containers.flatMap { containerURL -> [ArchivedModInfo] in
             let childURLs = (try? fileManager.contentsOfDirectory(
                 at: containerURL,
-                includingPropertiesForKeys: [.isDirectoryKey],
+                includingPropertiesForKeys: [
+                    .isDirectoryKey,
+                    .isSymbolicLinkKey
+                ],
                 options: [.skipsHiddenFiles]
             )) ?? []
 
             return childURLs.compactMap { childURL in
-                guard fileManager.directoryExists(at: childURL) else {
+                guard isNonSymbolicDirectory(childURL) else {
                     return nil
                 }
 
@@ -263,14 +273,9 @@ enum ModArchive {
         in archiveDirectory: URL,
         fileManager: FileManager = .default
     ) throws -> ModArchiveSummary {
-        guard fileManager.directoryExists(at: archiveDirectory) else {
+        guard isNonSymbolicDirectory(archiveDirectory) else {
             return ModArchiveSummary()
         }
-        try FileMoveTransaction.recoverIfNeeded(
-            in: archiveDirectory,
-            fileManager: fileManager
-        )
-
         // The deep byte-count walk runs on every state refresh, so it's
         // skipped whenever the shallow container signature is unchanged.
         let signature = containerSignature(in: archiveDirectory, fileManager: fileManager)
@@ -306,12 +311,16 @@ enum ModArchive {
     ) -> [String: Date] {
         let children = (try? fileManager.contentsOfDirectory(
             at: archiveDirectory,
-            includingPropertiesForKeys: [.contentModificationDateKey],
+            includingPropertiesForKeys: [
+                .contentModificationDateKey,
+                .isDirectoryKey,
+                .isSymbolicLinkKey
+            ],
             options: [.skipsHiddenFiles]
         )) ?? []
 
         var signature: [String: Date] = [:]
-        for childURL in children {
+        for childURL in children where isNonSymbolicDirectory(childURL) {
             let values = try? childURL.resourceValues(forKeys: [.contentModificationDateKey])
             signature[childURL.lastPathComponent] = values?.contentModificationDate ?? .distantPast
         }
@@ -352,30 +361,72 @@ enum ModArchive {
         ]
         let timestamp = formatter.string(from: date)
             .replacingOccurrences(of: ":", with: "-")
-        return "\(timestamp)-\(reason.rawValue)"
+        return "\(timestamp)-\(UUID().uuidString)-\(reason.rawValue)"
     }
 
-    private static func writeContainerInfoIfMissing(
-        _ info: ArchiveContainerInfo,
-        in containerURL: URL,
+    private static func prepareArchiveDirectory(
+        _ archiveDirectory: URL,
         fileManager: FileManager
-    ) {
-        let infoURL = containerURL.appendingPathComponent(containerInfoFileName)
-        guard !fileManager.fileExists(atPath: infoURL.path) else {
-            return
+    ) throws {
+        if !fileManager.fileExists(atPath: archiveDirectory.path) {
+            try fileManager.createDirectory(
+                at: archiveDirectory,
+                withIntermediateDirectories: true
+            )
         }
+        let values = try archiveDirectory.resourceValues(
+            forKeys: [.isDirectoryKey, .isSymbolicLinkKey]
+        )
+        guard values.isSymbolicLink != true else {
+            throw FileMoveTransactionSecurityError.symbolicLinkEndpoint
+        }
+        guard values.isDirectory == true else {
+            throw FileMoveTransactionSecurityError.nonDirectoryEndpoint
+        }
+    }
+
+    private static func createArchiveContainer(
+        in archiveDirectory: URL,
+        reason: ModArchiveReason,
+        date: Date,
+        fileManager: FileManager
+    ) throws -> URL {
+        let containerURL = archiveDirectory.appendingPathComponent(
+            containerName(reason: reason, date: date),
+            isDirectory: true
+        )
+        try fileManager.createDirectory(
+            at: containerURL,
+            withIntermediateDirectories: false,
+            attributes: [.posixPermissions: 0o700]
+        )
 
         do {
-            try PropertyListEncoder().encode(info).write(to: infoURL)
+            try writeContainerInfo(
+                ArchiveContainerInfo(date: date, reason: reason.rawValue),
+                in: containerURL
+            )
+            return containerURL
         } catch {
-            // The folder name still carries the metadata via the legacy parse.
-            AppLog.archive.error("Couldn't write the archive metadata sidecar: \(error)")
+            try? fileManager.removeItem(at: containerURL)
+            throw error
         }
+    }
+
+    private static func writeContainerInfo(
+        _ info: ArchiveContainerInfo,
+        in containerURL: URL
+    ) throws {
+        let infoURL = containerURL.appendingPathComponent(containerInfoFileName)
+        try PropertyListEncoder().encode(info).write(to: infoURL, options: .atomic)
     }
 
     private static func containerInfo(for containerURL: URL) -> ArchiveContainerInfo? {
         let infoURL = containerURL.appendingPathComponent(containerInfoFileName)
-        guard let data = try? Data(contentsOf: infoURL) else {
+        guard let data = try? BoundedFileReader.readRegularFile(
+            at: infoURL,
+            maximumByteCount: maximumContainerInfoByteCount
+        ) else {
             // Normal for containers created before the sidecar existed.
             return nil
         }
@@ -423,7 +474,18 @@ enum ModArchive {
             return nil
         }
 
-        let dateString = String(containerName.dropLast(suffix.count))
+        var dateString = String(containerName.dropLast(suffix.count))
+        if dateString.count > 37 {
+            let possibleUUID = String(dateString.suffix(36))
+            let separatorIndex = dateString.index(
+                dateString.endIndex,
+                offsetBy: -37
+            )
+            if dateString[separatorIndex] == "-",
+               UUID(uuidString: possibleUUID) != nil {
+                dateString.removeLast(37)
+            }
+        }
         let timestamp = dateString.replacingOccurrences(
             of: #"T(\d{2})-(\d{2})-(\d{2})Z"#,
             with: "T$1:$2:$3Z",
@@ -486,7 +548,12 @@ enum ModArchive {
         var totalByteCount: Int64 = 0
         guard let enumerator = fileManager.enumerator(
             at: url,
-            includingPropertiesForKeys: [.isRegularFileKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey],
+            includingPropertiesForKeys: [
+                .isRegularFileKey,
+                .isSymbolicLinkKey,
+                .totalFileAllocatedSizeKey,
+                .fileAllocatedSizeKey
+            ],
             options: [.skipsHiddenFiles]
         ) else {
             return totalByteCount
@@ -494,8 +561,17 @@ enum ModArchive {
 
         for case let fileURL as URL in enumerator {
             let values = try fileURL.resourceValues(
-                forKeys: [.isRegularFileKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey]
+                forKeys: [
+                    .isRegularFileKey,
+                    .isSymbolicLinkKey,
+                    .totalFileAllocatedSizeKey,
+                    .fileAllocatedSizeKey
+                ]
             )
+            if values.isSymbolicLink == true {
+                enumerator.skipDescendants()
+                continue
+            }
             guard values.isRegularFile == true else {
                 continue
             }
@@ -504,6 +580,15 @@ enum ModArchive {
         }
 
         return totalByteCount
+    }
+
+    private static func isNonSymbolicDirectory(_ url: URL) -> Bool {
+        guard let values = try? url.resourceValues(
+            forKeys: [.isDirectoryKey, .isSymbolicLinkKey]
+        ) else {
+            return false
+        }
+        return values.isDirectory == true && values.isSymbolicLink != true
     }
 }
 

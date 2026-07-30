@@ -47,11 +47,7 @@ enum ModLibrary {
             throw ModLibraryError.modFolderMissing(install.modDirectoryURL)
         }
         try FileMoveTransaction.recoverIfNeeded(
-            in: install.archivedModsDirectoryURL,
-            fileManager: fileManager
-        )
-        try FileMoveTransaction.recoverIfNeeded(
-            in: install.modDirectoryURL,
+            context: install.fileMoveTransactionContext(),
             fileManager: fileManager
         )
         try ModInstallWorkflow.removeAbandonedStagingDirectories(
@@ -132,6 +128,7 @@ enum ModLibrary {
     static func setEnabled(
         _ mod: ModInfo,
         enabled: Bool,
+        install: StardewInstall,
         fileManager: FileManager = .default
     ) throws -> URL {
         guard mod.isEnabled != enabled else {
@@ -140,7 +137,7 @@ enum ModLibrary {
 
         guard let change = try applyEnabledStates(
             to: [mod],
-            journalDirectoryURL: mod.url.deletingLastPathComponent(),
+            install: install,
             fileManager: fileManager,
             shouldEnable: { _ in enabled }
         ).first else {
@@ -151,7 +148,7 @@ enum ModLibrary {
 
     static func applyEnabledStates(
         to mods: [ModInfo],
-        journalDirectoryURL: URL,
+        install: StardewInstall,
         fileManager: FileManager = .default,
         moveItem: ((URL, URL) throws -> Void)? = nil,
         shouldEnable: (ModInfo) -> Bool
@@ -186,7 +183,7 @@ enum ModLibrary {
 
         try FileMoveTransaction.perform(
             operations,
-            journalDirectoryURL: journalDirectoryURL,
+            context: install.fileMoveTransactionContext(),
             fileManager: fileManager,
             moveItem: moveItem
         )
@@ -276,12 +273,14 @@ enum ModLibrary {
 
     static func archive(
         _ mod: ModInfo,
-        in archiveDirectory: URL,
+        into install: StardewInstall,
+        archiveDirectory: URL? = nil,
         fileManager: FileManager = .default
     ) throws -> URL {
         try ModArchive.archive(
             mod.url,
-            in: archiveDirectory,
+            into: install,
+            archiveDirectory: archiveDirectory,
             reason: .deleted,
             fileManager: fileManager
         )
@@ -289,12 +288,14 @@ enum ModLibrary {
 
     static func archive(
         _ mods: [ModInfo],
-        in archiveDirectory: URL,
+        into install: StardewInstall,
+        archiveDirectory: URL? = nil,
         fileManager: FileManager = .default
     ) throws -> [URL] {
         try ModArchive.archive(
             mods.map(\.url),
-            in: archiveDirectory,
+            into: install,
+            archiveDirectory: archiveDirectory,
             reason: .deleted,
             fileManager: fileManager
         )
@@ -312,6 +313,14 @@ enum ModLibrary {
         }
 
         let resolvedArchiveDirectory = archiveDirectory ?? install.archivedModsDirectoryURL
+        let transactionContext = install.fileMoveTransactionContext(
+            archiveDirectory: resolvedArchiveDirectory
+        )
+        try FileMoveTransaction.recoverIfNeeded(
+            context: transactionContext,
+            fileManager: fileManager,
+            moveItem: moveItem
+        )
         let currentLocations = ModInstalledCatalog.locations(
             in: install.modDirectoryURL,
             fileManager: fileManager
@@ -384,7 +393,7 @@ enum ModLibrary {
         do {
             try FileMoveTransaction.perform(
                 (currentArchivePlan?.operations ?? []) + restoreOperations,
-                journalDirectoryURL: resolvedArchiveDirectory,
+                context: transactionContext,
                 fileManager: fileManager,
                 moveItem: moveItem
             )

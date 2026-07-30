@@ -5,8 +5,8 @@ final class FileMoveTransactionTests: SeedBoxTestCase {
     func testFailedMoveRollsBackCompletedMovesAndRemovesJournal() throws {
         let sourceA = try makeDirectory(named: "A")
         let sourceB = try makeDirectory(named: "B")
-        let destinationA = temporaryDirectory.appendingPathComponent(".A")
-        let destinationB = temporaryDirectory.appendingPathComponent(".B")
+        let destinationA = sourceA.deletingLastPathComponent().appendingPathComponent(".A")
+        let destinationB = sourceB.deletingLastPathComponent().appendingPathComponent(".B")
         var moveCount = 0
 
         XCTAssertThrowsError(
@@ -15,7 +15,7 @@ final class FileMoveTransactionTests: SeedBoxTestCase {
                     FileMoveOperation(sourceURL: sourceA, destinationURL: destinationA),
                     FileMoveOperation(sourceURL: sourceB, destinationURL: destinationB)
                 ],
-                journalDirectoryURL: temporaryDirectory,
+                context: transactionContext,
                 moveItem: { sourceURL, destinationURL in
                     moveCount += 1
                     if moveCount == 2 {
@@ -31,30 +31,119 @@ final class FileMoveTransactionTests: SeedBoxTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: destinationA.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: destinationB.path))
         XCTAssertFalse(FileManager.default.fileExists(
-            atPath: temporaryDirectory
-                .appendingPathComponent(FileMoveTransaction.journalFileName)
-                .path
+            atPath: transactionContext.journalURL.path
         ))
     }
 
     func testRecoveryReversesMovesCompletedBeforeInterruption() throws {
         let sourceA = try makeDirectory(named: "A")
         let sourceB = try makeDirectory(named: "B")
-        let destinationA = temporaryDirectory.appendingPathComponent(".A")
-        let destinationB = temporaryDirectory.appendingPathComponent(".B")
+        let destinationA = sourceA.deletingLastPathComponent().appendingPathComponent(".A")
+        let destinationB = sourceB.deletingLastPathComponent().appendingPathComponent(".B")
         let operations = [
             FileMoveOperation(sourceURL: sourceA, destinationURL: destinationA),
             FileMoveOperation(sourceURL: sourceB, destinationURL: destinationB)
         ]
         try FileManager.default.moveItem(at: sourceA, to: destinationA)
-        try writeJournal(operations: operations)
+        try writeJournal(operations: operations, context: transactionContext)
 
-        try FileMoveTransaction.recoverIfNeeded(in: temporaryDirectory)
+        try FileMoveTransaction.recoverIfNeeded(context: transactionContext)
 
         XCTAssertTrue(FileManager.default.directoryExists(at: sourceA))
         XCTAssertTrue(FileManager.default.directoryExists(at: sourceB))
         XCTAssertFalse(FileManager.default.fileExists(atPath: destinationA.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: destinationB.path))
+    }
+
+    func testRecoveryRejectsOperationOutsideApprovedRoots() throws {
+        let outsideDirectory = temporaryDirectory.appendingPathComponent("Outside", isDirectory: true)
+        let sourceURL = outsideDirectory.appendingPathComponent("Private", isDirectory: true)
+        let destinationURL = outsideDirectory.appendingPathComponent("Moved", isDirectory: true)
+        try FileManager.default.createDirectory(at: destinationURL, withIntermediateDirectories: true)
+        try writeJournal(
+            operations: [
+                FileMoveOperation(sourceURL: sourceURL, destinationURL: destinationURL)
+            ],
+            context: transactionContext
+        )
+
+        XCTAssertThrowsError(
+            try FileMoveTransaction.recoverIfNeeded(context: transactionContext)
+        ) { error in
+            XCTAssertEqual(
+                error as? FileMoveTransactionSecurityError,
+                .operationOutsideApprovedFolders
+            )
+        }
+
+        XCTAssertTrue(FileManager.default.directoryExists(at: destinationURL))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sourceURL.path))
+    }
+
+    func testRecoveryRefusesReplacementAtCompletedMoveDestination() throws {
+        let sourceURL = try makeDirectory(named: "Original")
+        let destinationURL = sourceURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(".Original")
+        let operations = [
+            FileMoveOperation(
+                sourceURL: sourceURL,
+                destinationURL: destinationURL
+            )
+        ]
+        try writeJournal(operations: operations, context: transactionContext)
+        try FileManager.default.moveItem(at: sourceURL, to: destinationURL)
+        try FileManager.default.removeItem(at: destinationURL)
+        try FileManager.default.createDirectory(
+            at: destinationURL,
+            withIntermediateDirectories: false
+        )
+        let sentinelURL = destinationURL.appendingPathComponent("replacement.txt")
+        try Data("replacement".utf8).write(to: sentinelURL)
+
+        XCTAssertThrowsError(
+            try FileMoveTransaction.recoverIfNeeded(context: transactionContext)
+        ) { error in
+            XCTAssertNotNil(error as? FileMoveTransactionError)
+        }
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sourceURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sentinelURL.path))
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: transactionContext.journalURL.path
+            )
+        )
+    }
+
+    func testModsFolderJournalIsNeverTreatedAsTrustedRecoveryState() throws {
+        let install = try makeInstall()
+        let outsideDirectory = temporaryDirectory.appendingPathComponent("Outside", isDirectory: true)
+        let sourceURL = outsideDirectory.appendingPathComponent("Private", isDirectory: true)
+        let destinationURL = outsideDirectory.appendingPathComponent("Moved", isDirectory: true)
+        try FileManager.default.createDirectory(at: destinationURL, withIntermediateDirectories: true)
+
+        struct LegacyJournal: Codable {
+            var schemaVersion: Int
+            var operations: [FileMoveOperation]
+        }
+        let data = try PropertyListEncoder().encode(
+            LegacyJournal(
+                schemaVersion: 1,
+                operations: [
+                    FileMoveOperation(sourceURL: sourceURL, destinationURL: destinationURL)
+                ]
+            )
+        )
+        try data.write(
+            to: install.modDirectoryURL
+                .appendingPathComponent(".seedbox-file-transaction.plist")
+        )
+
+        _ = try ModLibrary.scanWithDiagnostics(install: install)
+
+        XCTAssertTrue(FileManager.default.directoryExists(at: destinationURL))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sourceURL.path))
     }
 
     func testApplyingModSetDoesNotLeavePartialEnabledStates() throws {
@@ -106,7 +195,7 @@ final class FileMoveTransactionTests: SeedBoxTestCase {
         )
         let archivedOldURL = try ModArchive.archive(
             oldURL,
-            in: install.archivedModsDirectoryURL,
+            into: install,
             reason: .updated
         )
         let currentURL = try makeInstalledMod(
@@ -193,24 +282,60 @@ final class FileMoveTransactionTests: SeedBoxTestCase {
     }
 
     private func makeDirectory(named name: String) throws -> URL {
-        let url = temporaryDirectory.appendingPathComponent(name, isDirectory: true)
+        let managedDirectory = temporaryDirectory.appendingPathComponent("Managed", isDirectory: true)
+        let url = managedDirectory.appendingPathComponent(name, isDirectory: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
 
-    private func writeJournal(operations: [FileMoveOperation]) throws {
+    private var transactionContext: FileMoveTransactionContext {
+        FileMoveTransactionContext(
+            journalDirectoryURL: temporaryDirectory
+                .appendingPathComponent("Application Support", isDirectory: true)
+                .appendingPathComponent("File Transactions", isDirectory: true),
+            allowedRootURLs: [
+                temporaryDirectory.appendingPathComponent("Managed", isDirectory: true)
+            ]
+        )
+    }
+
+    private func writeJournal(
+        operations: [FileMoveOperation],
+        context: FileMoveTransactionContext
+    ) throws {
         struct TestJournal: Codable {
             var schemaVersion: Int
-            var operations: [FileMoveOperation]
+            var allowedRootPaths: [String]
+            var operations: [TestJournalOperation]
         }
 
-        let data = try PropertyListEncoder().encode(
-            TestJournal(schemaVersion: 1, operations: operations)
+        struct TestJournalOperation: Codable {
+            var operation: FileMoveOperation
+            var sourceIdentity: SourceFileIdentity
+            var preservesFileIdentity: Bool
+        }
+
+        try FileManager.default.createDirectory(
+            at: context.journalDirectoryURL,
+            withIntermediateDirectories: true
         )
-        try data.write(
-            to: temporaryDirectory.appendingPathComponent(
-                FileMoveTransaction.journalFileName
+        let data = try PropertyListEncoder().encode(
+            TestJournal(
+                schemaVersion: 3,
+                allowedRootPaths: context.allowedRootPaths,
+                operations: try operations.map { operation in
+                    let identity = try XCTUnwrap(
+                        SourceFileIdentity(url: operation.sourceURL)
+                            ?? SourceFileIdentity(url: operation.destinationURL)
+                    )
+                    return TestJournalOperation(
+                        operation: operation,
+                        sourceIdentity: identity,
+                        preservesFileIdentity: true
+                    )
+                }
             )
         )
+        try data.write(to: context.journalURL)
     }
 }

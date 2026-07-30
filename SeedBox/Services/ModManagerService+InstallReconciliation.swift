@@ -77,7 +77,11 @@ extension ModManagerService {
                 try performWithFolderAccess(state: &nextState) {
                     let currentMods = try ModLibrary.scan(install: currentInstall)
                     for mod in currentMods where installedTokens.contains(mod.enabledFolderName.normalizedFolderToken) {
-                        _ = try ModLibrary.setEnabled(mod, enabled: shouldEnable)
+                        _ = try ModLibrary.setEnabled(
+                            mod,
+                            enabled: shouldEnable,
+                            install: currentInstall
+                        )
                     }
                 }
             }
@@ -151,11 +155,13 @@ extension ModManagerService {
         let changeMessage = AppStrings.Status.addedModFolders(count: addedCount)
 
         do {
+            let currentInstall = install(for: nextState)
             try performWithFolderAccess(state: &nextState) {
                 for mod in addedMods {
                     _ = try ModLibrary.setEnabled(
                         mod,
-                        enabled: enablementByModID[mod.id] ?? shouldEnable
+                        enabled: enablementByModID[mod.id] ?? shouldEnable,
+                        install: currentInstall
                     )
                 }
             }

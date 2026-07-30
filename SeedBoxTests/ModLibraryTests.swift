@@ -2,6 +2,35 @@ import XCTest
 @testable import SeedBox
 
 final class ModLibraryTests: SeedBoxTestCase {
+    func testModIdentityIsStableWithoutExposingItsFolderPath() {
+        let enabledURL = URL(
+            fileURLWithPath: "/Users/someone/Library/Stardew/Mods/ContentPatcher"
+        )
+        let disabledURL = enabledURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(".ContentPatcher")
+
+        let enabledID = ModInfo.stableID(
+            folderName: "ContentPatcher",
+            url: enabledURL
+        )
+        let disabledID = ModInfo.stableID(
+            folderName: ".ContentPatcher",
+            url: disabledURL
+        )
+        let otherInstallID = ModInfo.stableID(
+            folderName: "ContentPatcher",
+            url: URL(fileURLWithPath: "/Volumes/External/Mods/ContentPatcher")
+        )
+
+        XCTAssertEqual(enabledID, disabledID)
+        XCTAssertNotEqual(enabledID, otherInstallID)
+        XCTAssertTrue(enabledID.hasPrefix("mod-"))
+        XCTAssertFalse(enabledID.contains("/Users/"))
+        XCTAssertFalse(enabledID.contains("Library"))
+        XCTAssertFalse(enabledID.contains("ContentPatcher"))
+    }
+
     func testScansEnabledAndDisabledMods() throws {
         let modsDirectory = try makeModsDirectory()
         let install = StardewInstall(modsDirectory: modsDirectory)
@@ -447,20 +476,27 @@ final class ModLibraryTests: SeedBoxTestCase {
     }
 
     func testDisablesAndEnablesWithDotPrefix() throws {
-        let modsDirectory = try makeModsDirectory()
-        let install = StardewInstall(modsDirectory: modsDirectory)
+        let install = try makeInstall()
         let modURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
 
         try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
         try writeManifest(name: "Content Patcher", to: modURL)
 
         let mod = try XCTUnwrap(ModLibrary.scan(install: install).first)
-        let disabledURL = try ModLibrary.setEnabled(mod, enabled: false)
+        let disabledURL = try ModLibrary.setEnabled(
+            mod,
+            enabled: false,
+            install: install
+        )
 
         XCTAssertEqual(disabledURL.lastPathComponent, ".ContentPatcher")
 
         let disabledMod = try XCTUnwrap(ModLibrary.scan(install: install).first)
-        let enabledURL = try ModLibrary.setEnabled(disabledMod, enabled: true)
+        let enabledURL = try ModLibrary.setEnabled(
+            disabledMod,
+            enabled: true,
+            install: install
+        )
 
         XCTAssertEqual(enabledURL.lastPathComponent, "ContentPatcher")
     }
@@ -483,8 +519,7 @@ final class ModLibraryTests: SeedBoxTestCase {
     }
 
     func testEnableRejectsExistingEnabledCopy() throws {
-        let modsDirectory = try makeModsDirectory()
-        let install = StardewInstall(modsDirectory: modsDirectory)
+        let install = try makeInstall()
         let enabledURL = install.modDirectoryURL.appendingPathComponent("ContentPatcher")
         let disabledURL = install.modDirectoryURL.appendingPathComponent(".ContentPatcher")
 
@@ -498,7 +533,11 @@ final class ModLibraryTests: SeedBoxTestCase {
         )
 
         XCTAssertThrowsError(
-            try ModLibrary.setEnabled(disabledMod, enabled: true)
+            try ModLibrary.setEnabled(
+                disabledMod,
+                enabled: true,
+                install: install
+            )
         ) { error in
             guard case .modAlreadyInstalled(let folderName, let url) = error as? ModLibraryError else {
                 XCTFail("Expected modAlreadyInstalled error, got \(error).")
@@ -696,6 +735,16 @@ final class ModLibraryTests: SeedBoxTestCase {
                     .appendingPathComponent("manifest.json")
                     .path
                 )
+        )
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: install.modDirectoryURL
+                    .appendingPathComponent("RootPackedMod")
+                    .appendingPathComponent(
+                        ModImportSecurity.extractionMarkerFileName
+                    )
+                    .path
+            )
         )
     }
 
@@ -1005,7 +1054,7 @@ final class ModLibraryTests: SeedBoxTestCase {
         try writeManifest(name: "Content Patcher", to: modURL, version: "1.0.0")
         let archivedURL = try ModArchive.archive(
             modURL,
-            in: install.archivedModsDirectoryURL,
+            into: install,
             reason: .deleted
         )
         let archivedMod = try XCTUnwrap(ModArchive.archivedMods(in: install.archivedModsDirectoryURL).first)
@@ -1034,7 +1083,7 @@ final class ModLibraryTests: SeedBoxTestCase {
         try writeManifest(name: "Content Patcher", to: modURL, version: "1.0.0")
         let archivedURL = try ModArchive.archive(
             modURL,
-            in: install.archivedModsDirectoryURL,
+            into: install,
             reason: .deleted
         )
         let archivedMod = try XCTUnwrap(ModArchive.archivedMods(in: install.archivedModsDirectoryURL).first)
@@ -1244,7 +1293,7 @@ final class ModLibraryTests: SeedBoxTestCase {
         let archiveDate = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-06-05T12:00:00Z"))
         _ = try ModArchive.archive(
             modURL,
-            in: install.archivedModsDirectoryURL,
+            into: install,
             reason: .deleted,
             date: archiveDate
         )
@@ -1388,6 +1437,171 @@ final class ModLibraryTests: SeedBoxTestCase {
         }
     }
 
+    func testRejectsLooseFolderContainingSymbolicLink() throws {
+        let packageURL = temporaryDirectory.appendingPathComponent("LinkedMod")
+        let outsideURL = temporaryDirectory.appendingPathComponent("Outside")
+        let linkURL = packageURL.appendingPathComponent("LinkedAssets")
+
+        try FileManager.default.createDirectory(at: packageURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Linked Mod", to: packageURL)
+        try FileManager.default.createDirectory(at: outsideURL, withIntermediateDirectories: true)
+        try "private".write(
+            to: outsideURL.appendingPathComponent("outside.txt"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try FileManager.default.createSymbolicLink(
+            at: linkURL,
+            withDestinationURL: outsideURL
+        )
+
+        XCTAssertThrowsError(
+            try ModInstallSourceResolver.resolve(from: packageURL)
+        ) { error in
+            guard case .symbolicLinkNotAllowed(let rejectedURL) =
+                    error as? ModArchiveExtractionError
+            else {
+                return XCTFail("Expected symbolicLinkNotAllowed, got \(error).")
+            }
+            XCTAssertEqual(rejectedURL.lastPathComponent, linkURL.lastPathComponent)
+        }
+    }
+
+    func testRejectsArchiveContainingSymbolicLinkBeforeExtraction() throws {
+        let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads")
+        let packageURL = downloadsURL.appendingPathComponent("LinkedArchive")
+        let outsideURL = temporaryDirectory.appendingPathComponent("Outside")
+        let linkURL = packageURL.appendingPathComponent("LinkedAssets")
+        let zipURL = downloadsURL.appendingPathComponent("LinkedArchive.zip")
+
+        try FileManager.default.createDirectory(at: packageURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Linked Archive", to: packageURL)
+        try FileManager.default.createDirectory(at: outsideURL, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(
+            at: linkURL,
+            withDestinationURL: outsideURL
+        )
+        try makeZip(from: packageURL, to: zipURL)
+        let extractionDirectoriesBefore = extractedArchiveDirectoryNames()
+
+        XCTAssertThrowsError(
+            try ModInstallSourceResolver.resolve(from: zipURL)
+        ) { error in
+            guard case .symbolicLinkNotAllowed(let rejectedURL) =
+                    error as? ModArchiveExtractionError
+            else {
+                return XCTFail("Expected symbolicLinkNotAllowed, got \(error).")
+            }
+            XCTAssertEqual(rejectedURL.lastPathComponent, linkURL.lastPathComponent)
+        }
+        XCTAssertEqual(extractedArchiveDirectoryNames(), extractionDirectoriesBefore)
+    }
+
+    func testAppliesResourceLimitsToLooseFolders() throws {
+        let packageURL = temporaryDirectory.appendingPathComponent("LargeFolderMod")
+        try FileManager.default.createDirectory(at: packageURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Large Folder Mod", to: packageURL)
+        try "asset".write(
+            to: packageURL.appendingPathComponent("asset.txt"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let limits = ModArchiveExtractionLimits(
+            maximumEntryCount: 1,
+            maximumTotalUncompressedByteCount: .max
+        )
+
+        XCTAssertThrowsError(
+            try ModInstallSourceResolver.resolve(from: packageURL, limits: limits)
+        ) { error in
+            XCTAssertEqual(
+                error as? ModArchiveExtractionError,
+                .tooManyEntries(packageURL, limit: 1)
+            )
+        }
+    }
+
+    func testSelectionLimitCleansAlreadyExtractedArchives() throws {
+        let downloadsURL = temporaryDirectory.appendingPathComponent("Downloads")
+        let firstPackageURL = downloadsURL.appendingPathComponent("FirstMod")
+        let secondPackageURL = downloadsURL.appendingPathComponent("SecondMod")
+        let firstZipURL = downloadsURL.appendingPathComponent("FirstMod.zip")
+        let secondZipURL = downloadsURL.appendingPathComponent("SecondMod.zip")
+
+        try FileManager.default.createDirectory(
+            at: firstPackageURL,
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: secondPackageURL,
+            withIntermediateDirectories: true
+        )
+        try writeManifest(name: "First Mod", to: firstPackageURL)
+        try writeManifest(name: "Second Mod", to: secondPackageURL)
+        try makeZip(from: firstPackageURL, to: firstZipURL)
+        try makeZip(from: secondPackageURL, to: secondZipURL)
+
+        let extractionDirectoriesBefore = extractedArchiveDirectoryNames()
+        let selectionLimits = ModImportSelectionLimits(
+            maximumSourceCount: 2,
+            maximumEntryCount: 1,
+            maximumTotalByteCount: .max
+        )
+
+        XCTAssertThrowsError(
+            try ModInstallSourceResolver.resolveAll(
+                from: [firstZipURL, secondZipURL],
+                selectionLimits: selectionLimits
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? ModArchiveExtractionError,
+                .selectionHasTooManyEntries(limit: 1)
+            )
+        }
+        XCTAssertEqual(extractedArchiveDirectoryNames(), extractionDirectoriesBefore)
+    }
+
+    func testAbandonedExtractionCleanupRequiresSeedBoxMarker() throws {
+        let temporaryRoot = FileManager.default.temporaryDirectory
+        let suffix = UUID().uuidString
+        let markedURL = temporaryRoot.appendingPathComponent(
+            "\(ModImportSecurity.extractionDirectoryPrefix)\(suffix)-marked",
+            isDirectory: true
+        )
+        let unmarkedURL = temporaryRoot.appendingPathComponent(
+            "\(ModImportSecurity.extractionDirectoryPrefix)\(suffix)-unmarked",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: markedURL, withIntermediateDirectories: false)
+        try FileManager.default.createDirectory(at: unmarkedURL, withIntermediateDirectories: false)
+        defer {
+            try? FileManager.default.removeItem(at: markedURL)
+            try? FileManager.default.removeItem(at: unmarkedURL)
+        }
+        try Data().write(
+            to: markedURL.appendingPathComponent(
+                ModImportSecurity.extractionMarkerFileName
+            )
+        )
+        let oldDate = Date().addingTimeInterval(
+            -(ModImportSecurity.abandonedExtractionAge + 60)
+        )
+        try FileManager.default.setAttributes(
+            [.modificationDate: oldDate],
+            ofItemAtPath: markedURL.path
+        )
+        try FileManager.default.setAttributes(
+            [.modificationDate: oldDate],
+            ofItemAtPath: unmarkedURL.path
+        )
+
+        ModImportSecurity.removeAbandonedExtractionDirectories()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: markedURL.path))
+        XCTAssertTrue(FileManager.default.directoryExists(at: unmarkedURL))
+    }
+
     func testManifestCacheReflectsOnDiskChanges() throws {
         let modURL = temporaryDirectory.appendingPathComponent("CachedMod", isDirectory: true)
         try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
@@ -1428,6 +1642,45 @@ final class ModLibraryTests: SeedBoxTestCase {
 
         XCTAssertNil(mod.manifest)
         XCTAssertEqual(mod.displayName, "OversizedManifestMod")
+    }
+
+    func testManifestSearchDoesNotFollowSymbolicLinks() throws {
+        let modURL = temporaryDirectory.appendingPathComponent(
+            "LinkedManifestMod",
+            isDirectory: true
+        )
+        let outsideDirectory = temporaryDirectory.appendingPathComponent(
+            "Outside",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: modURL,
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: outsideDirectory,
+            withIntermediateDirectories: true
+        )
+        try writeManifest(name: "Outside Mod", to: outsideDirectory)
+
+        let linkedManifest = modURL.appendingPathComponent("manifest.json")
+        try FileManager.default.createSymbolicLink(
+            at: linkedManifest,
+            withDestinationURL: outsideDirectory.appendingPathComponent(
+                "manifest.json"
+            )
+        )
+        let linkedDirectory = modURL.appendingPathComponent(
+            "Nested",
+            isDirectory: true
+        )
+        try FileManager.default.createSymbolicLink(
+            at: linkedDirectory,
+            withDestinationURL: outsideDirectory
+        )
+
+        XCTAssertNil(ModManifestReader.loadManifest(at: linkedManifest))
+        XCTAssertNil(ModManifestReader.findManifest(in: modURL))
     }
 
     func testUpdatingModPreservesUserConfig() throws {
@@ -1495,6 +1748,52 @@ final class ModLibraryTests: SeedBoxTestCase {
         XCTAssertEqual(
             try String(contentsOf: installedURL.appendingPathComponent("config.json"), encoding: .utf8),
             userConfig
+        )
+    }
+
+    func testSymlinkedUserConfigIsNotCarriedIntoUpdate() throws {
+        let modsDirectory = try makeModsDirectory()
+        let install = StardewInstall(modsDirectory: modsDirectory)
+        let installedURL = install.modDirectoryURL.appendingPathComponent("Alpha")
+        try FileManager.default.createDirectory(at: installedURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Alpha", to: installedURL, version: "1.0.0", uniqueID: "Test.Alpha")
+
+        let outsideConfigURL = temporaryDirectory.appendingPathComponent("Outside Config.json")
+        let outsideConfig = #"{"difficulty": "outside"}"#
+        try outsideConfig.write(to: outsideConfigURL, atomically: true, encoding: .utf8)
+        try FileManager.default.createSymbolicLink(
+            at: installedURL.appendingPathComponent("config.json"),
+            withDestinationURL: outsideConfigURL
+        )
+
+        let newVersionURL = temporaryDirectory.appendingPathComponent("Downloads").appendingPathComponent("Alpha")
+        try FileManager.default.createDirectory(at: newVersionURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Alpha", to: newVersionURL, version: "2.0.0", uniqueID: "Test.Alpha")
+        let shippedConfig = #"{"difficulty": "default"}"#
+        try shippedConfig.write(
+            to: newVersionURL.appendingPathComponent("config.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let result = try ModLibrary.installMods(from: [newVersionURL], into: install)
+
+        let updated = try XCTUnwrap(result.updated.first)
+        XCTAssertFalse(updated.preservedConfig)
+        XCTAssertTrue(updated.configPreservationFailed)
+        XCTAssertEqual(
+            try String(contentsOf: installedURL.appendingPathComponent("config.json"), encoding: .utf8),
+            shippedConfig
+        )
+        XCTAssertEqual(
+            try String(contentsOf: outsideConfigURL, encoding: .utf8),
+            outsideConfig
+        )
+        XCTAssertNotEqual(
+            try installedURL.appendingPathComponent("config.json")
+                .resourceValues(forKeys: [.isSymbolicLinkKey])
+                .isSymbolicLink,
+            true
         )
     }
 
@@ -1590,14 +1889,60 @@ final class ModLibraryTests: SeedBoxTestCase {
         )
     }
 
+    func testAbandonedInstallCleanupDoesNotFollowSymbolicLinks() throws {
+        let modsDirectory = try makeModsDirectory()
+        let outsideDirectory = temporaryDirectory.appendingPathComponent(
+            "Outside Staging Target",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: outsideDirectory,
+            withIntermediateDirectories: true
+        )
+        let sentinelURL = outsideDirectory.appendingPathComponent("keep.txt")
+        try Data("keep".utf8).write(to: sentinelURL)
+        let linkedStagingURL = modsDirectory.appendingPathComponent(
+            "\(ModInstallWorkflow.installStagingDirectoryPrefix)linked"
+        )
+        let unmarkedStagingURL = modsDirectory.appendingPathComponent(
+            "\(ModInstallWorkflow.installStagingDirectoryPrefix)unmarked"
+        )
+        try FileManager.default.createSymbolicLink(
+            at: linkedStagingURL,
+            withDestinationURL: outsideDirectory
+        )
+        try FileManager.default.createDirectory(
+            at: unmarkedStagingURL,
+            withIntermediateDirectories: false
+        )
+
+        try ModInstallWorkflow.removeAbandonedStagingDirectories(
+            in: modsDirectory,
+            fileManager: .default
+        )
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: linkedStagingURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: unmarkedStagingURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sentinelURL.path))
+    }
+
     func testArchiveSummaryCacheInvalidatesWhenArchiveChanges() throws {
         let modsDirectory = try makeModsDirectory()
         let archiveDirectory = temporaryDirectory.appendingPathComponent("Archived Mods")
+        let install = StardewInstall(
+            modsDirectory: modsDirectory,
+            modSetDirectory: temporaryDirectory.appendingPathComponent("Mod Sets", isDirectory: true)
+        )
 
         let firstModURL = modsDirectory.appendingPathComponent("FirstMod")
         try FileManager.default.createDirectory(at: firstModURL, withIntermediateDirectories: true)
         try writeManifest(name: "First Mod", to: firstModURL)
-        _ = try ModArchive.archive(firstModURL, in: archiveDirectory, reason: .deleted)
+        _ = try ModArchive.archive(
+            firstModURL,
+            into: install,
+            archiveDirectory: archiveDirectory,
+            reason: .deleted
+        )
 
         let firstSummary = try ModArchive.summary(in: archiveDirectory)
         XCTAssertEqual(firstSummary.archivedModCount, 1)
@@ -1606,7 +1951,12 @@ final class ModLibraryTests: SeedBoxTestCase {
         let secondModURL = modsDirectory.appendingPathComponent("SecondMod")
         try FileManager.default.createDirectory(at: secondModURL, withIntermediateDirectories: true)
         try writeManifest(name: "Second Mod", to: secondModURL)
-        _ = try ModArchive.archive(secondModURL, in: archiveDirectory, reason: .deleted)
+        _ = try ModArchive.archive(
+            secondModURL,
+            into: install,
+            archiveDirectory: archiveDirectory,
+            reason: .deleted
+        )
 
         let secondSummary = try ModArchive.summary(in: archiveDirectory)
         XCTAssertEqual(secondSummary.archivedModCount, 2)
@@ -1671,14 +2021,19 @@ final class ModLibraryTests: SeedBoxTestCase {
     func testArchiveSidecarPreservesExactDateAndReason() throws {
         let modsDirectory = try makeModsDirectory()
         let archiveDirectory = temporaryDirectory.appendingPathComponent("Archived Mods")
+        let install = StardewInstall(
+            modsDirectory: modsDirectory,
+            modSetDirectory: temporaryDirectory.appendingPathComponent("Mod Sets", isDirectory: true)
+        )
         let modURL = modsDirectory.appendingPathComponent("ArchivedMod")
         try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
         try writeManifest(name: "Archived Mod", to: modURL)
 
         let archiveDate = Date(timeIntervalSince1970: 1_750_000_000.25)
-        _ = try ModArchive.archive(
+        let archivedURL = try ModArchive.archive(
             modURL,
-            in: archiveDirectory,
+            into: install,
+            archiveDirectory: archiveDirectory,
             reason: .updated,
             date: archiveDate
         )
@@ -1690,6 +2045,95 @@ final class ModLibraryTests: SeedBoxTestCase {
             archiveDate.timeIntervalSince1970,
             accuracy: 0.001
         )
+
+        try FileManager.default.removeItem(
+            at: archivedURL
+                .deletingLastPathComponent()
+                .appendingPathComponent(ModArchive.containerInfoFileName)
+        )
+        let fallbackArchivedMod = try XCTUnwrap(
+            ModArchive.archivedMods(in: archiveDirectory).first
+        )
+        XCTAssertEqual(fallbackArchivedMod.reason, .updated)
+        XCTAssertEqual(
+            fallbackArchivedMod.archivedDate?.timeIntervalSince1970 ?? 0,
+            archiveDate.timeIntervalSince1970,
+            accuracy: 1
+        )
+    }
+
+    func testArchivingRefusesSymbolicLinkArchiveDirectory() throws {
+        let install = try makeInstall()
+        let modURL = install.modDirectoryURL.appendingPathComponent("ArchivedMod")
+        try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
+        try writeManifest(name: "Archived Mod", to: modURL)
+
+        let outsideDirectory = temporaryDirectory.appendingPathComponent(
+            "Outside Archive",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: outsideDirectory,
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: install.archivedModsDirectoryURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createSymbolicLink(
+            at: install.archivedModsDirectoryURL,
+            withDestinationURL: outsideDirectory
+        )
+
+        XCTAssertThrowsError(
+            try ModArchive.archive(
+                modURL,
+                into: install,
+                reason: .deleted
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? FileMoveTransactionSecurityError,
+                .symbolicLinkEndpoint
+            )
+        }
+        XCTAssertTrue(FileManager.default.directoryExists(at: modURL))
+        XCTAssertTrue(
+            try FileManager.default.contentsOfDirectory(atPath: outsideDirectory.path).isEmpty
+        )
+    }
+
+    func testArchiveBrowserIgnoresSymbolicLinkContainers() throws {
+        let archiveDirectory = temporaryDirectory.appendingPathComponent(
+            "Archived Mods",
+            isDirectory: true
+        )
+        let outsideContainer = temporaryDirectory.appendingPathComponent(
+            "Outside Container",
+            isDirectory: true
+        )
+        let outsideMod = outsideContainer.appendingPathComponent(
+            "Outside Mod",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: archiveDirectory,
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: outsideMod,
+            withIntermediateDirectories: true
+        )
+        try writeManifest(name: "Outside Mod", to: outsideMod)
+        try FileManager.default.createSymbolicLink(
+            at: archiveDirectory.appendingPathComponent("Linked Container"),
+            withDestinationURL: outsideContainer
+        )
+
+        XCTAssertTrue(
+            try ModArchive.archivedMods(in: archiveDirectory).isEmpty
+        )
+        XCTAssertTrue(FileManager.default.directoryExists(at: outsideMod))
     }
 
     func testLegacyArchiveContainerWithoutSidecarStillParses() throws {
@@ -1712,14 +2156,18 @@ final class ModLibraryTests: SeedBoxTestCase {
     }
 
     func testRestoringLastArchivedModRemovesContainerDespiteSidecar() throws {
-        let modsDirectory = try makeModsDirectory()
-        let install = StardewInstall(modsDirectory: modsDirectory)
+        let install = try makeInstall()
         let archiveDirectory = install.archivedModsDirectoryURL
         let modURL = install.modDirectoryURL.appendingPathComponent("RestorableMod")
         try FileManager.default.createDirectory(at: modURL, withIntermediateDirectories: true)
         try writeManifest(name: "Restorable Mod", to: modURL)
 
-        _ = try ModArchive.archive(modURL, in: archiveDirectory, reason: .deleted)
+        _ = try ModArchive.archive(
+            modURL,
+            into: install,
+            archiveDirectory: archiveDirectory,
+            reason: .deleted
+        )
         let archivedMod = try XCTUnwrap(ModArchive.archivedMods(in: archiveDirectory).first)
 
         _ = try ModLibrary.restoreArchivedMods(
@@ -1739,7 +2187,11 @@ final class ModLibraryTests: SeedBoxTestCase {
         let children = (try? FileManager.default.contentsOfDirectory(
             atPath: FileManager.default.temporaryDirectory.path
         )) ?? []
-        return Set(children.filter { $0.hasPrefix("SeedBoxZip-") })
+        return Set(
+            children.filter {
+                $0.hasPrefix(ModImportSecurity.extractionDirectoryPrefix)
+            }
+        )
     }
 
     private func makeZip(from sourceURL: URL, to zipURL: URL) throws {

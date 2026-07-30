@@ -64,21 +64,22 @@ represent App Store Connect versions.
 - An App Store Connect app record before the first Mac App Store upload.
 - A valid **Developer ID Application** certificate for Steam and optional
   direct-download builds.
-- A `notarytool` keychain profile or notary credentials for Steam and optional
-  direct-download notarization.
+- A `notarytool` Keychain profile for Steam and optional direct-download
+  notarization.
 
 Create the local notary profile once:
 
 ```sh
 xcrun notarytool store-credentials seedbox-notary \
   --apple-id "you@example.com" \
-  --team-id PUT2KYMV2W \
-  --password "app-specific-password"
+  --team-id PUT2KYMV2W
 ```
 
-Use an app-specific password for notarization. Keep notary credentials,
-app-specific passwords, exported certificates, and keychain files in Keychain or
-secret storage outside the repository.
+`notarytool` securely prompts for the app-specific password and stores the
+credentials in Keychain. The release script accepts only the saved profile
+name; it never accepts a password or private key through an argument or
+environment variable. Keep exported certificates and keychain files outside
+the repository.
 
 ## Mac App Store Flow
 
@@ -151,8 +152,13 @@ The script writes release artifacts to `dist/`, which is ignored by Git:
 - `SeedBox-Steam-<version>.zip`
 - `SeedBox-Steam-<version>-manifest.json`
 
-The manifest records the version, build number, bundle identifier, team ID,
-archive path, ZIP path, SHA-256 hash, and whether the ZIP was notarized.
+The manifest records the release channel, version, build number, bundle
+identifier, team ID, ZIP file name, SHA-256 hash, and whether the ZIP was
+notarized. It does not expose local archive, app, or output paths.
+
+Each run uses a new owner-only directory in macOS's per-user temporary
+directory. The script removes that workspace when it exits, including after a
+failed release.
 
 ## Verification
 
@@ -164,8 +170,8 @@ The full release flow verifies:
   team;
 - the App Store-candidate build includes the sandbox, security-scoped bookmark,
   user-selected file access, and network client entitlements;
-- the Steam build omits the App Sandbox entitlement and includes Steam's
-  hardened-runtime compatibility entitlements;
+- the Steam build omits the App Sandbox entitlement and unnecessary hardened
+  runtime exception entitlements;
 - direct Downloads folder access is absent because imports use user-selected
   file access;
 - debug signing entitlements are absent;

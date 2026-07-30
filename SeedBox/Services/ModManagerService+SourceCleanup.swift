@@ -18,7 +18,7 @@ extension ModManagerService {
         var nextState = state
         nextState.pendingSourceCleanupOffer = nil
 
-        let cleanupResult = trashSourceFiles(offer.sourceURLs)
+        let cleanupResult = trashSourceFiles(offer.candidates)
         let summary = sourceTrashSummary(for: cleanupResult)
         auditSourceTrashResult(
             cleanupResult,
@@ -43,21 +43,21 @@ extension ModManagerService {
             return
         }
 
-        let cleanableURLs = cleanableSourceURLs(
+        let cleanableCandidates = cleanableSourceCandidates(
             selectedURLs,
             excludingDescendantsOf: install(for: state).modDirectoryURL
         )
-        guard !cleanableURLs.isEmpty else {
+        guard !cleanableCandidates.isEmpty else {
             state.pendingSourceCleanupOffer = nil
             return
         }
 
         if settings.moveModFilesToTrashAfterAddingMods {
-            let cleanupResult = trashSourceFiles(cleanableURLs)
+            let cleanupResult = trashSourceFiles(cleanableCandidates)
             let cleanupSummary = sourceTrashSummary(for: cleanupResult)
             auditSourceTrashResult(
                 cleanupResult,
-                sourceURLs: cleanableURLs,
+                sourceURLs: cleanableCandidates.map(\.url),
                 summary: cleanupSummary,
                 in: &state
             )
@@ -65,7 +65,7 @@ extension ModManagerService {
             state.pendingSourceCleanupOffer = settings.suppressAddModsSuccessNotification
                 ? nil
                 : SourceCleanupOffer(
-                    sourceURLs: cleanableURLs,
+                    candidates: cleanableCandidates,
                     importSummary: importSummary,
                     cleanupSummary: cleanupSummary,
                     isNotificationOnly: true
@@ -79,18 +79,18 @@ extension ModManagerService {
         }
 
         state.pendingSourceCleanupOffer = SourceCleanupOffer(
-            sourceURLs: cleanableURLs,
+            candidates: cleanableCandidates,
             importSummary: importSummary
         )
     }
 
-    private func cleanableSourceURLs(
+    private func cleanableSourceCandidates(
         _ sourceURLs: [URL],
         excludingDescendantsOf excludedDirectoryURL: URL
-    ) -> [URL] {
+    ) -> [SourceCleanupCandidate] {
         let excludedPath = standardizedPath(for: excludedDirectoryURL)
         var seenPaths: Set<String> = []
-        var cleanableURLs: [URL] = []
+        var candidates: [SourceCleanupCandidate] = []
 
         for sourceURL in sourceURLs {
             let sourcePath = standardizedPath(for: sourceURL)
@@ -102,17 +102,31 @@ extension ModManagerService {
                 continue
             }
 
+            let token = SecurityScopedAccessToken(url: sourceURL)
+            defer {
+                token.stop()
+            }
+            guard let identity = SourceFileIdentity(url: sourceURL) else {
+                continue
+            }
+
             seenPaths.insert(sourcePath)
-            cleanableURLs.append(sourceURL)
+            candidates.append(
+                SourceCleanupCandidate(
+                    url: sourceURL,
+                    identity: identity
+                )
+            )
         }
 
-        return cleanableURLs
+        return candidates
     }
 
-    private func trashSourceFiles(_ sourceURLs: [URL]) -> SourceTrashResult {
+    private func trashSourceFiles(_ candidates: [SourceCleanupCandidate]) -> SourceTrashResult {
         var result = SourceTrashResult()
 
-        for sourceURL in sourceURLs {
+        for candidate in candidates {
+            let sourceURL = candidate.url
             let token = SecurityScopedAccessToken(url: sourceURL)
             defer {
                 token.stop()
@@ -124,6 +138,16 @@ extension ModManagerService {
                         SourceTrashFailure(
                             url: sourceURL,
                             message: AppStrings.SourceCleanup.fileNoLongerExists
+                        )
+                    )
+                    continue
+                }
+
+                guard candidate.identity.matchesFile(at: sourceURL) else {
+                    result.failures.append(
+                        SourceTrashFailure(
+                            url: sourceURL,
+                            message: AppStrings.SourceCleanup.fileChangedSinceImport
                         )
                     )
                     continue

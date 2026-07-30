@@ -147,9 +147,10 @@ extension ModManagerService {
     }
 
     func pruneExpiredArchiveCount(in state: ModManagerState) throws -> Int {
-        try ModArchive.pruneExpiredArchives(
-            in: install(for: state).archivedModsDirectoryURL,
-            olderThan: Date().addingTimeInterval(-state.archiveSettings.retentionInterval)
+        let currentInstall = install(for: state)
+        return try ModArchive.pruneExpiredArchives(
+            in: currentInstall,
+            olderThan: state.archiveSettings.expirationCutoffDate()
         )
     }
 }

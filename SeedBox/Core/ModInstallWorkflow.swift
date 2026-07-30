@@ -3,6 +3,7 @@ import Foundation
 enum ModInstallWorkflow {
     static let installStagingDirectoryPrefix = ".seedbox-install-staging-"
     private static let installStagingMarkerFileName = ".seedbox-staging"
+    private static let maximumPreservedConfigByteCount = 64 * 1_024 * 1_024
 
     static func installMods(
         from sourceURLs: [URL],
@@ -18,12 +19,11 @@ enum ModInstallWorkflow {
         }
 
         let resolvedArchiveDirectory = archiveDirectory ?? install.archivedModsDirectoryURL
-        try FileMoveTransaction.recoverIfNeeded(
-            in: resolvedArchiveDirectory,
-            fileManager: fileManager
+        let transactionContext = install.fileMoveTransactionContext(
+            archiveDirectory: resolvedArchiveDirectory
         )
         try FileMoveTransaction.recoverIfNeeded(
-            in: install.modDirectoryURL,
+            context: transactionContext,
             fileManager: fileManager
         )
         try removeAbandonedStagingDirectories(
@@ -31,27 +31,27 @@ enum ModInstallWorkflow {
             fileManager: fileManager
         )
 
-        var result = ModInstallResult()
-        var pendingOperations: [PendingInstallOperation] = []
-        var temporaryExtractionDirectories: [URL] = []
+        let installSources = try ModInstallSourceResolver.resolveAll(
+            from: sourceURLs,
+            fileManager: fileManager
+        )
+        let temporaryExtractionDirectories = installSources
+            .compactMap(\.temporaryExtractionDirectory)
         defer {
             for temporaryExtractionDirectory in temporaryExtractionDirectories {
                 try? fileManager.removeItem(at: temporaryExtractionDirectory)
             }
         }
 
+        var result = ModInstallResult()
+        var pendingOperations: [PendingInstallOperation] = []
         var classifier = ModInstallClassifier(
             install: install,
             enabled: enabled,
             fileManager: fileManager
         )
 
-        for sourceURL in sourceURLs {
-            let installSource = try ModInstallSourceResolver.resolve(from: sourceURL, fileManager: fileManager)
-            if let temporaryExtractionDirectory = installSource.temporaryExtractionDirectory {
-                temporaryExtractionDirectories.append(temporaryExtractionDirectory)
-            }
-
+        for (sourceURL, installSource) in zip(sourceURLs, installSources) {
             guard !installSource.candidates.isEmpty else {
                 throw ModLibraryError.noInstallableMods(sourceURL)
             }
@@ -117,20 +117,49 @@ enum ModInstallWorkflow {
             return result
         }
 
+        var requiredStagingByteCount: UInt64 = 0
+        for pendingOperation in pendingOperations {
+            let candidate: ModInstallCandidate
+            switch pendingOperation {
+            case .install(let pendingCandidate, _),
+                 .update(let pendingCandidate, _, _):
+                candidate = pendingCandidate
+            }
+            let usage = try ModImportSecurity.validateImportTree(
+                at: candidate.sourceURL,
+                fileManager: fileManager
+            )
+            let (newTotal, didOverflow) = requiredStagingByteCount.addingReportingOverflow(
+                usage.totalByteCount
+            )
+            requiredStagingByteCount = didOverflow ? .max : newTotal
+        }
+        try ModImportSecurity.validateAvailableCapacity(
+            for: requiredStagingByteCount,
+            sourceURL: sourceURLs.first ?? install.modDirectoryURL,
+            destinationDirectoryURL: install.modDirectoryURL
+        )
+
         let stagingDirectoryURL = install.modDirectoryURL.appendingPathComponent(
             "\(installStagingDirectoryPrefix)\(UUID().uuidString)",
             isDirectory: true
         )
         try fileManager.createDirectory(
             at: stagingDirectoryURL,
-            withIntermediateDirectories: false
+            withIntermediateDirectories: false,
+            attributes: [.posixPermissions: 0o700]
         )
-        try Data().write(
-            to: stagingDirectoryURL.appendingPathComponent(
-                installStagingMarkerFileName
-            ),
-            options: .atomic
-        )
+        do {
+            try Data().write(
+                to: stagingDirectoryURL.appendingPathComponent(
+                    installStagingMarkerFileName
+                ),
+                options: .atomic
+            )
+        } catch {
+            try? fileManager.removeItem(at: stagingDirectoryURL)
+            throw error
+        }
         defer {
             try? fileManager.removeItem(at: stagingDirectoryURL)
         }
@@ -163,6 +192,10 @@ enum ModInstallWorkflow {
                 isDirectory: true
             )
             try fileManager.copyItem(at: candidate.sourceURL, to: stagedURL)
+            _ = try ModImportSecurity.validateImportTree(
+                at: stagedURL,
+                fileManager: fileManager
+            )
             let configOutcome = existingMod.map {
                 preserveUserConfig(
                     from: $0.url,
@@ -216,7 +249,7 @@ enum ModInstallWorkflow {
         do {
             try FileMoveTransaction.perform(
                 (archivePlan?.operations ?? []) + installMoves,
-                journalDirectoryURL: install.modDirectoryURL,
+                context: transactionContext,
                 fileManager: fileManager,
                 moveItem: moveItem
             )
@@ -274,8 +307,13 @@ enum ModInstallWorkflow {
             throw ModLibraryError.modFolderMissing(install.modDirectoryURL)
         }
 
+        let installSources = try ModInstallSourceResolver.resolveAll(
+            from: sourceURLs,
+            fileManager: fileManager
+        )
         var items: [ModImportPreviewItem] = []
-        var temporaryExtractionDirectories: [URL] = []
+        let temporaryExtractionDirectories = installSources
+            .compactMap(\.temporaryExtractionDirectory)
         // On success the extraction directories outlive this call: the preview
         // owns them until it is installed or discarded.
         var shouldRemoveTemporaryExtractionDirectories = true
@@ -293,12 +331,7 @@ enum ModInstallWorkflow {
             fileManager: fileManager
         )
 
-        for sourceURL in sourceURLs {
-            let installSource = try ModInstallSourceResolver.resolve(from: sourceURL, fileManager: fileManager)
-            if let temporaryExtractionDirectory = installSource.temporaryExtractionDirectory {
-                temporaryExtractionDirectories.append(temporaryExtractionDirectory)
-            }
-
+        for (sourceURL, installSource) in zip(sourceURLs, installSources) {
             guard !installSource.candidates.isEmpty else {
                 throw ModLibraryError.noInstallableMods(sourceURL)
             }
@@ -406,21 +439,31 @@ enum ModInstallWorkflow {
     ) throws {
         let children = try fileManager.contentsOfDirectory(
             at: modsDirectoryURL,
-            includingPropertiesForKeys: [.isDirectoryKey],
+            includingPropertiesForKeys: [
+                .isDirectoryKey,
+                .isSymbolicLinkKey
+            ],
             options: []
         )
         for childURL in children
-        where childURL.lastPathComponent.hasPrefix(installStagingDirectoryPrefix)
-            && fileManager.directoryExists(at: childURL) {
+        where childURL.lastPathComponent.hasPrefix(installStagingDirectoryPrefix) {
+            let childValues = try childURL.resourceValues(
+                forKeys: [.isDirectoryKey, .isSymbolicLinkKey]
+            )
+            guard childValues.isDirectory == true,
+                  childValues.isSymbolicLink != true
+            else {
+                continue
+            }
+
             let markerURL = childURL.appendingPathComponent(
                 installStagingMarkerFileName
             )
-            let contents = try fileManager.contentsOfDirectory(
-                at: childURL,
-                includingPropertiesForKeys: nil
+            let markerValues = try? markerURL.resourceValues(
+                forKeys: [.isRegularFileKey, .isSymbolicLinkKey]
             )
-            guard fileManager.fileExists(atPath: markerURL.path)
-                    || contents.isEmpty
+            guard (markerValues?.isRegularFile == true
+                    && markerValues?.isSymbolicLink != true)
             else {
                 continue
             }
@@ -435,9 +478,7 @@ enum ModInstallWorkflow {
     ) -> ConfigPreservationOutcome {
         let configFileName = "config.json"
         let sourceConfigURL = sourceModURL.appendingPathComponent(configFileName)
-        guard fileManager.fileExists(atPath: sourceConfigURL.path),
-              !fileManager.directoryExists(at: sourceConfigURL)
-        else {
+        guard fileManager.fileExists(atPath: sourceConfigURL.path) else {
             return .nothingToPreserve
         }
 
@@ -446,7 +487,11 @@ enum ModInstallWorkflow {
         try? fileManager.removeItem(at: stagedConfigURL)
 
         do {
-            try fileManager.copyItem(at: sourceConfigURL, to: stagedConfigURL)
+            let configData = try BoundedFileReader.readRegularFile(
+                at: sourceConfigURL,
+                maximumByteCount: maximumPreservedConfigByteCount
+            )
+            try configData.write(to: stagedConfigURL, options: .atomic)
             if fileManager.fileExists(atPath: destinationConfigURL.path) {
                 _ = try fileManager.replaceItemAt(destinationConfigURL, withItemAt: stagedConfigURL)
             } else {

@@ -30,7 +30,10 @@ struct ModInfo: Identifiable, Equatable, Sendable {
     static func stableID(folderName: String, url: URL) -> String {
         let parentPath = url.deletingLastPathComponent().standardizedFileURL.path
         let folderToken = folderName.normalizedFolderToken
-        return "\(parentPath)#\(folderToken)"
+        let digest = StableDigest.sha256Hex(
+            components: [parentPath, folderToken]
+        )
+        return "mod-\(digest)"
     }
 
     var enabledFolderName: String {

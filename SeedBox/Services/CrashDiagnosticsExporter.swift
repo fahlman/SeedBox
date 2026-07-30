@@ -7,6 +7,38 @@ struct CrashDiagnosticsExportSummary: Equatable, Sendable {
     var archiveByteCount: Int
 }
 
+struct CrashDiagnosticsExportLimits: Equatable, Sendable {
+    static let standard = CrashDiagnosticsExportLimits(
+        maximumPayloadCount: CrashDiagnosticsCollector.defaultMaximumPayloadCount,
+        maximumPayloadByteCount: CrashDiagnosticsCollector.defaultMaximumByteCount,
+        maximumTotalPayloadByteCount: CrashDiagnosticsCollector.defaultMaximumByteCount
+    )
+
+    var maximumPayloadCount: Int
+    var maximumPayloadByteCount: Int
+    var maximumTotalPayloadByteCount: Int
+}
+
+enum CrashDiagnosticsExportError: Error, Equatable, LocalizedError, Sendable {
+    case tooManyPayloads(maximumCount: Int)
+    case payloadTooLarge(fileName: String, maximumByteCount: Int)
+    case payloadsTooLarge(maximumByteCount: Int)
+    case invalidPayload(fileName: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .tooManyPayloads:
+            String(localized: "There are too many diagnostic files to export safely.")
+        case .payloadTooLarge:
+            String(localized: "A diagnostic file is too large to export safely.")
+        case .payloadsTooLarge:
+            String(localized: "The stored diagnostics are too large to export safely.")
+        case .invalidPayload:
+            String(localized: "A stored diagnostic file could not be read safely.")
+        }
+    }
+}
+
 struct CrashDiagnosticsExportContext: Equatable, Sendable {
     var appVersion: String
     var buildVersion: String
@@ -43,6 +75,9 @@ struct CrashDiagnosticsSummary: Equatable, Sendable {
 
 enum CrashDiagnosticsExporter {
     private static let supportDirectoryName = "Seed Box Diagnostics"
+    static let stagingDirectoryPrefix = "SeedBoxDiagnostics-"
+    static let stagingMarkerFileName = ".seedbox-diagnostics"
+    static let abandonedStagingAge: TimeInterval = 24 * 60 * 60
 
     static func defaultArchiveName(generatedAt date: Date = Date()) -> String {
         let formatter = DateFormatter()
@@ -69,15 +104,21 @@ enum CrashDiagnosticsExporter {
         return try fileManager
             .contentsOfDirectory(
                 at: diagnosticsDirectory,
-                includingPropertiesForKeys: [.isRegularFileKey],
+                includingPropertiesForKeys: [
+                    .isRegularFileKey,
+                    .isSymbolicLinkKey
+                ],
                 options: [.skipsHiddenFiles]
             )
             .filter { url in
                 guard url.pathExtension.lowercased() == "json" else {
                     return false
                 }
-                let values = try? url.resourceValues(forKeys: [.isRegularFileKey])
+                let values = try? url.resourceValues(
+                    forKeys: [.isRegularFileKey, .isSymbolicLinkKey]
+                )
                 return values?.isRegularFile == true
+                    && values?.isSymbolicLink != true
             }
             .sorted {
                 $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
@@ -116,15 +157,27 @@ enum CrashDiagnosticsExporter {
         to destinationURL: URL,
         context: CrashDiagnosticsExportContext = .current(),
         generatedAt date: Date = Date(),
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        limits: CrashDiagnosticsExportLimits = .standard,
+        temporaryDirectoryURL: URL? = nil
     ) throws -> CrashDiagnosticsExportSummary {
         let payloadURLs = try diagnosticPayloadURLs(
             in: diagnosticsDirectory,
             fileManager: fileManager
         )
 
-        let stagingDirectory = fileManager.temporaryDirectory
-            .appendingPathComponent("SeedBoxDiagnostics-\(UUID().uuidString)", isDirectory: true)
+        let temporaryDirectory = temporaryDirectoryURL
+            ?? fileManager.temporaryDirectory
+        removeAbandonedStagingDirectories(
+            in: temporaryDirectory,
+            fileManager: fileManager
+        )
+        let stagingDirectory = try SecureTemporaryWorkspace.create(
+            in: temporaryDirectory,
+            prefix: stagingDirectoryPrefix,
+            markerFileName: stagingMarkerFileName,
+            fileManager: fileManager
+        )
         let bundleDirectory = stagingDirectory
             .appendingPathComponent(supportDirectoryName, isDirectory: true)
         let temporaryArchiveURL = stagingDirectory
@@ -139,7 +192,8 @@ enum CrashDiagnosticsExporter {
             payloadURLs: payloadURLs,
             context: context,
             generatedAt: date,
-            fileManager: fileManager
+            fileManager: fileManager,
+            limits: limits
         )
 
         try fileManager.zipItem(
@@ -171,14 +225,19 @@ enum CrashDiagnosticsExporter {
         payloadURLs: [URL],
         context: CrashDiagnosticsExportContext,
         generatedAt date: Date,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        limits: CrashDiagnosticsExportLimits = .standard
     ) throws -> CrashDiagnosticsExportSummary {
+        let validatedPayloadURLs = try validatedPayloadURLs(
+            payloadURLs,
+            limits: limits
+        )
         try fileManager.createDirectory(at: bundleDirectory, withIntermediateDirectories: true)
 
         let paths = knownPrivatePaths(in: context.state)
         var supportFileCount = 0
 
-        try diagnosticsReadme(payloadCount: payloadURLs.count, generatedAt: date)
+        try diagnosticsReadme(payloadCount: validatedPayloadURLs.count, generatedAt: date)
             .write(
                 to: bundleDirectory.appendingPathComponent("README.txt"),
                 atomically: true,
@@ -191,11 +250,12 @@ enum CrashDiagnosticsExporter {
                 generatedAt: iso8601String(from: date),
                 appVersion: context.appVersion,
                 buildVersion: context.buildVersion,
-                metricKitPayloadCount: payloadURLs.count,
+                metricKitPayloadCount: validatedPayloadURLs.count,
                 includesAppState: context.state != nil
             ),
             named: "App Summary.json",
-            in: bundleDirectory
+            in: bundleDirectory,
+            knownPrivatePaths: paths
         )
         supportFileCount += 1
 
@@ -203,21 +263,24 @@ enum CrashDiagnosticsExporter {
             try writeJSON(
                 SettingsSummary(state: state),
                 named: "Settings Summary.json",
-                in: bundleDirectory
+                in: bundleDirectory,
+                knownPrivatePaths: paths
             )
             supportFileCount += 1
 
             try writeJSON(
                 InventorySummary(state: state),
                 named: "Mod Inventory Summary.json",
-                in: bundleDirectory
+                in: bundleDirectory,
+                knownPrivatePaths: paths
             )
             supportFileCount += 1
 
             try writeJSON(
                 AuditSummary(state: state, knownPrivatePaths: paths),
                 named: "Audit Summary.json",
-                in: bundleDirectory
+                in: bundleDirectory,
+                knownPrivatePaths: paths
             )
             supportFileCount += 1
 
@@ -225,29 +288,48 @@ enum CrashDiagnosticsExporter {
                 try writeJSON(
                     LastSessionSummary(report: report, knownPrivatePaths: paths),
                     named: "Last Session Summary.json",
-                    in: bundleDirectory
-                )
-                supportFileCount += 1
-            }
-        }
-
-        if !payloadURLs.isEmpty {
-            let payloadDirectory = bundleDirectory
-                .appendingPathComponent("MetricKit Payloads", isDirectory: true)
-            try fileManager.createDirectory(at: payloadDirectory, withIntermediateDirectories: true)
-
-            for payloadURL in payloadURLs {
-                try writeSanitizedMetricKitPayload(
-                    from: payloadURL,
-                    to: payloadDirectory.appendingPathComponent(payloadURL.lastPathComponent),
+                    in: bundleDirectory,
                     knownPrivatePaths: paths
                 )
                 supportFileCount += 1
             }
         }
 
+        if !validatedPayloadURLs.isEmpty {
+            let payloadDirectory = bundleDirectory
+                .appendingPathComponent("MetricKit Payloads", isDirectory: true)
+            try fileManager.createDirectory(at: payloadDirectory, withIntermediateDirectories: true)
+
+            var totalPayloadByteCount = 0
+            for payloadURL in validatedPayloadURLs {
+                let sanitizedPayload = try sanitizedMetricKitPayload(
+                    from: payloadURL,
+                    knownPrivatePaths: paths,
+                    maximumByteCount: limits.maximumPayloadByteCount
+                )
+                let total = totalPayloadByteCount.addingReportingOverflow(
+                    sanitizedPayload.sourceByteCount
+                )
+                guard !total.overflow,
+                      total.partialValue <= limits.maximumTotalPayloadByteCount
+                else {
+                    throw CrashDiagnosticsExportError.payloadsTooLarge(
+                        maximumByteCount: limits.maximumTotalPayloadByteCount
+                    )
+                }
+                totalPayloadByteCount = total.partialValue
+                try sanitizedPayload.data.write(
+                    to: payloadDirectory.appendingPathComponent(
+                        payloadURL.lastPathComponent
+                    ),
+                    options: .atomic
+                )
+                supportFileCount += 1
+            }
+        }
+
         return CrashDiagnosticsExportSummary(
-            payloadCount: payloadURLs.count,
+            payloadCount: validatedPayloadURLs.count,
             supportFileCount: supportFileCount,
             archiveByteCount: 0
         )
@@ -269,12 +351,25 @@ enum CrashDiagnosticsExporter {
     private static func writeJSON<Value: Encodable>(
         _ value: Value,
         named fileName: String,
-        in directoryURL: URL
+        in directoryURL: URL,
+        knownPrivatePaths: [String]
     ) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(value)
-        try data.write(to: directoryURL.appendingPathComponent(fileName), options: .atomic)
+        let object = try JSONSerialization.jsonObject(with: data)
+        let sanitizedObject = sanitizedJSONObject(
+            object,
+            knownPrivatePaths: knownPrivatePaths
+        )
+        let sanitizedData = try JSONSerialization.data(
+            withJSONObject: sanitizedObject,
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        try sanitizedData.write(
+            to: directoryURL.appendingPathComponent(fileName),
+            options: .atomic
+        )
     }
 
     fileprivate static func iso8601String(from date: Date?) -> String? {
@@ -370,13 +465,36 @@ enum CrashDiagnosticsExporter {
         }
     }
 
-    private static func writeSanitizedMetricKitPayload(
+    private static func sanitizedMetricKitPayload(
         from sourceURL: URL,
-        to destinationURL: URL,
-        knownPrivatePaths: [String]
-    ) throws {
-        let data = try Data(contentsOf: sourceURL)
-        let object = try JSONSerialization.jsonObject(with: data)
+        knownPrivatePaths: [String],
+        maximumByteCount: Int
+    ) throws -> (data: Data, sourceByteCount: Int) {
+        let data: Data
+        do {
+            data = try BoundedFileReader.readRegularFile(
+                at: sourceURL,
+                maximumByteCount: maximumByteCount
+            )
+        } catch BoundedFileReadError.exceedsLimit {
+            throw CrashDiagnosticsExportError.payloadTooLarge(
+                fileName: sourceURL.lastPathComponent,
+                maximumByteCount: maximumByteCount
+            )
+        } catch {
+            throw CrashDiagnosticsExportError.invalidPayload(
+                fileName: sourceURL.lastPathComponent
+            )
+        }
+
+        let object: Any
+        do {
+            object = try JSONSerialization.jsonObject(with: data)
+        } catch {
+            throw CrashDiagnosticsExportError.invalidPayload(
+                fileName: sourceURL.lastPathComponent
+            )
+        }
         let sanitizedObject = sanitizedJSONObject(
             object,
             knownPrivatePaths: knownPrivatePaths
@@ -385,7 +503,83 @@ enum CrashDiagnosticsExporter {
             withJSONObject: sanitizedObject,
             options: [.prettyPrinted, .sortedKeys]
         )
-        try sanitizedData.write(to: destinationURL, options: .atomic)
+        return (sanitizedData, data.count)
+    }
+
+    private static func validatedPayloadURLs(
+        _ payloadURLs: [URL],
+        limits: CrashDiagnosticsExportLimits
+    ) throws -> [URL] {
+        guard payloadURLs.count <= limits.maximumPayloadCount else {
+            throw CrashDiagnosticsExportError.tooManyPayloads(
+                maximumCount: limits.maximumPayloadCount
+            )
+        }
+
+        var totalByteCount = 0
+        var seenFileNames: Set<String> = []
+        for payloadURL in payloadURLs {
+            guard seenFileNames.insert(payloadURL.lastPathComponent).inserted else {
+                throw CrashDiagnosticsExportError.invalidPayload(
+                    fileName: payloadURL.lastPathComponent
+                )
+            }
+
+            let values: URLResourceValues
+            do {
+                values = try payloadURL.resourceValues(
+                    forKeys: [
+                        .fileSizeKey,
+                        .isRegularFileKey,
+                        .isSymbolicLinkKey
+                    ]
+                )
+            } catch {
+                throw CrashDiagnosticsExportError.invalidPayload(
+                    fileName: payloadURL.lastPathComponent
+                )
+            }
+            guard values.isRegularFile == true,
+                  values.isSymbolicLink != true
+            else {
+                throw CrashDiagnosticsExportError.invalidPayload(
+                    fileName: payloadURL.lastPathComponent
+                )
+            }
+
+            let byteCount = max(0, values.fileSize ?? 0)
+            guard byteCount <= limits.maximumPayloadByteCount else {
+                throw CrashDiagnosticsExportError.payloadTooLarge(
+                    fileName: payloadURL.lastPathComponent,
+                    maximumByteCount: limits.maximumPayloadByteCount
+                )
+            }
+            let total = totalByteCount.addingReportingOverflow(byteCount)
+            guard !total.overflow,
+                  total.partialValue <= limits.maximumTotalPayloadByteCount
+            else {
+                throw CrashDiagnosticsExportError.payloadsTooLarge(
+                    maximumByteCount: limits.maximumTotalPayloadByteCount
+                )
+            }
+            totalByteCount = total.partialValue
+        }
+        return payloadURLs
+    }
+
+    static func removeAbandonedStagingDirectories(
+        in temporaryDirectory: URL,
+        now: Date = Date(),
+        fileManager: FileManager = .default
+    ) {
+        SecureTemporaryWorkspace.removeAbandonedDirectories(
+            in: temporaryDirectory,
+            prefix: stagingDirectoryPrefix,
+            markerFileName: stagingMarkerFileName,
+            olderThan: abandonedStagingAge,
+            now: now,
+            fileManager: fileManager
+        )
     }
 
     private static func sanitizedJSONObject(
@@ -400,12 +594,24 @@ enum CrashDiagnosticsExporter {
                 sanitizedJSONObject($0, knownPrivatePaths: knownPrivatePaths)
             }
         case let dictionary as [String: Any]:
-            return Dictionary(uniqueKeysWithValues: dictionary.map { key, value in
-                (
+            var sanitizedDictionary: [String: Any] = [:]
+            for (key, childValue) in dictionary {
+                let redactedKey = redacted(
                     key,
-                    sanitizedJSONObject(value, knownPrivatePaths: knownPrivatePaths)
+                    knownPrivatePaths: knownPrivatePaths
                 )
-            })
+                var uniqueKey = redactedKey
+                var collisionIndex = 2
+                while sanitizedDictionary[uniqueKey] != nil {
+                    uniqueKey = "\(redactedKey) [\(collisionIndex)]"
+                    collisionIndex += 1
+                }
+                sanitizedDictionary[uniqueKey] = sanitizedJSONObject(
+                    childValue,
+                    knownPrivatePaths: knownPrivatePaths
+                )
+            }
+            return sanitizedDictionary
         default:
             return value
         }
@@ -608,7 +814,12 @@ private struct AuditSubjectSummary: Encodable {
 
     init(subject: AuditLogSubject, knownPrivatePaths: [String]) {
         kind = subject.kind.rawValue
-        id = subject.id
+        id = subject.id.map {
+            CrashDiagnosticsExporter.redacted(
+                $0,
+                knownPrivatePaths: knownPrivatePaths
+            )
+        }
         name = CrashDiagnosticsExporter.redacted(subject.name, knownPrivatePaths: knownPrivatePaths)
         hadPath = subject.path != nil
     }

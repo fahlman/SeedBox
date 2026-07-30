@@ -47,7 +47,12 @@ enum ModSetTransfer {
     ) throws -> ModSet {
         let data: Data
         do {
-            data = try Data(contentsOf: url)
+            data = try BoundedFileReader.readRegularFile(
+                at: url,
+                maximumByteCount: SeedBoxSetDocument.maximumDocumentByteCount
+            )
+        } catch BoundedFileReadError.exceedsLimit {
+            throw SeedBoxSetError.tooLarge
         } catch {
             throw SeedBoxSetError.malformedData
         }
